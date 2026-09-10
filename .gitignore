@@ -1,0 +1,24 @@
+# Archivos de contexto local para Claude Code (no se comparten en el repo)
+CLAUDE.md
+PROGRESS.md
+
+# Carpeta de trabajo interna de Claude Code (planes/ledgers de subagentes)
+.superpowers/
+docs/superpowers/
+
+# Secretos / configuración local (IP real del backend, tokens, etc.)
+.env
+.env.*
+*_local.dart
+**/server_config_local.dart
+
+# Configuración de editor personal
+.vscode/
+.fleet/
+
+# Backend Python: entorno virtual, cache y calibración local (depende de camara/postura de cada dev)
+backend/venv/
+backend/calibracion.json
+__pycache__/
+*.pyc
+*.pyo
