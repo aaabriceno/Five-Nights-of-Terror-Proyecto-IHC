@@ -85,73 +85,99 @@ class MenuDeTareas extends StatelessWidget {
       );
     }
 
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 2.2,
-      ),
-      itemCount: tareas.length,
-      itemBuilder: (context, indice) {
-        final Task tarea = tareas[indice];
-        final bool bloqueadaPorWifi =
-            tarea.taskType == 'subir_datos' && !wifiActivo;
-        return Opacity(
-          opacity: bloqueadaPorWifi ? 0.4 : 1.0,
-          child: Card(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: bloqueadaPorWifi ? null : () => alElegirTarea(tarea),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: AppColors.acento.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        _iconoPorTipo(tarea.taskType),
-                        color: AppColors.acento,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _nombreLegible(tarea.taskType),
-                            style: Theme.of(context).textTheme.titleMedium,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${tarea.duration}s',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          if (bloqueadaPorWifi)
-                            Text(
-                              'Requiere WiFi activo',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+    return Column(
+      children: [
+        Expanded(
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 3.4,
+            ),
+            itemCount: tareas.length,
+            itemBuilder: (context, indice) {
+              return _buildTarjeta(context, tareas[indice]);
+            },
+          ),
+        ),
+        if (tareas.length > 4) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.keyboard_double_arrow_down,
+                size: 16,
+                color: AppColors.textoSecundario,
               ),
+              const SizedBox(width: 6),
+              Text(
+                'Desliza para ver más tareas',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTarjeta(BuildContext context, Task tarea) {
+    final bool bloqueadaPorWifi =
+        tarea.taskType == 'subir_datos' && !wifiActivo;
+    return Opacity(
+      opacity: bloqueadaPorWifi ? 0.4 : 1.0,
+      child: Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: bloqueadaPorWifi ? null : () => alElegirTarea(tarea),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.acento.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    _iconoPorTipo(tarea.taskType),
+                    color: AppColors.acento,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _nombreLegible(tarea.taskType),
+                        style: Theme.of(context).textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        bloqueadaPorWifi
+                            ? 'Requiere WiFi activo'
+                            : '${tarea.duration}s',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

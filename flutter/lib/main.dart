@@ -41,11 +41,14 @@ class MyApp extends StatelessWidget {
       brightness: Brightness.dark,
       colorScheme: esquemaDeColores,
       scaffoldBackgroundColor: AppColors.fondo,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.fondo,
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.panel,
         foregroundColor: AppColors.textoPrimario,
         elevation: 0,
         centerTitle: false,
+        shape: const Border(
+          bottom: BorderSide(color: AppColors.panelBorde, width: 1),
+        ),
       ),
       cardTheme: CardThemeData(
         color: AppColors.panel,
