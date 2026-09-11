@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/connection_provider.dart';
 import 'providers/game_provider.dart';
-import 'screens/splash_screen.dart';
+import 'screens/menu_principal_screen.dart';
 import 'utils/colors.dart';
 
 void main() {
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: "Five Nights at Freddy's - Tablet",
         theme: _construirTema(),
-        home: const SplashScreen(),
+        home: const MenuPrincipalScreen(),
         debugShowCheckedModeBanner: false,
       ),
     );
