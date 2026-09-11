@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../models/task.dart';
 import '../providers/connection_provider.dart';
 import '../providers/game_provider.dart';
-import '../widgets/barra_de_riesgo.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/barra_reloj_de_noche.dart';
 import '../widgets/placeholder_game_widget.dart';
@@ -77,8 +76,6 @@ class _GameScreenState extends State<GameScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            BarraDeRiesgo(riesgo: game.session.riesgo),
-            const SizedBox(height: 8),
             BarraRelojDeNoche(
               nocheActual: game.session.nocheActual,
               horaEnJuego: game.session.horaEnJuego,
