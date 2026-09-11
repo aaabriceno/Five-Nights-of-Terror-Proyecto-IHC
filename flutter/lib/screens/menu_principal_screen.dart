@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'configurar_servidor_screen.dart';
 import 'splash_screen.dart';
 
 /// Pantalla de menú principal: fondo con el título y las opciones
@@ -120,18 +121,8 @@ class MenuPrincipalScreen extends StatelessWidget {
   }
 
   void _alTocarOpciones(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Opciones'),
-        content: const Text('Próximamente disponible.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const ConfigurarServidorScreen()),
     );
   }
 

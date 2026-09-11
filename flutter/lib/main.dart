@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'config/server_config.dart';
 import 'providers/connection_provider.dart';
 import 'providers/game_provider.dart';
 import 'screens/menu_principal_screen.dart';
 import 'utils/colors.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ServerConfig.cargar();
   runApp(const MyApp());
 }
 
