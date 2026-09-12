@@ -19,6 +19,7 @@ docs/superpowers/
 # Backend Python: entorno virtual, cache y calibración local (depende de camara/postura de cada dev)
 backend/venv/
 backend/calibracion.json
+backend/partida.db
 __pycache__/
 *.pyc
 *.pyo

@@ -4,6 +4,16 @@ from gazeHilo import HiloGaze
 import nivelIA
 import random
 import time
+
+PROBABILIDAD_TAREA_NUEVA_POR_NOCHE = {
+    1: 10,
+    2: 20,
+    3: 30,
+    4: 40,
+    5: 50,
+    6: 60,
+}
+
 class Juego:
     def __init__ (self,numeroNoche,juego = True, tiempoJuegoMinutos = 6, cantidadAnimatronicos = 3, alEventoDeJuego = None):
         self.numeroNoche = numeroNoche
@@ -39,13 +49,19 @@ class Juego:
         rutaRex = ["escenario","nodo1","areaJuegos","nodo3","areaFiestas","nodo5","nodo6","jugador"]
         rutaVixy = ["escenario","nodo2","areaFiestas","nodo3","areaJuegos","nodo4","nodo6","jugador"]
 
-        self.agregarAnimatronico("Freddy", "imgFreddy.png", "sonidoFreddy.mp3", ["habilidad1"], 5, nivelIA.nivel_IA_Animatronico1, rutaFreddy)
+        self.agregarAnimatronico("Freddy", "imgFreddy.png", "sonidoFreddy.mp3", ["habilidad1"], 5, nivelIA.nivel_IA_Animatronico1, rutaFreddy, ["temperatura", "ventiladores", "cables", "dials", "trazar_curso"])
         self.agregarPuppet("Puppet", "imgPuppet.png", "sonidoPuppet.mp3", ["habilidad1"], 5, nivelIA.nivel_IA_Animatronico2, rutaRex)
-        self.agregarAnimatronico("Vixy", "imgVixy.png", "sonidoVixy.mp3", ["habilidad1"], 5, nivelIA.nivel_IA_Animatronico3, rutaVixy)
+        self.agregarAnimatronico(
+            "Vixy", "imgVixy.png", "sonidoVixy.mp3", ["habilidad1"], 5, nivelIA.nivel_IA_Animatronico3, rutaVixy,
+            ["wifi", "sequence", "rhythm", "procesar_datos", "subir_datos"],
+            dependenciasDeTarea={"subir_datos": "wifi"},
+            requiereCompletadaAntes={"subir_datos": "procesar_datos"},
+            horaMinimaPorTarea={"procesar_datos": 4, "subir_datos": 4},
+        )
 
-    def agregarAnimatronico(self, nombre, imagen, sonido, habilidades, tiempoMirarJugador, tablaNivelIA, ruta):
+    def agregarAnimatronico(self, nombre, imagen, sonido, habilidades, tiempoMirarJugador, tablaNivelIA, ruta, tareasAsignadas=None, dependenciasDeTarea=None, requiereCompletadaAntes=None, horaMinimaPorTarea=None):
         nivelInicial = tablaNivelIA[self.numeroNoche]["inicial"]
-        nuevoAnimatronico = Animatronico(nombre, imagen, sonido, habilidades, tiempoMirarJugador, nivelInicial, ruta)
+        nuevoAnimatronico = Animatronico(nombre, imagen, sonido, habilidades, tiempoMirarJugador, nivelInicial, ruta, tareasAsignadas, dependenciasDeTarea, requiereCompletadaAntes, horaMinimaPorTarea)
         self.animatronicos.append(nuevoAnimatronico)
         self.tablasNivelIA[nombre] = tablaNivelIA
 
@@ -71,6 +87,30 @@ class Juego:
     def registrarTareaFallida(self):
         self.tareasFallidas += 1
 
+    def resolverTarea(self, tipoTarea):
+        for animatronico in self.animatronicos:
+            if tipoTarea in animatronico.tareasPendientes:
+                animatronico.resolverTarea(tipoTarea)
+
+    def intentarGenerarTareasNuevas(self):
+        probabilidad = PROBABILIDAD_TAREA_NUEVA_POR_NOCHE.get(self.numeroNoche, 100)
+        for animatronico in self.animatronicos:
+            if not animatronico.tareasAsignadas:
+                continue
+            numero_aleatorio = random.randint(1, 100)
+            if numero_aleatorio <= probabilidad:
+                tareaGenerada, tareasCanceladas = animatronico.generarTareaPendiente(self.horaJuego)
+                if tareaGenerada is not None:
+                    self.emitirEvento("nueva_tarea_pendiente", {
+                        "task_type": tareaGenerada,
+                        "animatronic": animatronico.nombre,
+                    })
+                for tareaCancelada in tareasCanceladas:
+                    self.emitirEvento("tarea_cancelada", {
+                        "task_type": tareaCancelada,
+                        "animatronic": animatronico.nombre,
+                    })
+
     def iniciar(self):
         self.hiloGaze.start()
         while self.juego:
@@ -81,6 +121,7 @@ class Juego:
             if self.segundosAcumulados >= 60 and self.horaJuego < 6:
                 self.segundosAcumulados -= 60
                 self.horaJuego += 1
+                self.intentarGenerarTareasNuevas()
             self.actualizarNivelesIA()
 
             zonaAtencion = self.hiloGaze.obtenerZona()
@@ -97,6 +138,9 @@ class Juego:
                 else:
                     animatronico.moverse()
                     atacoAlJugador = animatronico.observar(zonaAtencion, segundosEspera, self.nodosDeObservacion)
+
+                    if not atacoAlJugador:
+                        atacoAlJugador = animatronico.intentarAtacarPorTareasPendientes(segundosEspera)
 
                 if atacoAlJugador:
                     animatronico.atacar(self)
