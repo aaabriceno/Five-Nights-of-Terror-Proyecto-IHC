@@ -4,7 +4,8 @@ import '../providers/game_provider.dart';
 import '../providers/connection_provider.dart';
 import 'splash_screen.dart';
 
-/// Se muestra cuando el jugador completa la Noche 5 (GameProvider.esVictoriaFinal).
+/// Se muestra cuando el jugador completa la Noche 6 ("Custom Night" extra,
+/// tras las 5 noches base) — GameProvider.esVictoriaFinal.
 class PantallaVictoria extends StatelessWidget {
   const PantallaVictoria({super.key});
 
@@ -18,7 +19,7 @@ class PantallaVictoria extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('¡SOBREVIVISTE LAS 5 NOCHES!',
+            const Text('¡SOBREVIVISTE LA NOCHE EXTRA!',
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Text('Tareas completadas: ${session.tasksCompleted}'),
@@ -30,7 +31,9 @@ class PantallaVictoria extends StatelessWidget {
                 context.read<GameProvider>().reset();
                 context.read<ConnectionProvider>().disconnect();
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SplashScreen(modo: 'nuevo'),
+                  ),
                   (route) => false,
                 );
               },
