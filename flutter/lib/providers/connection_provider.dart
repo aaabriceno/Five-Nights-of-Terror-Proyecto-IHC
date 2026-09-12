@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../config/player_identity.dart';
 import '../config/server_config.dart';
 import '../services/websocket_service.dart';
 import '../services/mock_server_service.dart';
@@ -57,7 +58,7 @@ class ConnectionProvider extends ChangeNotifier {
     _wsService.sendMessage({
       'type': 'connect',
       'device': 'tablet',
-      'player_id': 'player_1',
+      'player_id': PlayerIdentity.playerId,
       'app_version': '0.1.0',
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });

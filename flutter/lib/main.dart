@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'config/player_identity.dart';
 import 'config/server_config.dart';
 import 'providers/connection_provider.dart';
 import 'providers/game_provider.dart';
@@ -9,6 +10,7 @@ import 'utils/colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ServerConfig.cargar();
+  await PlayerIdentity.cargar();
   runApp(const MyApp());
 }
 

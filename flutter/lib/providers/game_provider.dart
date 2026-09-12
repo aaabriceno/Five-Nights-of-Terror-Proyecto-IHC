@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../config/player_identity.dart';
 import '../models/attack.dart';
 import '../models/game_session.dart';
 import '../models/task.dart';
@@ -6,7 +7,7 @@ import '../services/mock_server_service.dart';
 import '../utils/logger.dart';
 
 class GameProvider extends ChangeNotifier {
-  GameSession session = GameSession(playerId: 'player_1');
+  GameSession session = GameSession(playerId: PlayerIdentity.playerId);
   Attack? lastAttack;
   bool isGameOver = false;
   bool esVictoriaFinal = false;
@@ -59,6 +60,19 @@ class GameProvider extends ChangeNotifier {
         } else {
           isGameOver = true;
         }
+        break;
+      case 'reconnect_success':
+        final Map<String, dynamic> datosSesion =
+            message['session_data'] as Map<String, dynamic>? ?? {};
+        if (datosSesion['score'] != null) {
+          session.score = datosSesion['score'] as int;
+        }
+        if (datosSesion['current_task'] != null) {
+          session.currentTask = Task.fromJson(
+            datosSesion['current_task'] as Map<String, dynamic>,
+          );
+        }
+        appLogger.i('Reconexión exitosa, sesión restaurada: $datosSesion');
         break;
       default:
         appLogger.w('Unhandled message type: $type');

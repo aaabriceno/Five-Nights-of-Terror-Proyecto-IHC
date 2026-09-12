@@ -22,9 +22,11 @@ class DialGameWidget extends StatefulWidget {
 }
 
 class _DialGameWidgetState extends State<DialGameWidget> {
-  static const int _cantidadDiales = 2;
-  static const double _tolerancia = 15;
+  static const int _cantidadDialesPorDefecto = 2;
+  static const double _toleranciaPorDefecto = 15;
 
+  late int _cantidadDiales;
+  late double _tolerancia;
   late List<double> _angulosObjetivo;
   late List<double> _angulosActuales;
   late List<GlobalKey> _clavesPerillas;
@@ -36,11 +38,24 @@ class _DialGameWidgetState extends State<DialGameWidget> {
   @override
   void initState() {
     super.initState();
-    final Random random = Random();
-    _angulosObjetivo = List<double>.generate(
-      _cantidadDiales,
-      (_) => (random.nextInt(12) * 30).toDouble(), // múltiplos de 30°
-    );
+    final Map<String, dynamic> params = widget.task.params;
+    _cantidadDiales = (params['num_dials'] as int?) ?? _cantidadDialesPorDefecto;
+    _tolerancia =
+        ((params['tolerance'] as num?) ?? _toleranciaPorDefecto).toDouble();
+
+    final List<dynamic>? objetivosDelServidor = params['targets'] as List<dynamic>?;
+    if (objetivosDelServidor != null && objetivosDelServidor.length == _cantidadDiales) {
+      _angulosObjetivo = objetivosDelServidor
+          .map((valor) => (valor as num).toDouble())
+          .toList();
+    } else {
+      final Random random = Random();
+      _angulosObjetivo = List<double>.generate(
+        _cantidadDiales,
+        (_) => (random.nextInt(12) * 30).toDouble(), // múltiplos de 30°
+      );
+    }
+
     _angulosActuales = List<double>.filled(_cantidadDiales, 0);
     _clavesPerillas = List<GlobalKey>.generate(_cantidadDiales, (_) => GlobalKey());
     _segundosRestantes = widget.task.duration;
