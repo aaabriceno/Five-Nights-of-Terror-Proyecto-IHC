@@ -61,19 +61,6 @@ class GameProvider extends ChangeNotifier {
           isGameOver = true;
         }
         break;
-      case 'reconnect_success':
-        final Map<String, dynamic> datosSesion =
-            message['session_data'] as Map<String, dynamic>? ?? {};
-        if (datosSesion['score'] != null) {
-          session.score = datosSesion['score'] as int;
-        }
-        if (datosSesion['current_task'] != null) {
-          session.currentTask = Task.fromJson(
-            datosSesion['current_task'] as Map<String, dynamic>,
-          );
-        }
-        appLogger.i('Reconexión exitosa, sesión restaurada: $datosSesion');
-        break;
       default:
         appLogger.w('Unhandled message type: $type');
     }
@@ -130,22 +117,6 @@ class GameProvider extends ChangeNotifier {
     lastAttack = null;
     isGameOver = false;
     esVictoriaFinal = false;
-    ultimaNocheDeGameOver = null;
-    notifyListeners();
-  }
-
-  /// Reinicia riesgo/tareas/tarea actual para reintentar la MISMA noche,
-  /// sin tocar `nocheActual` ni `horaEnJuego`. Se usa cuando el jugador
-  /// sufre un ataque (fatal) a mitad de la noche. La lista de tareas
-  /// pendientes NO se reinicia — las tareas de la noche siguen vigentes
-  /// a través de un reintento por ataque.
-  void reiniciarNoche() {
-    session.riesgo = 0;
-    session.tasksCompleted = 0;
-    session.tasksFailed = 0;
-    session.currentTask = null;
-    lastAttack = null;
-    isGameOver = false;
     ultimaNocheDeGameOver = null;
     notifyListeners();
   }

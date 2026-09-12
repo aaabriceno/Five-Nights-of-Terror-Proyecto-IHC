@@ -14,6 +14,7 @@ class ConnectionProvider extends ChangeNotifier {
 
   ConnectionState _state = ConnectionState.idle;
   int _reconnectAttempts = 0;
+  String _ultimoModo = 'nuevo';
 
   ConnectionState get state => _state;
   int get reconnectAttempts => _reconnectAttempts;
@@ -31,17 +32,12 @@ class ConnectionProvider extends ChangeNotifier {
   MockServerService? get mockService =>
       ServerConfig.useMock ? _mockService : null;
 
-  /// Reinicia el reloj de la noche actual (misma noche, tiempo en 0) sin
-  /// desconectar. Se usa cuando el jugador falla y reintenta la misma
-  /// noche. No hace nada contra el backend real hasta que implemente su
-  /// propia lógica de reinicio de noche (ver spec de protocolo propuesto).
-  void reiniciarNoche() {
-    if (ServerConfig.useMock) {
-      _mockService.reiniciarRelojDeNoche();
-    }
-  }
-
-  void connect() {
+  /// [modo] es 'nuevo' (empezar desde la noche 1, se guarda así en el
+  /// servidor) o 'continuar' (retomar la última noche alcanzada según
+  /// la base de datos del servidor). Se recuerda para que los reintentos
+  /// automáticos de reconexión (`_handleDisconnect`) usen el mismo modo.
+  void connect({String modo = 'nuevo'}) {
+    _ultimoModo = modo;
     _state = ConnectionState.connecting;
     notifyListeners();
 
@@ -60,6 +56,7 @@ class ConnectionProvider extends ChangeNotifier {
       'device': 'tablet',
       'player_id': PlayerIdentity.playerId,
       'app_version': '0.1.0',
+      'modo': _ultimoModo,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
     _state = ConnectionState.connected;
@@ -83,7 +80,10 @@ class ConnectionProvider extends ChangeNotifier {
     _reconnectAttempts++;
     notifyListeners();
 
-    Future<void>.delayed(AppConstants.reconnectDelay, connect);
+    Future<void>.delayed(
+      AppConstants.reconnectDelay,
+      () => connect(modo: _ultimoModo),
+    );
   }
 
   void disconnect() {

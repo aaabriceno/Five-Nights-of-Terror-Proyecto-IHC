@@ -4,7 +4,9 @@ import '../providers/connection_provider.dart';
 import 'game_screen.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  final String modo;
+
+  const SplashScreen({super.key, this.modo = 'nuevo'});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -15,7 +17,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ConnectionProvider>().connect();
+      context.read<ConnectionProvider>().connect(modo: widget.modo);
     });
   }
 

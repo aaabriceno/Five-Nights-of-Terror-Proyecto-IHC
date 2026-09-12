@@ -31,9 +31,10 @@ class MenuPrincipalScreen extends StatelessWidget {
   static const double _anchoZona = 0.30;
   static const double _altoZona = 0.07;
 
-  static const double _yIniciar = 0.653;
-  static const double _yOpciones = 0.727;
-  static const double _ySalir = 0.800;
+  static const double _yNuevoJuego = 0.430;
+  static const double _yContinuar = 0.530;
+  static const double _yOpciones = 0.627;
+  static const double _ySalir = 0.723;
 
   @override
   Widget build(BuildContext context) {
@@ -55,8 +56,13 @@ class MenuPrincipalScreen extends StatelessWidget {
               ),
               _zonaTactil(
                 rectangulo: rectangulo,
-                yRelativo: _yIniciar,
-                onTap: () => _alIniciar(context),
+                yRelativo: _yNuevoJuego,
+                onTap: () => _alIniciar(context, modo: 'nuevo'),
+              ),
+              _zonaTactil(
+                rectangulo: rectangulo,
+                yRelativo: _yContinuar,
+                onTap: () => _alIniciar(context, modo: 'continuar'),
               ),
               _zonaTactil(
                 rectangulo: rectangulo,
@@ -114,9 +120,9 @@ class MenuPrincipalScreen extends StatelessWidget {
     );
   }
 
-  void _alIniciar(BuildContext context) {
+  void _alIniciar(BuildContext context, {required String modo}) {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
+      MaterialPageRoute<void>(builder: (_) => SplashScreen(modo: modo)),
     );
   }
 

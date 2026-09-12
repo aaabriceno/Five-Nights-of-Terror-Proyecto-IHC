@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import '../providers/connection_provider.dart';
-import 'game_screen.dart';
+import 'splash_screen.dart';
 
 class GameOverScreen extends StatelessWidget {
   const GameOverScreen({super.key});
@@ -29,10 +29,12 @@ class GameOverScreen extends StatelessWidget {
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
-                context.read<GameProvider>().reiniciarNoche();
-                context.read<ConnectionProvider>().reiniciarNoche();
+                context.read<GameProvider>().reset();
+                context.read<ConnectionProvider>().disconnect();
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute<void>(builder: (_) => const GameScreen()),
+                  MaterialPageRoute<void>(
+                    builder: (_) => const SplashScreen(modo: 'continuar'),
+                  ),
                   (route) => false,
                 );
               },
