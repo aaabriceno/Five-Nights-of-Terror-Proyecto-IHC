@@ -5,25 +5,25 @@ import 'configurar_servidor_screen.dart';
 import 'splash_screen.dart';
 
 /// Pantalla de menú principal: fondo con el título y las opciones
-/// "Iniciar/Opciones/Salir" ya dibujados en la imagen
+/// "Nuevo Juego/Continuar/Opciones/Salir" ya dibujados en la imagen
 /// (assets/images/FondoJuegoFNT.jpeg). Como el texto es parte del JPEG
 /// (no widgets de Flutter), esta pantalla superpone zonas táctiles
 /// invisibles en las coordenadas relativas donde cada palabra aparece
 /// dibujada, en vez de dibujar botones propios encima.
 ///
-/// La imagen se muestra completa (BoxFit.contain, sin recortes) para que
-/// el título y las tres palabras sean siempre visibles sin importar la
-/// relación de aspecto de la pantalla. Como `contain` puede dejar franjas
-/// negras arriba/abajo o a los costados (la imagen es más "cuadrada" que
-/// una tablet en horizontal), las zonas táctiles se calculan sobre el
-/// rectángulo real donde queda dibujada la imagen, no sobre toda la
-/// pantalla — de lo contrario las zonas quedan desplazadas del texto.
+/// La imagen es panorámica (2752x1536, ratio ≈16:9) y se muestra con
+/// BoxFit.cover para llenar toda la pantalla sin franjas negras — el
+/// ratio de la imagen ya es muy cercano al de una tablet en horizontal,
+/// así que el recorte de `cover` es mínimo. Las zonas táctiles se
+/// calculan sobre el rectángulo real donde queda dibujada la imagen tras
+/// escalarla y recortarla, no sobre el tamaño de la imagen original, para
+/// que sigan alineadas con el texto en cualquier tamaño de pantalla.
 ///
 /// También reproduce música ambiente en loop mientras esta pantalla está
 /// visible (única pantalla de Flutter con audio — el resto del sonido de
-/// gameplay pertenece a Unity, ver docs/PROGRESS.md). Se detiene al
-/// navegar a SplashScreen (Nuevo Juego/Continuar) para no superponerse
-/// con el juego; sigue sonando si el jugador solo abre Opciones y vuelve.
+/// gameplay pertenece a Unity, ver PROGRESS.md). Se detiene al navegar a
+/// SplashScreen (Nuevo Juego/Continuar) para no superponerse con el
+/// juego; sigue sonando si el jugador solo abre Opciones y vuelve.
 class MenuPrincipalScreen extends StatefulWidget {
   const MenuPrincipalScreen({super.key});
 
@@ -33,20 +33,20 @@ class MenuPrincipalScreen extends StatefulWidget {
 
 class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
   // Dimensiones reales de assets/images/FondoJuegoFNT.jpeg.
-  static const double _anchoImagenOriginal = 2390;
-  static const double _altoImagenOriginal = 1792;
+  static const double _anchoImagenOriginal = 2752;
+  static const double _altoImagenOriginal = 1536;
 
   // Posición relativa (fracción del ancho/alto DE LA IMAGEN, no de la
   // pantalla) del centro de cada palabra en FondoJuegoFNT.jpeg. Si se
   // cambia la imagen de fondo, estos valores deben recalibrarse a mano.
-  static const double _xOpciones = 0.226;
-  static const double _anchoZona = 0.30;
-  static const double _altoZona = 0.07;
+  static const double _xOpciones = 0.155;
+  static const double _anchoZona = 0.28;
+  static const double _altoZona = 0.09;
 
-  static const double _yNuevoJuego = 0.430;
-  static const double _yContinuar = 0.530;
-  static const double _yOpciones = 0.627;
-  static const double _ySalir = 0.723;
+  static const double _yNuevoJuego = 0.464;
+  static const double _yContinuar = 0.573;
+  static const double _yOpciones = 0.681;
+  static const double _ySalir = 0.789;
 
   static const String _rutaMusicaMenu =
       'sounds/FNaF_2_-_Música_del_menú.ogg';
@@ -76,7 +76,7 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
       backgroundColor: Colors.black,
       body: LayoutBuilder(
         builder: (context, restricciones) {
-          final Rect rectangulo = _calcularRectanguloImagen(
+          final Rect rectangulo = _calcularRectanguloImagenCover(
             restricciones.maxWidth,
             restricciones.maxHeight,
           );
@@ -85,7 +85,7 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
               Positioned.fill(
                 child: Image.asset(
                   'assets/images/FondoJuegoFNT.jpeg',
-                  fit: BoxFit.contain,
+                  fit: BoxFit.cover,
                 ),
               ),
               _zonaTactil(
@@ -116,10 +116,13 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
   }
 
   /// Calcula dónde queda dibujada la imagen dentro del área disponible
-  /// cuando se usa BoxFit.contain: la imagen se escala para caber entera,
-  /// quedando centrada con franjas vacías en el eje que sobre.
-  Rect _calcularRectanguloImagen(double anchoDisponible, double altoDisponible) {
-    final double escala = (anchoDisponible / _anchoImagenOriginal) <
+  /// cuando se usa BoxFit.cover: la imagen se escala para llenar todo el
+  /// espacio (el lado que sobra queda fuera de pantalla, recortado), así
+  /// que el rectángulo resultante puede tener bordes negativos o mayores
+  /// al área visible — se usa igual como referencia para las zonas
+  /// táctiles relativas.
+  Rect _calcularRectanguloImagenCover(double anchoDisponible, double altoDisponible) {
+    final double escala = (anchoDisponible / _anchoImagenOriginal) >
             (altoDisponible / _altoImagenOriginal)
         ? anchoDisponible / _anchoImagenOriginal
         : altoDisponible / _altoImagenOriginal;
