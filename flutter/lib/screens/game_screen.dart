@@ -20,6 +20,7 @@ import '../widgets/procesar_datos_game_widget.dart';
 import '../widgets/subir_datos_game_widget.dart';
 import '../widgets/trazar_curso_game_widget.dart';
 import 'game_over_screen.dart';
+import 'menu_principal_screen.dart';
 import 'pantalla_victoria.dart';
 
 class GameScreen extends StatefulWidget {
@@ -71,6 +72,13 @@ class _GameScreenState extends State<GameScreen> {
           connectionState: connection.state,
           reconnectAttempts: connection.reconnectAttempts,
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Salir al menú principal',
+            onPressed: () => _confirmarSalidaAlMenu(context),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -93,6 +101,44 @@ class _GameScreenState extends State<GameScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Pide confirmación antes de abandonar la partida a mitad de noche
+  /// (acción destructiva: se pierde el avance de la noche en curso, tal
+  /// como en el juego original). Si el jugador confirma, se corta la
+  /// conexión — el servidor ya trata cualquier desconexión como "el
+  /// jugador se quedó en esta noche" (mismo comportamiento que una caída
+  /// de red), así que no hace falta ningún mensaje de protocolo nuevo.
+  Future<void> _confirmarSalidaAlMenu(BuildContext context) async {
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Salir al menú principal?'),
+        content: const Text(
+          'Perderás el avance de esta noche. Al volver a jugar, '
+          'retomarás la última noche guardada desde el principio.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !context.mounted) return;
+
+    context.read<GameProvider>().reset();
+    context.read<ConnectionProvider>().disconnect();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const MenuPrincipalScreen()),
+      (route) => false,
     );
   }
 
