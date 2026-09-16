@@ -7,7 +7,7 @@ import '../providers/connection_provider.dart';
 import '../providers/game_provider.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/barra_reloj_de_noche.dart';
-import '../widgets/caja_de_puppet_widget.dart';
+import '../widgets/puppet_game_widget.dart';
 import '../widgets/placeholder_game_widget.dart';
 import '../widgets/menu_de_tareas.dart';
 import '../widgets/cable_game_widget.dart';
@@ -33,6 +33,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   bool _wired = false;
+  bool _mostrandoCajaDePuppet = false;
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
 
   @override
@@ -69,6 +70,13 @@ class _GameScreenState extends State<GameScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: _mostrandoCajaDePuppet
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Volver al menú de tareas',
+                onPressed: () => setState(() => _mostrandoCajaDePuppet = false),
+              )
+            : null,
         title: StatusBar(
           connectionState: connection.state,
           reconnectAttempts: connection.reconnectAttempts,
@@ -81,38 +89,47 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                BarraRelojDeNoche(
-                  nocheActual: game.session.nocheActual,
-                  horaEnJuego: game.session.horaEnJuego,
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: game.session.currentTask == null
-                      ? MenuDeTareas(
-                          tareas: game.session.tareasPendientes,
-                          alElegirTarea: game.elegirTarea,
-                          wifiActivo: game.session.wifiActivo,
-                        )
-                      : _buildTaskWidget(game, game.session.currentTask!),
-                ),
-              ],
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            BarraRelojDeNoche(
+              nocheActual: game.session.nocheActual,
+              horaEnJuego: game.session.horaEnJuego,
             ),
-          ),
-          // Superpuesta sobre todo lo demás: el jugador debe poder
-          // sostenerla sin importar qué otra cosa esté resolviendo.
-          CajaDePuppetWidget(
-            enPeligro: game.session.puppetEnPeligro,
-            alEmpezarASostener: game.iniciarDarCuerdaPuppet,
-            alSoltar: game.detenerDarCuerdaPuppet,
-          ),
-        ],
+            const SizedBox(height: 16),
+            Expanded(
+              child: _buildContenidoPrincipal(game),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  /// Decide qué mostrar en el cuerpo de la pantalla: la caja de Puppet
+  /// (pantalla dedicada, abierta desde su tarjeta en el menú), la tarea
+  /// en curso, o el menú de tareas si no hay ninguna de las dos abierta.
+  Widget _buildContenidoPrincipal(GameProvider game) {
+    if (_mostrandoCajaDePuppet) {
+      return PuppetGameWidget(
+        enPeligro: game.session.puppetEnPeligro,
+        valorCajaPorcentaje: game.session.puppetValorCajaPorcentaje,
+        alEmpezarASostener: game.iniciarDarCuerdaPuppet,
+        alSoltar: game.detenerDarCuerdaPuppet,
+      );
+    }
+
+    if (game.session.currentTask != null) {
+      return _buildTaskWidget(game, game.session.currentTask!);
+    }
+
+    return MenuDeTareas(
+      tareas: game.session.tareasPendientes,
+      alElegirTarea: game.elegirTarea,
+      wifiActivo: game.session.wifiActivo,
+      puppetEnPeligro: game.session.puppetEnPeligro,
+      alAbrirCajaDePuppet: () => setState(() => _mostrandoCajaDePuppet = true),
     );
   }
 

@@ -22,11 +22,20 @@ class MenuDeTareas extends StatefulWidget {
   final void Function(Task tarea) alElegirTarea;
   final bool wifiActivo;
 
+  /// La caja de música de Puppet no es una `Task` del protocolo
+  /// `task_list` (no la genera el servidor como tarea) — es una acción
+  /// siempre disponible de la tablet, así que se muestra como una
+  /// tarjeta fija aparte, con su propio callback de navegación.
+  final bool puppetEnPeligro;
+  final VoidCallback alAbrirCajaDePuppet;
+
   const MenuDeTareas({
     super.key,
     required this.tareas,
     required this.alElegirTarea,
     required this.wifiActivo,
+    required this.puppetEnPeligro,
+    required this.alAbrirCajaDePuppet,
   });
 
   @override
@@ -121,31 +130,34 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.tareas.isEmpty) {
-      return Center(
-        child: Text(
-          'Sin tareas pendientes — vigila la pantalla',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-      );
-    }
-
     return Column(
       children: [
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 3.4,
+        _buildTarjetaCajaDePuppet(context),
+        const SizedBox(height: 12),
+        if (widget.tareas.isEmpty)
+          Expanded(
+            child: Center(
+              child: Text(
+                'Sin tareas pendientes — vigila la pantalla',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ),
-            itemCount: widget.tareas.length,
-            itemBuilder: (context, indice) {
-              return _buildTarjeta(context, widget.tareas[indice]);
-            },
+          )
+        else
+          Expanded(
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 3.4,
+              ),
+              itemCount: widget.tareas.length,
+              itemBuilder: (context, indice) {
+                return _buildTarjeta(context, widget.tareas[indice]);
+              },
+            ),
           ),
-        ),
         if (widget.tareas.length > 4) ...[
           const SizedBox(height: 8),
           Row(
@@ -165,6 +177,58 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildTarjetaCajaDePuppet(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: widget.puppetEnPeligro
+              ? AppColors.peligro
+              : AppColors.panelBorde,
+          width: 2,
+        ),
+      ),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: widget.alAbrirCajaDePuppet,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.acento.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: widget.puppetEnPeligro
+                      ? Image.asset('assets/images/puppet_advertencia_roja.webp')
+                      : const Icon(
+                          Icons.music_note,
+                          color: AppColors.acento,
+                          size: 22,
+                        ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Reiniciar Caja Musical',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

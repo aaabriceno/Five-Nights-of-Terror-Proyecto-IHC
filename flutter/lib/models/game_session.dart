@@ -21,6 +21,12 @@ class GameSession {
   /// cual llega en `estado_puppet`.
   bool puppetEnPeligro;
 
+  /// Valor 0-100 de la caja de música de Puppet, tal cual lo manda el
+  /// servidor en cada tick de `estado_puppet` (100 = llena/segura, 0 =
+  /// vacía). Se usa para animar el pastel de `PuppetGameWidget` en
+  /// tiempo real.
+  int puppetValorCajaPorcentaje;
+
   GameSession({
     required this.playerId,
     this.riesgo = 0,
@@ -36,5 +42,6 @@ class GameSession {
     List<Task>? tareasPendientes,
     this.wifiActivo = false,
     this.puppetEnPeligro = false,
+    this.puppetValorCajaPorcentaje = 100,
   }) : tareasPendientes = tareasPendientes ?? [];
 }

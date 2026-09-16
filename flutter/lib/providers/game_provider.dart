@@ -55,6 +55,8 @@ class GameProvider extends ChangeNotifier {
         break;
       case 'estado_puppet':
         session.puppetEnPeligro = message['en_peligro'] as bool;
+        session.puppetValorCajaPorcentaje =
+            (message['valor_caja_porcentaje'] as int).clamp(0, 100);
         break;
       case 'game_over':
         ultimaNocheDeGameOver = (message['night'] as int?) ?? session.nocheActual;
