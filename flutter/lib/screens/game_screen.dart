@@ -7,6 +7,7 @@ import '../providers/connection_provider.dart';
 import '../providers/game_provider.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/barra_reloj_de_noche.dart';
+import '../widgets/caja_de_puppet_widget.dart';
 import '../widgets/placeholder_game_widget.dart';
 import '../widgets/menu_de_tareas.dart';
 import '../widgets/cable_game_widget.dart';
@@ -80,26 +81,37 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            BarraRelojDeNoche(
-              nocheActual: game.session.nocheActual,
-              horaEnJuego: game.session.horaEnJuego,
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                BarraRelojDeNoche(
+                  nocheActual: game.session.nocheActual,
+                  horaEnJuego: game.session.horaEnJuego,
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: game.session.currentTask == null
+                      ? MenuDeTareas(
+                          tareas: game.session.tareasPendientes,
+                          alElegirTarea: game.elegirTarea,
+                          wifiActivo: game.session.wifiActivo,
+                        )
+                      : _buildTaskWidget(game, game.session.currentTask!),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: game.session.currentTask == null
-                  ? MenuDeTareas(
-                      tareas: game.session.tareasPendientes,
-                      alElegirTarea: game.elegirTarea,
-                      wifiActivo: game.session.wifiActivo,
-                    )
-                  : _buildTaskWidget(game, game.session.currentTask!),
-            ),
-          ],
-        ),
+          ),
+          // Superpuesta sobre todo lo demás: el jugador debe poder
+          // sostenerla sin importar qué otra cosa esté resolviendo.
+          CajaDePuppetWidget(
+            enPeligro: game.session.puppetEnPeligro,
+            alEmpezarASostener: game.iniciarDarCuerdaPuppet,
+            alSoltar: game.detenerDarCuerdaPuppet,
+          ),
+        ],
       ),
     );
   }

@@ -53,6 +53,9 @@ class GameProvider extends ChangeNotifier {
       case 'wifi_status':
         session.wifiActivo = message['activo'] as bool;
         break;
+      case 'estado_puppet':
+        session.puppetEnPeligro = message['en_peligro'] as bool;
+        break;
       case 'game_over':
         ultimaNocheDeGameOver = (message['night'] as int?) ?? session.nocheActual;
         if (message['result'] == 'final_victory') {
@@ -72,6 +75,19 @@ class GameProvider extends ChangeNotifier {
   void elegirTarea(Task tarea) {
     session.currentTask = tarea;
     notifyListeners();
+  }
+
+  /// El jugador empezó a sostener el control de la caja de música de
+  /// Puppet. Se manda una sola vez al iniciar el gesto, no en cada
+  /// frame — el servidor recarga la caja mientras no reciba
+  /// `dar_cuerda_fin`.
+  void iniciarDarCuerdaPuppet() {
+    sendToServer?.call({'type': 'dar_cuerda_inicio'});
+  }
+
+  /// El jugador soltó el control de la caja de música de Puppet.
+  void detenerDarCuerdaPuppet() {
+    sendToServer?.call({'type': 'dar_cuerda_fin'});
   }
 
   void reportTaskCompleted({
