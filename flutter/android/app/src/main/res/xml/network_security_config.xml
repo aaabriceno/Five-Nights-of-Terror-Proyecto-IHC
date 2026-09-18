@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  El servidor Python siempre se sirve por WebSocket sin cifrar (ws://) en
+  la red local del jugador — no hay certificado TLS porque es un server
+  casero de LAN, no un servicio público. Desde Android 9 (API 28) el
+  tráfico cleartext está bloqueado por defecto en builds release, lo que
+  provocaba "SocketException: Operation not permitted" al conectar. Se
+  permite cleartext para cualquier dominio/IP (no solo la de desarrollo)
+  porque el host se configura en tiempo real desde la pantalla de
+  Opciones, no es un valor fijo conocido en tiempo de compilación.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
