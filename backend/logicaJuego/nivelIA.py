@@ -28,13 +28,26 @@ nivel_IA_Animatronico3 = {
     6: {"inicial": 12, "subidaIA": {2:1, 3:1, 4:1}},
 }
 
+# Valores reales de FNAF2: 20 x numeroNoche por segundo (noches 2-6).
+# La noche 1 no drena hasta la hora 2 in-game, y a partir de ahí drena al
+# mismo ritmo que la noche 2 (40/seg) — ver Juego.iniciar(), que aplica
+# ese freeze consultando self.horaJuego antes de llamar drenarCaja().
 drenaje_caja_Puppet = {
-    1: 2,
-    2: 3,
-    3: 4,
-    4: 4,
-    5: 5,
-    6: 6,
+    1: 40,
+    2: 40,
+    3: 60,
+    4: 80,
+    5: 100,
+    6: 120,
+}
+
+# Cuanto sube self.valorCaja por segundo mientras el jugador sostiene el
+# botón de "dar cuerda" en la tablet. La tasa exacta del juego original
+# no está documentada públicamente — se define como el doble del
+# drenaje de esa noche, para que sostener el botón sea siempre viable
+# (repone más rápido de lo que se pierde) sin importar la dificultad.
+subida_caja_Puppet_al_dar_cuerda = {
+    noche: drenaje * 2 for noche, drenaje in drenaje_caja_Puppet.items()
 }
 
 def actualizar_nivel_IA(tabla_nivel_IA, numeroNoche, horaActual):

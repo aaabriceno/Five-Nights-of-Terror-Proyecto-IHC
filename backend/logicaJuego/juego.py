@@ -5,6 +5,10 @@ import nivelIA
 import random
 import time
 
+TICK_SEGUNDOS = 0.5
+SEGUNDOS_ENTRE_ODM_NORMAL = 5
+SEGUNDOS_ENTRE_ODM_PUPPET_FUERA_DE_CAJA = 1
+
 PROBABILIDAD_TAREA_NUEVA_POR_NOCHE = {
     1: 10,
     2: 20,
@@ -68,9 +72,26 @@ class Juego:
     def agregarPuppet(self, nombre, imagen, sonido, habilidades, tiempoMirarJugador, tablaNivelIA, ruta):
         nivelInicial = tablaNivelIA[self.numeroNoche]["inicial"]
         drenaje = nivelIA.drenaje_caja_Puppet[self.numeroNoche]
-        nuevoPuppet = Puppet(nombre, imagen, sonido, habilidades, tiempoMirarJugador, nivelInicial, ruta, drenaje)
+        subidaAlDarCuerda = nivelIA.subida_caja_Puppet_al_dar_cuerda[self.numeroNoche]
+        nuevoPuppet = Puppet(nombre, imagen, sonido, habilidades, tiempoMirarJugador, nivelInicial, ruta, drenaje, subidaAlDarCuerda)
         self.animatronicos.append(nuevoPuppet)
         self.tablasNivelIA[nombre] = tablaNivelIA
+
+    def obtenerPuppet(self):
+        for animatronico in self.animatronicos:
+            if isinstance(animatronico, Puppet):
+                return animatronico
+        return None
+
+    def iniciarDarCuerda(self):
+        puppet = self.obtenerPuppet()
+        if puppet is not None:
+            puppet.iniciarDarCuerda()
+
+    def detenerDarCuerda(self):
+        puppet = self.obtenerPuppet()
+        if puppet is not None:
+            puppet.detenerDarCuerda()
 
     def actualizarNivelesIA(self):
         for animatronico in self.animatronicos:
@@ -80,6 +101,26 @@ class Juego:
     def emitirEvento(self, tipo, datos):
         if self.alEventoDeJuego is not None:
             self.alEventoDeJuego(tipo, datos)
+
+    def _formatearHoraEnJuego(self):
+        # horaJuego va de 1 a 6, representando 12AM, 1AM, ..., 5AM (fiel
+        # al reloj del juego original, que nunca llega a mostrar 6AM —
+        # esa hora solo se usa como condición de fin de noche). Los
+        # minutos se derivan de segundosAcumulados (0-59 in-game = un
+        # minuto real, ver TICK_SEGUNDOS) para que el reloj no salte de
+        # hora en hora sino que avance en vivo.
+        horaVisible = 12 if self.horaJuego == 1 else self.horaJuego - 1
+        minutos = int(self.segundosAcumulados)
+        return f"{horaVisible}:{minutos:02d} AM"
+
+    def _emitirEstadoDeNoche(self):
+        self.emitirEvento("night_status", {
+            "type": "night_status",
+            "night": self.numeroNoche,
+            "in_game_time": self._formatearHoraEnJuego(),
+            "risk_percent": 0,
+            "timestamp": int(time.time() * 1000),
+        })
 
     def registrarTareaCompletada(self):
         self.tareasCompletadas += 1
@@ -111,18 +152,58 @@ class Juego:
                         "animatronic": animatronico.nombre,
                     })
 
+    def _procesarAtaque(self, animatronico):
+        animatronico.atacar(self)
+        self.juegoTerminado = True
+        self.jugadorMurio = True
+        self.juego = False
+        print(f"{animatronico.nombre} atacó al jugador! Game Over.")
+        self.emitirEvento("attack", {
+            "type": "attack",
+            "attack_id": f"atk_{self.segundosTranscurridosTotal}",
+            "damage": 100,
+            "urgency": "critical",
+            "animatronic": animatronico.nombre,
+            "message": f"{animatronico.nombre} te encontró",
+            "timestamp": int(time.time() * 1000),
+        })
+
     def iniciar(self):
         self.hiloGaze.start()
+        # Tick rápido (TICK_SEGUNDOS): la caja del Puppet, el reloj de la
+        # noche y el tiempo de tareas pendientes avanzan en tiempo real,
+        # como en el juego original — no en saltos de 3-5s.
+        #
+        # La Oportunidad De Movimiento (ODM) de Freddy y Vixy es fija en
+        # SEGUNDOS_ENTRE_ODM_NORMAL (5s), sincronizada para ambos a la
+        # vez — así funciona FNAF2 real (a diferencia de FNAF1, donde
+        # cada animatronico tenía su propio timer aleatorio). Puppet, una
+        # vez fuera de su caja, tiene ODM cada
+        # SEGUNDOS_ENTRE_ODM_PUPPET_FUERA_DE_CAJA (1s) — mucho más
+        # seguido que los demás, también fiel al original.
+        proximaOdmNormal = SEGUNDOS_ENTRE_ODM_NORMAL
+        proximaOdmPuppet = SEGUNDOS_ENTRE_ODM_PUPPET_FUERA_DE_CAJA
+
         while self.juego:
-            segundosEspera = random.randint(3,5)
-            time.sleep(segundosEspera)
-            self.segundosAcumulados += segundosEspera
-            self.segundosTranscurridosTotal += segundosEspera
+            time.sleep(TICK_SEGUNDOS)
+            self.segundosAcumulados += TICK_SEGUNDOS
+            self.segundosTranscurridosTotal += TICK_SEGUNDOS
             if self.segundosAcumulados >= 60 and self.horaJuego < 6:
                 self.segundosAcumulados -= 60
                 self.horaJuego += 1
                 self.intentarGenerarTareasNuevas()
             self.actualizarNivelesIA()
+            self._emitirEstadoDeNoche()
+
+            proximaOdmNormal -= TICK_SEGUNDOS
+            leTocaOdmNormal = proximaOdmNormal <= 0
+            if leTocaOdmNormal:
+                proximaOdmNormal = SEGUNDOS_ENTRE_ODM_NORMAL
+
+            proximaOdmPuppet -= TICK_SEGUNDOS
+            leTocaOdmPuppet = proximaOdmPuppet <= 0
+            if leTocaOdmPuppet:
+                proximaOdmPuppet = SEGUNDOS_ENTRE_ODM_PUPPET_FUERA_DE_CAJA
 
             zonaAtencion = self.hiloGaze.obtenerZona()
             for animatronico in self.animatronicos:
@@ -130,33 +211,41 @@ class Juego:
 
                 if isinstance(animatronico, Puppet):
                     if animatronico.enCaja:
-                        animatronico.drenarCaja(segundosEspera)
-                        animatronico.intentarSalirDeCaja()
+                        # En la noche 1 la caja no drena hasta la hora 2
+                        # in-game (fiel al original) — antes de eso queda
+                        # congelada en su valor máximo.
+                        cajaCongelada = self.numeroNoche == 1 and self.horaJuego < 2
+                        if not cajaCongelada:
+                            animatronico.drenarCaja(TICK_SEGUNDOS)
+
+                        # Se emite cada tick (no solo al cruzar el umbral
+                        # de peligro) para que Flutter pueda animar una
+                        # barra de progreso en tiempo real, fiel al
+                        # medidor visible del juego original — acordado
+                        # con el chat de Flutter el 2026-09-15.
+                        self.emitirEvento("estado_puppet", {
+                            "type": "estado_puppet",
+                            "en_peligro": animatronico.estaEnPeligro(),
+                            "valor_caja_porcentaje": animatronico.porcentajeCaja(),
+                            "timestamp": int(time.time() * 1000),
+                        })
+
+                        if leTocaOdmPuppet:
+                            animatronico.intentarSalirDeCaja()
                     else:
-                        animatronico.moverse()
+                        if leTocaOdmPuppet:
+                            animatronico.moverse()
                         atacoAlJugador = animatronico.intentarAtacar()
                 else:
-                    animatronico.moverse()
-                    atacoAlJugador = animatronico.observar(zonaAtencion, segundosEspera, self.nodosDeObservacion)
+                    if leTocaOdmNormal:
+                        animatronico.moverse()
+                    atacoAlJugador = animatronico.observar(zonaAtencion, TICK_SEGUNDOS, self.nodosDeObservacion)
 
                     if not atacoAlJugador:
-                        atacoAlJugador = animatronico.intentarAtacarPorTareasPendientes(segundosEspera)
+                        atacoAlJugador = animatronico.intentarAtacarPorTareasPendientes(TICK_SEGUNDOS)
 
                 if atacoAlJugador:
-                    animatronico.atacar(self)
-                    self.juegoTerminado = True
-                    self.jugadorMurio = True
-                    self.juego = False
-                    print(f"{animatronico.nombre} atacó al jugador! Game Over.")
-                    self.emitirEvento("attack", {
-                        "type": "attack",
-                        "attack_id": f"atk_{self.segundosTranscurridosTotal}",
-                        "damage": 100,
-                        "urgency": "critical",
-                        "animatronic": animatronico.nombre,
-                        "message": f"{animatronico.nombre} te encontró",
-                        "timestamp": int(time.time() * 1000),
-                    })
+                    self._procesarAtaque(animatronico)
                     break
 
             if self.horaJuego >= 6 and self.segundosAcumulados >= 60:
