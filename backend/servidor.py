@@ -61,6 +61,7 @@ class ServidorJuego:
         self.clienteTablet = None
         self.loopAsyncio = None
         self.juego = None
+        self.hiloJuego = None
         self.playerIdActivo = None
         self.tareasActivas = {}
 
@@ -152,10 +153,21 @@ class ServidorJuego:
             # existe "retomar exactamente donde quedó", solo "elegir de
             # nuevo desde el menú": Nuevo Juego (noche 1) o Continuar
             # (última noche guardada), igual que en el FNAF original.
+            #
+            # El join() es necesario, no cosmético: sin él, el hilo viejo
+            # sigue vivo hasta su próximo tick (hasta TICK_SEGUNDOS de
+            # margen) y al salir de su loop emite su propio "game_over" —
+            # pero para ese entonces self.juego ya apunta a la partida
+            # nueva, así que ese evento fantasma pisaba el estado del
+            # juego recién iniciado (síntoma visto: múltiples "Game Over"
+            # seguidos y progreso de noche inconsistente en el log).
             if self.juego is not None:
                 self.juego.juego = False
+            if self.hiloJuego is not None:
+                self.hiloJuego.join()
             self.playerIdActivo = playerId
             self.juego = None
+            self.hiloJuego = None
             self.tareasActivas = {}
 
             modo = mensaje.get("modo", "nuevo")
@@ -174,6 +186,16 @@ class ServidorJuego:
 
         elif tipo == "task_failed":
             self._finalizarTarea(mensaje, exito=False)
+
+        elif tipo == "dar_cuerda_inicio":
+            if self.juego is not None:
+                self.juego.iniciarDarCuerda()
+            print("Jugador empezó a dar cuerda a Puppet.")
+
+        elif tipo == "dar_cuerda_fin":
+            if self.juego is not None:
+                self.juego.detenerDarCuerda()
+            print("Jugador dejó de dar cuerda a Puppet.")
 
         elif tipo == "disconnect":
             print(f"Tablet se desconectó: razon={mensaje.get('reason')}")
@@ -202,8 +224,8 @@ class ServidorJuego:
         if self.juego is not None:
             return
         self.juego = Juego(numeroNoche=numeroNoche, alEventoDeJuego=self.alEventoDeJuego)
-        hiloJuego = threading.Thread(target=self.juego.iniciar, daemon=True)
-        hiloJuego.start()
+        self.hiloJuego = threading.Thread(target=self.juego.iniciar, daemon=True)
+        self.hiloJuego.start()
         self.crearTarea(TAREA_TIPO_GENERICO_INICIAL)
 
 
