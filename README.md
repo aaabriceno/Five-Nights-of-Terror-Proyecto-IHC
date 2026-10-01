@@ -23,7 +23,7 @@
 
 ## 🎯 Concepto del Juego
 
-**Five Nights at Freddy's - Attention Defense** es un juego que reimagina el concepto original de FNAF (Five Nights at Freddy's) con un elemento revolucionario: **detección de atención visual en tiempo real**.
+**Five Nights of Terror - Proyecto IHC** es un juego que reimagina el concepto original de FNAF (Five Nights at Freddy's) con un elemento revolucionario: **detección de atención visual en tiempo real**.
 
 ### Idea Central
 
