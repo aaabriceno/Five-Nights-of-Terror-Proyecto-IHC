@@ -16,10 +16,27 @@ docs/superpowers/
 .vscode/
 .fleet/
 
-# Backend Python: entorno virtual, cache y calibración local (depende de camara/postura de cada dev)
-backend/venv/
-backend/calibracion.json
-backend/partida.db
+# UnityRelay (Python): entorno virtual local, no versionar
+UnityRelay/.venv/
 __pycache__/
 *.pyc
 *.pyo
+
+# Unity: paquete embebido de MediaPipe (393MB, binarios nativos + modelos
+# .tflite para todas las plataformas) — demasiado pesado para GitHub, ver
+# README.md para instrucciones de instalación manual al clonar.
+Unity/Packages/com.github.homuler.mediapipe/
+
+# Unity: cache local, logs y archivos generados por el Editor (no versionar)
+Unity/Library/
+Unity/Logs/
+Unity/Temp/
+Unity/Obj/
+Unity/Build/
+Unity/Builds/
+Unity/UserSettings/
+Unity/MemoryCaptures/
+Unity/*.csproj
+Unity/*.sln
+Unity/.vs/
+Unity/.vscode/

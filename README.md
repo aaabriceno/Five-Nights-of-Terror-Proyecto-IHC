@@ -4,7 +4,7 @@
 
 **Curso:** CS2H1 - Interacción Humano Computador  
 **Universidad:** Universidad Católica San Pablo (UCSP)  
-**Año:** 2024  
+**Año:** 2026  
 
 ---
 
@@ -13,11 +13,9 @@
 - [Concepto del Juego](#concepto-del-juego)
 - [Idea Principal](#idea-principal)
 - [Cómo Funciona](#cómo-funciona)
-- [Tecnologías](#tecnologías)
 - [Arquitectura del Sistema](#arquitectura-del-sistema)
 - [Componentes](#componentes)
 - [Instalación y Setup](#instalación-y-setup)
-- [Cronograma](#cronograma)
 - [Equipo](#equipo)
 - [Licencia](#licencia)
 
@@ -52,7 +50,7 @@ Si usuario IGNORA TABLET:
   └─ "Se da cuenta de que no trabajas"
   └─ ⚡ ATAQUE INMINENTE
 
-Si usuario MIRA MUCHO LA TABLET:
+Si usuario IGNORA LA PANTALLA:
   └─ "Se da cuenta de que no vigilas"
   └─ ⚡ ATAQUE CRÍTICO
 
@@ -78,12 +76,12 @@ Balance Correcto:
 ### Concepto de Gamificación
 
 ```
-OBJETIVO: Sobrevivir la noche sin ser atrapado
+OBJETIVO: Sobrevivir 6 noches sin ser atrapado
 
 MECÁNICA:
-1. Completa tareas en tablet → Ganas tiempo
-2. Vigila pantalla principal → Evitas ataques
-3. Equilibra ambas → Avanzas de nivel
+1. Completa tareas en tablet → Resuelves la amenaza de cada animatronico
+2. Vigila pantalla principal → Evitas ataques por descuido
+3. Equilibra ambas → Avanzas de noche
 
 RETO:
 No puedes ignorar ninguna actividad
@@ -101,266 +99,133 @@ INICIO
   ↓
 [Cámara analiza tu rostro]
   ↓
-[Te genera avatar personalizado]
-  ↓
-[GAME START - Noche 1]
-  ├─ Vida: 100%
+[GAME START - Noche N]
   ├─ Tareas completadas: 0
-  └─ Tiempo: 00:00
+  └─ Reloj in-game: 12:00 AM
   ↓
-BUCLE PRINCIPAL (cada segundo):
-  ├─ Gaze Tracking detecta dónde miras
-  ├─ ¿Miras tablet? → Completa tarea
-  ├─ ¿Miras pantalla? → Vigilas
-  ├─ ¿Ignoras ambas? → ⚡ ATAQUE
-  └─ ¿Vida = 0%? → GAME OVER
+BUCLE PRINCIPAL (cada medio segundo):
+  ├─ Gaze Tracking detecta si miras la pantalla
+  ├─ ¿Miras tablet y resuelves tareas? → Avanza el progreso
+  ├─ ¿Ignoras la pantalla? → Sube el riesgo de ataque
+  ├─ Freddy/Vixy avanzan por su ruta, Puppet sale de su caja
+  └─ ¿Te alcanzan? → GAME OVER
   ↓
-VICTORIA: Sobrevivir 8 horas (8 minutos en juego)
+VICTORIA: Sobrevivir hasta las 6 AM, noche tras noche, hasta la noche 6
 ```
 
 ### Interacción Usuario
 
 ```
 TABLET (en tu mano):
-├─ Mini-juego actual
-├─ Cuenta regresiva
-├─ Indicador de atención
+├─ Menú de tareas pendientes
+├─ Mini-juego de la tarea elegida
+├─ Caja de música de Puppet
 └─ Feedback (vibración, sonido)
 
 PANTALLA PC (frente a ti):
-├─ Escena de vigilancia (oficina)
-├─ Animatrónico moviéndose
-├─ Barra de vida
-├─ Estadísticas en tiempo real
-└─ Eventos de ataque
+├─ Escena 3D de vigilancia (Unity)
+├─ Animatronicos moviéndose por el mapa
+├─ Jumpscare al ser atrapado
+└─ Seguimiento facial (MediaPipe)
 
 CÁMARA USB (arriba de monitor):
-└─ Detecta a dónde miras continuamente
-```
-
----
-
-## 🛠️ Tecnologías
-
-### Stack Tecnológico
-
-```
-┌────────────────────────────────────────┐
-│        TECNOLOGÍAS DEL PROYECTO        │
-├────────────────────────────────────────┤
-│                                        │
-│  FRONTEND TABLET                       │
-│  ├─ Framework: Flutter                │
-│  ├─ Lenguaje: Dart 3.0+               │
-│  ├─ Plataformas: Android + iOS        │
-│  └─ Comunicación: WebSocket           │
-│                                        │
-│  BACKEND / LÓGICA DE JUEGO             │
-│  ├─ Lenguaje: Python 3.10+            │
-│  ├─ Gaze Tracking: MediaPipe          │
-│  ├─ Visión: OpenCV                    │
-│  ├─ Facial Detection: dlib + MediaPipe│
-│  ├─ Framework: FastAPI/Flask          │
-│  └─ Comunicación: WebSocket           │
-│                                        │
-│  MOTOR GRÁFICO / 3D                    │
-│  ├─ Engine: Unity 2021 LTS            │
-│  ├─ Lenguaje: C#                      │
-│  ├─ Gráficos: 3D Renderizado          │
-│  ├─ Audio: Audio 3D Espacializado     │
-│  └─ Animaciones: Character Animation  │
-│                                        │
-│  COMUNICACIÓN                          │
-│  ├─ Protocolo: WebSocket              │
-│  ├─ Formato: JSON                     │
-│  ├─ Conexión: WiFi/Bluetooth          │
-│  └─ Latencia Objetivo: <50ms          │
-│                                        │
-└────────────────────────────────────────┘
-```
-
-### Componentes Tecnológicos Clave
-
-**1. Detección de Atención Visual (Gaze Tracking)**
-```
-MediaPipe Face Mesh
-├─ Detecta 468 puntos del rostro
-├─ Identifica dirección de ojos
-├─ Determina: ¿Mira tablet o pantalla?
-└─ Frecuencia: 60 FPS (16ms)
-
-Precisión: 80%+
-Latencia: <100ms
-```
-
-**2. Mini-juegos en Tablet**
-```
-Flutter CustomPainter
-├─ Conectar cables (drag & drop)
-├─ Girar perillas (rotación táctil)
-├─ Resolver secuencias (tap orden)
-├─ Ritmo crítico (timing precision)
-└─ Comunicación: JSON WebSocket
-```
-
-**3. Motor de Juego 3D**
-```
-Unity 3D
-├─ Escena de vigilancia 3D
-├─ Animatrónico con comportamiento IA
-├─ Sistema de partículas para ataques
-├─ Audio 3D espacializado
-└─ Sincronización con backend
-```
-
-**4. Servidor Backend**
-```
-Python FastAPI
-├─ Gaze tracking + análisis
-├─ Lógica de ataque
-├─ Sincronización de eventos
-├─ Orquestación del juego
-└─ WebSocket server
+└─ Detecta si miras la pantalla, continuamente
 ```
 
 ---
 
 ## 🏗️ Arquitectura del Sistema
 
-### Diagrama General
+El juego corre sobre 3 componentes. **Unity es la autoridad del juego**: decide
+movimiento, tareas, ataques y progreso de noche. Flutter solo resuelve
+tareas y muestra el estado. Un relay en Python conecta a ambos sin contener
+ninguna lógica de juego propia — únicamente reenvía mensajes.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                    JUGADOR                               │
 │    ┌─────────────────────────────────────────────────┐  │
 │    │  Frente a Escritorio                            │  │
-│    │  ├─ Cámara USB (detecta gaze)                  │  │
-│    │  ├─ Monitor (ve juego 3D)                      │  │
-│    │  └─ Tablet en mano (hace tareas)               │  │
+│    │  ├─ Cámara USB (Unity la usa para gaze)        │  │
+│    │  ├─ Monitor (ve el juego 3D en Unity)           │  │
+│    │  └─ Tablet en mano (hace tareas en Flutter)     │  │
 │    └─────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────┘
                           ↓
          ┌────────────────┼────────────────┐
          ↓                ↓                ↓
-    ┌─────────┐      ┌─────────┐      ┌────────┐
-    │ TABLET  │      │ SERVIDOR│      │ PANTALLA
-    │ Flutter │←────→│ Python  │←────→│ Unity
-    │         │ WiFi │         │ JSON │ 3D
-    └─────────┘      └─────────┘      └────────┘
-         │                │                │
-         │ Envía tarea    │ Recibe gaze    │
-         │ completada     │ + ataca        │ Muestra
-         │                │                │ escena 3D
-         └────────────────┼────────────────┘
-                          │
-                    Sincronización
-                    en tiempo real
-                    (<50ms latencia)
+    ┌─────────┐      ┌───────────┐    ┌─────────┐
+    │ FLUTTER │←────→│UnityRelay │←──→│  UNITY  │
+    │ Tablet  │ WiFi │ (Python)  │ WS │  (3D)   │
+    └─────────┘      └───────────┘    └─────────┘
+         │                                  │
+         │ task_completed / dar_cuerda_*    │ task_list / night_status
+         │                                  │ estado_puppet / attack
+         └──────────────────────────────────┘ / game_over
+                   Todo vía UnityRelay, que
+                   solo reenvía JSON sin leerlo
 ```
 
 ### Flujo de Datos
 
 ```
-CICLO CADA 16ms (60 FPS):
-
-1. Cámara USB
-   └─ Captura rostro del jugador
-
-2. Python Backend
-   ├─ Procesa imagen (MediaPipe)
-   ├─ Detecta: ¿Hacia dónde mira?
-   ├─ Genera evento: "mirando_tablet" o "mirando_pantalla"
-   └─ Envía estado a otros componentes
-
-3. Flutter Tablet
-   ├─ Recibe eventos del backend
-   ├─ Renderiza mini-juego actual
-   ├─ Usuario interactúa (toca, desliza)
-   └─ Envía: "tarea_completada" o "tarea_fallida"
-
-4. Unity PC
-   ├─ Recibe: gaze status + eventos tarea
-   ├─ Lógica: ¿Atacar ahora?
-   ├─ Renderiza ataque (si aplica)
-   ├─ Reproduce audio 3D
-   └─ Actualiza UI (vida, puntuación)
-
-5. Todo sincronizado
-   └─ Jugador ve resultado en pantalla
-   └─ Tablet vibra (feedback)
-   └─ Sonido de ataque
+1. Flutter manda "connect" al conectarse → UnityRelay lo reenvía a Unity
+2. Unity (UnityGameSessionController) inicia la noche:
+   ├─ Decide movimiento de Freddy/Vixy (NavMesh + probabilidad por nivel de IA)
+   ├─ Drena/recarga la caja de música de Puppet
+   ├─ Genera tareas nuevas cada hora in-game
+   └─ Publica task_list / night_status / estado_puppet por el relay
+3. Flutter recibe esos mensajes y los muestra en la tablet
+4. El jugador resuelve una tarea → manda task_completed/task_failed
+5. Unity decide si eso evita o acelera un ataque
+6. Si un animatronico alcanza al jugador → attack + game_over,
+   mostrado como jumpscare tanto en Unity como en Flutter
 ```
 
 ---
 
 ## 📦 Componentes
 
-### 1. Tablet (Flutter)
+### 1. Tablet (`Flutter/`)
 
 **Responsabilidades:**
-- Mostrar mini-juegos interactivos
-- Capturar entrada del usuario (toques, deslices)
-- Comunicarse con servidor Python
+- Mostrar el menú de tareas y los mini-juegos
+- Capturar la entrada del usuario (toques, deslices)
+- Comunicarse con Unity a través de UnityRelay
 - Proporcionar feedback (vibración, sonido, visual)
+- Caja de música de Puppet como pantalla dedicada
 
-**Características:**
-- 4 tipos de mini-juegos diferentes
-- Interfaz responsive para tablets 7"-10"
-- Reconexión automática
-- Indicador de conexión en tiempo real
-
-**Conectividad:**
-- WebSocket para comunicación persistente
-- JSON para formato de mensajes
-- WiFi o Bluetooth
+**Mini-juegos:** cables, perillas, secuencias, ritmo, wifi, temperatura,
+ventiladores, procesar datos, subir datos, trazar curso.
 
 ---
 
-### 2. Backend Python
+### 2. Motor Unity (`Unity/`)
 
-**Responsabilidades:**
-- Ejecutar gaze tracking
-- Analizar atención del jugador
-- Decidir cuándo atacar
-- Orquestar eventos del juego
-- Gestionar comunicación con otros componentes
+**Responsabilidades — es la autoridad del juego:**
+- Seguimiento facial (MediaPipe Unity Plugin) para decidir si el jugador
+  mira la pantalla
+- Movimiento de Freddy, Vixy y Puppet sobre NavMesh, con nivel de IA y
+  probabilidad de jumpscare que sube por noche
+- Generación de tareas, progreso de noche, estado de la caja de Puppet
+- Persistencia de progreso (`PlayerPrefs`, por noche alcanzada)
+- Comunicación con Flutter a través de `UnityWebSocketClient`
 
-**Características:**
-- Detección facial en tiempo real
-- Estimación de dirección de ojos
-- Lógica de decisión de ataques
-- WebSocket server
-- Logging y debugging
-
-**Tecnologías:**
-- MediaPipe para face detection
-- OpenCV para procesamiento de imagen
-- FastAPI para server
-- Python 3.10+
+**Escena principal:** `Assets/MediaPipeUnity/Samples/Scenes/Face Landmark Detection/Face Landmark Detection.unity`.
+Documentación detallada del protocolo y las mecánicas en
+`Unity/Assets/scripts/INTEGRACION_UNITY.md`.
 
 ---
 
-### 3. Motor Unity 3D
+### 3. UnityRelay (`UnityRelay/`)
 
 **Responsabilidades:**
-- Renderizar escena 3D de vigilancia
-- Animar animatrónico
-- Reproducir audio espacializado
-- Visualizar efectos de ataque
-- Gestionar interfaz de usuario (UI)
+- Reenviar mensajes WebSocket entre la tablet y Unity por rol (`tablet` /
+  `unity`), sin leer ni modificar su contenido
+- Recordar el último `connect` de la tablet para repetírselo a Unity si se
+  conecta después
 
-**Características:**
-- Escena de oficina/sala de vigilancia
-- Animatrónico 3D con comportamientos
-- Efectos de partículas para ataques
-- Audio 3D envolvente
-- Barra de vida y estadísticas
-
-**Tecnologías:**
-- Unity 2021 LTS
-- C# para scripting
-- Sistema de animación
-- Audio 3D Spatial
+No contiene ninguna lógica de juego — es sólo un router de mensajes.
 
 ---
 
@@ -368,35 +233,37 @@ CICLO CADA 16ms (60 FPS):
 
 ### Requisitos Previos
 
-**Hardware:**
-- PC con GPU (NVIDIA recomendado para gaze tracking)
-- Tablet Android o iPad
-- Cámara USB 1080p mínimo
-- Conexión WiFi 5GHz
-
-**Software:**
-- Python 3.10+
-- Flutter 3.13+
-- Unity 2021 LTS
-- Git
+- **Windows 10/11** para ejecutar Unity y UnityRelay en la misma PC (el
+  seguimiento facial de Unity necesita Windows; ver notas de cada
+  componente para detalles de plataforma).
+- **Unity Hub** y **Unity Editor 2022.3.30f1** — la versión exacta está en
+  `Unity/ProjectSettings/ProjectVersion.txt`.
+- **Python 3.10+** y `pip`, sólo para `UnityRelay/relay.py`.
+- **Flutter SDK** con Dart **3.12.2 o superior** (`Flutter/pubspec.yaml`).
+- **Android Studio**, Android SDK y Platform Tools, con depuración USB
+  habilitada en el teléfono (o un emulador Android).
+- PC y teléfono en la misma red local. Unity necesita acceso a la cámara
+  de la PC para el seguimiento facial.
 
 ### Estructura del Repositorio (real, actual)
 
 ```
 ProyectoIHC-Five-Nights-at-Freddy-s-Attention-Defense/
-├── backend/                  # Gaze tracking (Python)
-│   ├── gaze/                 # módulo: detección, calibración, estimación, landmarks
-│   ├── gaze_demo.py           # script de demo/prueba de la webcam
-│   ├── gaze_debug_landmarks.py
-│   ├── requirements.txt
-│   └── venv/                 # entorno virtual (NO se sube a git, se crea local)
+├── Flutter/                   # App tablet (Flutter/Dart)
+│   └── lib/
+│       ├── screens/ widgets/ services/ providers/ models/ utils/ config/
 │
-├── flutter/                  # App tablet (Flutter/Dart)
-│   ├── lib/
-│   │   ├── screens/ widgets/ services/ providers/ models/ utils/ config/
-│   └── pubspec.yaml
+├── Unity/                     # Motor 3D + autoridad del juego (C#)
+│   ├── Assets/scripts/        # Lógica de juego, movimiento, gaze
+│   │   └── INTEGRACION_UNITY.md   # Protocolo y mecánicas en detalle
+│   └── Packages/              # manifest.json referencia MediaPipe Unity,
+│                               # NativeWebSocket, AI Navigation, Unity UI
 │
-├── docs/                      # Especificación técnica y protocolo JSON
+├── UnityRelay/                 # Relay WebSocket puro (Python)
+│   ├── relay.py
+│   └── requirements.txt
+│
+├── docs/                       # Especificación técnica y protocolo JSON
 │   ├── FLUTTER_TABLET_ESPECIFICACION.md
 │   └── ayuda.md
 │
@@ -404,110 +271,60 @@ ProyectoIHC-Five-Nights-at-Freddy-s-Attention-Defense/
 └── .gitignore
 ```
 
-> Nota: el motor Unity todavía no vive en este repositorio (lo maneja el compañero de Unity por separado). Se integrará más adelante.
+> Nota: hubo un enfoque anterior con lógica de juego en un backend Python
+> (`backend/`, decidía movimiento/ataque) y una carpeta `unity/` sin cerebro
+> propio. Quedó reemplazado por la arquitectura de arriba — Unity pasó a
+> ser la autoridad del juego y el relay solo reenvía mensajes.
 
-### Backend Python — crear y usar el entorno virtual (venv)
+### Paquete MediaPipe — paso manual obligatorio
 
-El entorno virtual (`venv/`) **no se sube a git** (está en `.gitignore`) porque depende de cada máquina. Cada persona debe crearlo localmente la primera vez:
+`Unity/Packages/com.github.homuler.mediapipe/` pesa ~400MB (binarios
+nativos para todas las plataformas + modelos de ML) y **no está incluido
+en este repositorio** (ver `.gitignore`). Antes de abrir el proyecto en
+Unity:
+
+1. Conseguir el paquete `MediaPipeUnityPlugin` (release de
+   [`homuler/MediaPipeUnityPlugin`](https://github.com/homuler/MediaPipeUnityPlugin)
+   o el `.tgz`/carpeta que ya tenga el equipo).
+2. Copiarlo completo dentro de `Unity/Packages/`, de forma que quede en
+   `Unity/Packages/com.github.homuler.mediapipe/`.
+3. Abrir el proyecto en Unity Hub — el resto de paquetes (NativeWebSocket,
+   AI Navigation) se resuelven solos vía `manifest.json`.
+
+### Cómo iniciar una partida conectada
+
+Mantener abiertas tres ventanas: relay, Unity y Flutter.
+
+**Terminal 1 — relay:**
 
 ```bash
-cd backend
-
-# 1. Crear el entorno virtual (una sola vez)
-python3 -m venv venv
-
-# 2. Activar el entorno virtual
-source venv/bin/activate        # Linux/Mac
-# venv\Scripts\activate         # Windows (cmd/PowerShell)
-
-# 3. Instalar dependencias
-pip install -r requirements.txt
-
-# 4. Probar que la cámara + gaze tracking funcionan
-python gaze_demo.py
-
-# 5. Al terminar, desactivar el entorno
-deactivate
+cd UnityRelay
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt      # Linux/Mac
+# .\.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
+.venv/bin/python relay.py
 ```
 
-Cada vez que vuelvas a trabajar en el backend (nueva sesión de terminal), solo hace falta repetir el paso 2 (`source venv/bin/activate`) — no hace falta recrear el venv salvo que lo borres o cambies de máquina.
+La consola debe mostrar `Relay Unity activo en ws://0.0.0.0:8000`.
 
-Si agregas una librería nueva con `pip install <paquete>`, actualiza `requirements.txt` con:
-```bash
-pip freeze > requirements.txt
-```
+**Unity:** abrir `Assets/MediaPipeUnity/Samples/Scenes/Face Landmark Detection/Face Landmark Detection.unity`
+y pulsar **Play**. Se conecta al relay por `ws://127.0.0.1:8000`.
 
-### Tablet Flutter — comandos básicos
+**Terminal 2 — Flutter**, con el teléfono conectado:
 
 ```bash
-cd flutter
-
-# 1. Descargar dependencias del pubspec.yaml
+cd Flutter
 flutter pub get
-
-# 2. Verificar que el entorno Flutter está bien configurado
-flutter doctor
-
-# 3. Correr la app (con un emulador/tablet conectado o Chrome)
-flutter run
+flutter devices
+flutter run -d <id-del-telefono>
 ```
 
-### Unity (referencia, cuando se integre)
+En la app, abrir **Opciones**: apagar **Modo simulado**, poner la IP local
+de la PC (no `127.0.0.1` ni `localhost`, el teléfono apuntaría a sí mismo)
+y el puerto `8000`, guardar, e iniciar/continuar la partida.
 
-```
-Abrir Unity Hub → Open Project → Seleccionar la carpeta del proyecto Unity
-(carpeta aún no incluida en este repo — ver nota arriba)
-```
-
----
-
-## 📅 Cronograma
-
-### Semana 1-2: Setup Base + Flutter
-```
-├─ Instalar Flutter SDK
-├─ Crear proyecto base
-├─ Conectar WebSocket
-├─ Mini-juego 1 (Cables)
-└─ Mini-juego 2 (Perillas)
-```
-
-### Semana 3-4: Backend + Más Juegos
-```
-├─ Gaze tracking con MediaPipe
-├─ Servidor WebSocket Python
-├─ Mini-juego 3 (Secuencias)
-├─ Mini-juego 4 (Ritmo)
-└─ Testing integración Flutter ↔ Python
-```
-
-### Semana 5-7: Motor 3D
-```
-├─ Escena de vigilancia en Unity
-├─ Animatrónico 3D
-├─ Sistema de ataques
-├─ Audio 3D
-└─ Efectos visuales
-```
-
-### Semana 8-10: Integración Total
-```
-├─ Flutter ↔ Python sincronizado
-├─ Python ↔ Unity comunicando
-├─ Testing end-to-end
-├─ Balanceo de dificultad
-└─ Bug fixes
-```
-
-### Semana 11-12: Pulido + Presentación
-```
-├─ Optimización de performance
-├─ Documentación final
-├─ Demo funcional
-└─ Presentación a profesor
-```
-
-**Duración Total:** 12 semanas
+Detalle completo del protocolo de mensajes y las mecánicas de cada
+animatronico en `Unity/Assets/scripts/INTEGRACION_UNITY.md`.
 
 ---
 
@@ -520,17 +337,11 @@ ESPECIALISTA 1: Frontend Mobile (Flutter/Dart)
 ├─ Comunicación WebSocket
 └─ Feedback (vibración, sonido)
 
-ESPECIALISTA 2: Backend (Python)
-├─ Gaze tracking
-├─ Lógica de ataque
-├─ Servidor WebSocket
-└─ Orquestación del juego
-
-ESPECIALISTA 3: Motor 3D (Unity/C#)
+ESPECIALISTA 2: Motor 3D + lógica del juego (Unity/C#)
 ├─ Escena de vigilancia 3D
-├─ Animatrónico
-├─ Audio y efectos visuales
-└─ Interfaz de usuario
+├─ Movimiento y ataque de animatronicos
+├─ Seguimiento facial (gaze tracking)
+└─ Relay de conexión con la tablet
 ```
 
 ---
@@ -566,22 +377,19 @@ Este proyecto cubre todas las unidades del curso CS2H1:
 ## 🔗 Enlaces Útiles
 
 - [MediaPipe Documentation](https://mediapipe.dev/)
+- [MediaPipeUnityPlugin](https://github.com/homuler/MediaPipeUnityPlugin)
 - [Flutter Documentation](https://flutter.dev/docs)
 - [Unity Documentation](https://docs.unity3d.com/)
-- [OpenCV Python](https://docs.opencv.org/master/)
-- [FastAPI](https://fastapi.tiangolo.com/)
+- [NativeWebSocket](https://github.com/endel/NativeWebSocket)
 
 ---
 
 ## 📝 Especificaciones Técnicas
 
-Para documentación técnica más detallada, ver:
-- `docs/ARCHITECTURE.md` - Arquitectura del sistema
-- `docs/PROTOCOL.md` - Protocolo de comunicación JSON
-- `docs/SETUP.md` - Instrucciones de setup detalladas
-- `tablet/README.md` - Especificación Flutter
-- `backend/README.md` - Especificación Python
-- `unity/README.md` - Especificación Unity
+- `Unity/Assets/scripts/INTEGRACION_UNITY.md` — protocolo de mensajes y
+  mecánicas de cada animatronico, fuente de verdad del lado Unity/relay.
+- `docs/FLUTTER_TABLET_ESPECIFICACION.md` — especificación técnica del
+  lado tablet.
 
 ---
 
@@ -602,29 +410,4 @@ Este es un proyecto académico colaborativo. Para contribuir:
 
 ---
 
-## ⚠️ Estado del Proyecto
-
-```
-ESTADO: En Desarrollo
-VERSIÓN: 0.1.0 (Alpha)
-ÚLTIMA ACTUALIZACIÓN: [Fecha]
-
-TODO:
-- [ ] Backend Python 50%
-- [ ] Flutter Frontend 30%
-- [ ] Motor Unity 20%
-- [ ] Integración 0%
-- [ ] Testing 0%
-- [ ] Documentación 40%
-```
-
----
-
-## 📞 Contacto
-
-Para preguntas o problemas, abrir issue en GitHub o contactar al equipo de desarrollo.
-
----
-
 **Creado con ❤️ para CS2H1 - UCSP**
-
