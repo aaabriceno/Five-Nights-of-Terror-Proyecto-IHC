@@ -1,4 +1,4 @@
-# 🎮 Five Nights at Freddy's - Attention Defense
+# 🎮 Five Nights of Terror - Proyecto IHC
 
 > Un juego innovador que combina detección de atención visual con mini-juegos en tablet para crear una experiencia única de vigilancia y defensa.
 
