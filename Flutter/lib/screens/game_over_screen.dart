@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import '../providers/connection_provider.dart';
-import 'splash_screen.dart';
+import 'menu_principal_screen.dart';
 
 class GameOverScreen extends StatelessWidget {
   const GameOverScreen({super.key});
@@ -33,12 +33,12 @@ class GameOverScreen extends StatelessWidget {
                 context.read<ConnectionProvider>().disconnect();
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute<void>(
-                    builder: (_) => const SplashScreen(modo: 'continuar'),
+                    builder: (_) => const MenuPrincipalScreen(),
                   ),
                   (route) => false,
                 );
               },
-              child: const Text('Reintentar'),
+              child: const Text('Continuar'),
             ),
           ],
         ),
