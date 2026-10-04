@@ -40,3 +40,17 @@ Unity/*.csproj
 Unity/*.sln
 Unity/.vs/
 Unity/.vscode/
+
+# LaTeX (informePresentacionLunes-*): ignorar archivos generados al compilar
+# y respaldos; solo se versionan .tex, .pdf e imágenes.
+informePresentacionLunes-*/*.aux
+informePresentacionLunes-*/*.log
+informePresentacionLunes-*/*.nav
+informePresentacionLunes-*/*.out
+informePresentacionLunes-*/*.snm
+informePresentacionLunes-*/*.toc
+informePresentacionLunes-*/*.vrb
+informePresentacionLunes-*/*.fls
+informePresentacionLunes-*/*.fdb_latexmk
+informePresentacionLunes-*/*.synctex.gz
+informePresentacionLunes-*/*.bak
