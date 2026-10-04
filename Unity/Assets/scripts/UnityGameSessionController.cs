@@ -114,14 +114,17 @@ public class UnityGameSessionController : MonoBehaviour
     private const float TickSeconds = 0.5f;
     private const float GameTimeScale = 3f;
     private const float MaxMusicBox = 2000f;
+    private const float SegundosEntreTareas = 30f;
     private const int MaxNight = 6;
     private const string InitialTask = "cables";
+    
     private static readonly Dictionary<string, int> Durations = new Dictionary<string, int>
     {
         { "cables", 30 }, { "dials", 20 }, { "sequence", 25 }, { "rhythm", 15 },
         { "wifi", 15 }, { "temperatura", 20 }, { "ventiladores", 20 },
         { "procesar_datos", 15 }, { "subir_datos", 12 }, { "trazar_curso", 20 }
     };
+    
     private static readonly Dictionary<string, string> Descriptions = new Dictionary<string, string>
     {
         { "cables", "Conectar los cables del color correcto" }, { "dials", "Girar perillas a posición correcta" },
@@ -130,12 +133,16 @@ public class UnityGameSessionController : MonoBehaviour
         { "ventiladores", "Reparar ventiladores" }, { "procesar_datos", "Procesar datos" },
         { "subir_datos", "Subir datos" }, { "trazar_curso", "Trazar curso" }
     };
+    
     private static readonly string[] FreddyTypes = { "temperatura", "ventiladores", "cables", "dials", "trazar_curso" };
     private static readonly string[] VixyTypes = { "wifi", "sequence", "rhythm", "procesar_datos", "subir_datos" };
     private static readonly int[] FreddyNightLevels = { 0, 0, 1, 0, 3, 4 };
     private static readonly int[] VixyNightLevels = { 0, 1, 5, 4, 7, 12 };
     private static readonly int[] PuppetNightLevels = { 0, 3, 0, 2, 5, 10 };
-    private static readonly int[] PuppetDrainRates = { 40, 40, 60, 80, 100, 120 };
+    // Segundos reales que tarda la caja en vaciarse por noche: 50, 45, 40,
+    // 35, 30, 25. El valor sale de MaxMusicBox / (drain * GameTimeScale /
+    // TickSeconds); cambiar GameTimeScale o TickSeconds obliga a recalcular.
+    private static readonly int[] PuppetDrainRates = { 13, 15, 17, 19, 22, 27 };
 
     private readonly List<TaskData> activeTasks = new List<TaskData>();
     private readonly List<AnimatronicUnityBrain> brains = new List<AnimatronicUnityBrain>();
@@ -150,6 +157,7 @@ public class UnityGameSessionController : MonoBehaviour
     private int taskId = 1;
     private bool puppetEnPeligroPrevio;
     private bool puppetCajaVaciaPrevio;
+    private float segundosDesdeUltimaTarea;
 
     private void Awake()
     {
@@ -308,6 +316,7 @@ public class UnityGameSessionController : MonoBehaviour
         valorCajaPuppet = MaxMusicBox;
         puppetEnPeligroPrevio = false;
         puppetCajaVaciaPrevio = false;
+        segundosDesdeUltimaTarea = 0f;
         partidaActiva = true;
         desktopJumpscareShown = false;
         if (gestorSonido != null) gestorSonido.DetenerMusica();
@@ -351,13 +360,21 @@ public class UnityGameSessionController : MonoBehaviour
             gestorSonido.ReproducirPopGoesTheWeasel();
         puppetCajaVaciaPrevio = puppetCajaVaciaAhora;
 
+        // Las tareas ya no dependen del cambio de hora: aparecen en su propio
+        // ritmo para que el jugador tenga tiempo de resolverlas.
+        segundosDesdeUltimaTarea += TickSeconds;
+        if (segundosDesdeUltimaTarea >= SegundosEntreTareas)
+        {
+            segundosDesdeUltimaTarea -= SegundosEntreTareas;
+            TryGenerateNightTasks();
+        }
+
         if (secondsIntoHour >= 60f)
         {
             secondsIntoHour -= 60f;
             if (hora < 6)
             {
                 hora++;
-                TryGenerateNightTasks();
                 foreach (AnimatronicUnityBrain brain in brains) brain.SetNight(noche, GetInGameTime());
             }
             else

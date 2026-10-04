@@ -79,6 +79,17 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// El jugador cierra la tarea abierta sin resolverla. La tarea sigue en
+  /// `tareasPendientes` (nunca se quitó de ahí al elegirla), así que puede
+  /// retomarse después; no se avisa al servidor ni cuenta como fallo — el
+  /// castigo por dejarla pendiente ya lo aplica el animatrónico dueño, que
+  /// acelera según la antigüedad de la tarea.
+  void volverAlMenuDeTareas() {
+    if (session.currentTask == null) return;
+    session.currentTask = null;
+    notifyListeners();
+  }
+
   /// El jugador empezó a sostener el control de la caja de música de
   /// Puppet. Se manda una sola vez al iniciar el gesto, no en cada
   /// frame — el servidor recarga la caja mientras no reciba

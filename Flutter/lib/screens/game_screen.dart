@@ -73,13 +73,7 @@ class _GameScreenState extends State<GameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: _mostrandoCajaDePuppet
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Volver al menú de tareas',
-                onPressed: () => setState(() => _mostrandoCajaDePuppet = false),
-              )
-            : null,
+        leading: _buildBotonVolver(game),
         title: StatusBar(
           connectionState: connection.state,
           reconnectAttempts: connection.reconnectAttempts,
@@ -108,6 +102,29 @@ class _GameScreenState extends State<GameScreen> {
         ),
       ),
     );
+  }
+
+  /// Flecha para volver al menú de tareas, visible mientras haya algo
+  /// abierto encima de él (la caja de Puppet o una tarea). Salir de una
+  /// tarea no la resuelve ni la falla: sigue pendiente en el menú.
+  Widget? _buildBotonVolver(GameProvider game) {
+    if (_mostrandoCajaDePuppet) {
+      return IconButton(
+        icon: const Icon(Icons.arrow_back),
+        tooltip: 'Volver al menú de tareas',
+        onPressed: () => setState(() => _mostrandoCajaDePuppet = false),
+      );
+    }
+
+    if (game.session.currentTask != null) {
+      return IconButton(
+        icon: const Icon(Icons.arrow_back),
+        tooltip: 'Volver al menú de tareas',
+        onPressed: game.volverAlMenuDeTareas,
+      );
+    }
+
+    return null;
   }
 
   /// Decide qué mostrar en el cuerpo de la pantalla: la caja de Puppet
