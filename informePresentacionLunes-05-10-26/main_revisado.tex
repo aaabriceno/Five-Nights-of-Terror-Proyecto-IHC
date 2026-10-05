@@ -31,7 +31,7 @@
 \newcommand{\evidence}[1]{\par\vspace{.25em}{\color{Muted}\scriptsize Evidencia revisada: #1}}
 
 \title{Five Nights of Terror: ¿para quién es el juego?}
-\subtitle{Especificidad (Bowman) y accesibilidad (HCI)}
+\subtitle{Especificidad y accesibilidad en HCI}
 \author{Proyecto de Interacción Humano--Computador}
 \institute{Análisis del prototipo Unity + Flutter}
 \date{}
@@ -109,9 +109,9 @@
 \end{frame}
 
 % 5 NUEVA (reemplaza "Dos marcos")
-\begin{frame}{Marco 1 (Bowman et al., 2006): la especificidad}
+\begin{frame}{Marco 1: la especificidad}
   \small
-  \tagline{Idea del paper:} las técnicas genéricas fallan porque no se diseñaron para una situación concreta. Hay que acotar.
+  \tagline{Idea central:} las técnicas genéricas fallan porque no se diseñaron para una situación concreta. Hay que acotar.
   \vspace{.4em}
 
   \begin{tabular}{>{\RaggedRight\arraybackslash}p{.17\linewidth} >{\RaggedRight\arraybackslash}p{.74\linewidth}}
@@ -126,11 +126,11 @@
   \end{tabular}
   \vspace{.4em}
 
-  \smallnote{El paper añade tres ideas más: variantes (flavors) de técnicas, dificultad de implementación y tecnologías emergentes, como la mirada en pantallas grandes.}
+  \smallnote{El marco añade tres ideas más: variantes (flavors) de técnicas, dificultad de implementación y tecnologías emergentes, como la mirada en pantallas grandes.}
 \end{frame}
 
 % 6 NUEVA
-\begin{frame}{Marco 2 (Loaiza, 2026): el modelo de procesamiento de información}
+\begin{frame}{Marco 2: el modelo de procesamiento de información}
   \small
   \begin{center}
   \begin{tabular}{@{}c@{\,}c@{\,}c@{\,}c@{\,}c@{\,}c@{\,}c@{\,}c@{\,}c@{}}
@@ -157,12 +157,13 @@
 
 % 7 NUEVA
 \begin{frame}{Especificidad de usuario: ¿para quién está pensado el juego?}
-  \small
+  \footnotesize
   \begin{columns}[T,onlytextwidth]
     \column{.49\textwidth}
-      \begin{block}{Público al que apuntamos (propuesta)}
+      \begin{block}{Público al que apuntamos}
         \begin{itemize}
-          \item Adolescentes y adultos (aprox.\ 14 años o más): es un juego de terror.
+          \item Mayores de 14 años: es un juego de terror.
+          \item Sin problemas cardíacos: hay sustos (jumpscares) repentinos.
           \item Visión funcional, con o sin lentes.
           \item Audición suficiente para percibir señales sonoras.
           \item Motricidad fina que permita arrastrar y tocar en ritmo.
@@ -173,13 +174,14 @@
       \begin{block}{Quién queda fuera hoy, y por qué}
         \begin{itemize}
           \item Ceguera total: la mecánica exige mirar el PC y la tablet.
+          \item Personas con problemas cardíacos: los sustos pueden afectarlas.
           \item Quien no pueda mantener el rostro detectable ante la cámara.
           \item Baja visión, daltonismo, sordera o limitación motora: \strong{no excluidos por concepto, pero hoy sin alternativa}.
-          \item Atención dividida muy limitada (p.\,ej.\ TDAH): la mecánica central es dividir la atención.
+          \item Atención dividida muy limitada (p.\,ej.\ TDAH): es la mecánica central.
         \end{itemize}
       \end{block}
   \end{columns}
-  \smallnote{Principio del PPT: la accesibilidad parte de decidir qué canales y capacidades supone el diseño, y probarlo con usuarios reales.}
+  \smallnote{La accesibilidad parte de decidir qué canales y capacidades supone el diseño, y probarlo con usuarios reales.}
 \end{frame}
 
 % 8
@@ -198,8 +200,8 @@
       \end{block}
       \tagline{Conexión con los marcos}
       \begin{itemize}
-        \item \strong{Bowman:} especificidad de dispositivo y de usuario; la mirada ya se usó como entrada (Gaze-Hand), pero con calibración.
-        \item \strong{PPT:} el eye-tracking es una alternativa de control, no un requisito universal.
+        \item \strong{Especificidad:} el diseño depende del dispositivo y del usuario; la mirada ya se ha usado como entrada, pero con calibración.
+        \item \strong{Accesibilidad:} el eye-tracking es una alternativa de control, no un requisito universal.
       \end{itemize}
   \end{columns}
 \end{frame}
@@ -246,12 +248,12 @@
 \begin{frame}{Qué dice la literatura sobre cambiar de pantalla}
   \begin{columns}[T,onlytextwidth]
     \column{.49\textwidth}
-      \begin{block}{Bowman et al. (2006), caso C}
+      \begin{block}{Estudio con pantallas grandes}
         \small
         En una pantalla grande, poner la información en los bordes obligó a más movimientos de cabeza y ojos, y las etiquetas quedaron lejos de sus objetos. Una técnica buena en un dispositivo \strong{no migra sola} a otro.
       \end{block}
     \column{.47\textwidth}
-      \begin{block}{Pavanatto et al. (2023), en el PPT}
+      \begin{block}{Estudio con teclado y monitores virtuales}
         \small
         11 de 27 participantes cometieron errores de tipeo y sintieron incomodidad por el cambio de contexto visual entre teclado físico y pantalla.
       \end{block}
@@ -264,87 +266,14 @@
   \end{itemize}
 \end{frame}
 
-% 12 NUEVA
-\begin{frame}{Barreras inherentes y barreras corregibles}
-  \small
-  \begin{columns}[T,onlytextwidth]
-    \column{.47\textwidth}
-      \begin{block}{Inherentes a la idea}
-        \begin{itemize}
-          \item Dividir la atención entre dos pantallas es la mecánica central.
-          \item El juego usa presión de tiempo; el PPT recomienda «sin límite de tiempo».
-          \item Depende de la mirada: exige ojos y rostro visibles.
-        \end{itemize}
-        \smallnote{Se declaran como alcance, no se esconden.}
-      \end{block}
-    \column{.49\textwidth}
-      \begin{block}{Corregibles con diseño}
-        \begin{itemize}
-          \item Información solo por color.
-          \item Avisos solo por audio.
-          \item Objetivos pequeños o con poca tolerancia.
-          \item Falta de explicación de qué causó un ataque.
-          \item Sin calibración de la cámara por usuario.
-        \end{itemize}
-      \end{block}
-  \end{columns}
-  \vspace{.4em}
-  \smallnote{Esta separación es la aplicación directa de «especificidad»: decidir qué se acota y qué se mejora.}
-\end{frame}
-
-% 13 NUEVA
-\begin{frame}{Propuestas de mejora con su fundamento}
-  \footnotesize
-  \begin{tabular}{>{\RaggedRight\arraybackslash}p{.30\linewidth} >{\RaggedRight\arraybackslash}p{.28\linewidth} >{\RaggedRight\arraybackslash}p{.34\linewidth}}
-    \toprule
-    \textbf{Propuesta} & \textbf{Base} & \textbf{Criterio}\\
-    \midrule
-    Forma, símbolo o número además del color en cables y ritmo; modo daltónico. & PPT: canal visual; sin solo-color. & Contraste 4,5:1 para texto normal.\\[.1em]
-    Vibración y aviso visual para sonidos críticos (jumpscare, caja musical). & Sustitución sensorial (§3.3.5). & Misma información por otro canal.\\[.1em]
-    Zonas táctiles mayores y tolerancia al arrastre; alternativa a mantener presionado. & Ley de Fitts; temblores. & Objetivos de al menos $44\times44$ px.\\[.1em]
-    Dificultad ajustable y modo con menos presión de tiempo. & Cognición: TDAH, memoria de trabajo. & Pasos cortos, feedback inmediato.\\[.1em]
-    Calibración de la mirada y distinguir «no mira» de «no se detecta». & Bowman: especificidad de usuario. & Menos falsos ataques.\\[.1em]
-    Opción de reducir movimiento y sacudidas. & PPT: vestibular. & Reduced motion.\\
-    \bottomrule
-  \end{tabular}
-  \vspace{-.2em}\smallnote{Lección de SSWIM (Bowman): añadir funciones a una técnica no tiene por qué empeorar su rendimiento.}
-\end{frame}
-
-% 14 NUEVA
-\begin{frame}{Cómo lo evaluaríamos}
-  \begin{columns}[T,onlytextwidth]
-    \column{.31\textwidth}
-      \tagline{Subjetivos}
-      \begin{itemize}\small
-        \item NASA TLX: carga mental, física y temporal.
-        \item Cuestionario de comodidad y usabilidad.
-      \end{itemize}
-    \column{.31\textwidth}
-      \tagline{Rendimiento}
-      \begin{itemize}\small
-        \item Tiempo por tarea y tasa de error.
-        \item Cuántos ataques se deben a fallos de detección.
-      \end{itemize}
-    \column{.31\textwidth}
-      \tagline{Psicofisiológicos}
-      \begin{itemize}\small
-        \item Eye-tracking: fijaciones y saltos PC $\leftrightarrow$ tablet.
-      \end{itemize}
-  \end{columns}
-  \vspace{.6em}
-  \begin{block}{Regla del PPT, y práctica de Bowman}
-    Ningún diseño es accesible hasta probarlo con usuarios reales: probar, medir, iterar.
-  \end{block}
-\end{frame}
-
 % 15
-\begin{frame}{Conclusión: prioridades de mejora}
+\begin{frame}{Conclusión: limitaciones identificadas}
   \begin{enumerate}
-    \item \strong{Definir el usuario:} acotar el público y declarar qué canales supone el diseño.
-    \item \strong{Hacer fiable la detección:} calibrar por usuario y separar «no mira» de «no se detecta».
-    \item \strong{Dar alternativas equivalentes:} no depender solo de color, arrastre preciso o audio.
-    \item \strong{Hacer legible el estado del juego:} indicar urgencia, fallos y causa de un ataque.
-    \item \strong{Evaluar una partida completa} con usuarios reales.
+    \item \strong{Usuario no definido en el prototipo:} el diseño supone canales y capacidades que nunca se declararon.
+    \item \strong{Detección de mirada frágil:} depende de postura, luz y cámara, y confunde «no mira» con «no se detecta».
+    \item \strong{Sin alternativas equivalentes:} la información depende del color, del arrastre preciso y del audio.
+    \item \strong{Estado del juego poco legible:} no queda claro qué es urgente ni por qué ocurre un ataque.
+    \item \strong{Sin evaluación con usuarios:} no se ha medido una partida completa.
   \end{enumerate}
   \vspace{.5em}
   \begin{block}{Idea final}
