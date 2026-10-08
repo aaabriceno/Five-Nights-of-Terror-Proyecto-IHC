@@ -1,0 +1,18 @@
+Diapositivas del tutorial.
+
+Poné acá las imágenes, nombradas con número al principio para que el orden
+sea el correcto:
+
+    slide_01.png
+    slide_02.png
+    slide_03.png
+    ...
+
+PantallaDeTutorial.cs las carga todas y las ordena por nombre. No hace falta
+tocar código: agregar, quitar o reordenar diapositivas es cuestión de
+archivos. La tablet recibe el total automáticamente.
+
+Formato recomendado: 16:9 (1920x1080), con los bordes oscuros para que el
+recorte en monitores de otra proporción no se note.
+
+Guion propuesto en docs/PLAN_TUTORIAL.md.

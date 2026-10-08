@@ -56,8 +56,8 @@ public class PantallaDeEspera : MonoBehaviour
 
         Canvas canvas = lienzo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        // Orden de capas: jumpscare (short.MaxValue) > resultado > espera.
-        canvas.sortingOrder = short.MaxValue - 3;
+        // Orden de capas: jumpscare > resultado > tutorial > espera.
+        canvas.sortingOrder = short.MaxValue - 4;
 
         CanvasScaler escalador = lienzo.GetComponent<CanvasScaler>();
         escalador.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;

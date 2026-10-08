@@ -13,6 +13,14 @@ public class UnityGameSessionController : MonoBehaviour
     [Serializable] private class Header { public string type; }
     [Serializable] private class ConnectMessage { public string type; public string player_id; public string modo; }
     [Serializable] private class TaskResultMessage { public string type; public int task_id; public bool success = true; }
+    [Serializable] private class TutorialSlideMessage { public string type; public int indice; }
+
+    [Serializable] private class TutorialEstadoMessage
+    {
+        public string type = "tutorial_estado";
+        public int indice;
+        public int total;
+    }
     [Serializable] private class OutgoingMessage { public string type; }
 
     [Serializable] public class TaskParameters
@@ -119,6 +127,16 @@ public class UnityGameSessionController : MonoBehaviour
     /// Instante en que el jumpscare deja de verse. La pantalla de derrota
     /// espera hasta entonces para no taparlo.
     public float MomentoEnQueTerminaElJumpscare { get; private set; }
+
+    /// El jugador abrió el tutorial desde la tablet. No hay partida en curso:
+    /// la PC solo muestra las diapositivas mientras él las pasa.
+    public bool EnTutorial { get; private set; }
+
+    public int IndiceDeDiapositiva { get; private set; }
+
+    /// Lo informa PantallaDeTutorial al cargar las imágenes, para que la
+    /// tablet sepa cuántas hay sin tener el número escrito de su lado.
+    public int TotalDeDiapositivas { get; set; }
 
     [Header("Jumpscare en la ventana de Unity")]
     [SerializeField] private Texture2D desktopJumpscareImage;
@@ -313,6 +331,19 @@ public class UnityGameSessionController : MonoBehaviour
                     // retira la pantalla del resultado anterior.
                     partidaActiva = false;
                     ResultadoDeLaUltimaPartida = string.Empty;
+                    EnTutorial = false;
+                    break;
+                case "tutorial_abrir":
+                    EnTutorial = true;
+                    IndiceDeDiapositiva = 0;
+                    PublicarEstadoDeTutorial();
+                    break;
+                case "tutorial_slide":
+                    IndiceDeDiapositiva = JsonUtility.FromJson<TutorialSlideMessage>(json).indice;
+                    PublicarEstadoDeTutorial();
+                    break;
+                case "tutorial_cerrar":
+                    EnTutorial = false;
                     break;
             }
         }
@@ -322,9 +353,35 @@ public class UnityGameSessionController : MonoBehaviour
         }
     }
 
+    /// Le confirma a la tablet en qué diapositiva está y cuántas hay, para
+    /// que pueda desactivar "Anterior"/"Siguiente" en los extremos.
+    private void PublicarEstadoDeTutorial()
+    {
+        if (TotalDeDiapositivas > 0)
+            IndiceDeDiapositiva = Mathf.Clamp(IndiceDeDiapositiva, 0, TotalDeDiapositivas - 1);
+
+        Send(new TutorialEstadoMessage
+        {
+            indice = IndiceDeDiapositiva,
+            total = TotalDeDiapositivas,
+        });
+    }
+
     private void StartGame(ConnectMessage message)
     {
         if (message == null) return;
+
+        // El tutorial se conecta con el mismo mensaje `connect` (el relay lo
+        // necesita para asignarle el rol de tablet y reenviar lo que mande),
+        // pero no debe arrancar ninguna noche.
+        if (message.modo == "tutorial")
+        {
+            EnTutorial = true;
+            IndiceDeDiapositiva = 0;
+            PublicarEstadoDeTutorial();
+            return;
+        }
+
         playerId = string.IsNullOrEmpty(message.player_id) ? "local" : message.player_id;
         string key = "ihc_next_night_" + playerId;
         noche = message.modo == "continuar" ? Mathf.Clamp(PlayerPrefs.GetInt(key, 1), 1, MaxNight) : 1;
