@@ -105,6 +105,21 @@ public class UnityGameSessionController : MonoBehaviour
     [SerializeField] private int hora = 1;
     [SerializeField] private float valorCajaPuppet = 2000f;
 
+    /// Lo consulta la pantalla de espera para saber si debe taparlo todo.
+    public bool PartidaActiva => partidaActiva;
+
+    /// Resultado de la partida que acaba de terminar ("win", "loss" o
+    /// "final_victory"), o vacío si no hay ninguno pendiente de mostrar. Se
+    /// limpia cuando la tablet avisa que volvió a su menú, no por tiempo:
+    /// la pantalla del final queda a la vista mientras el jugador decide.
+    public string ResultadoDeLaUltimaPartida { get; private set; } = string.Empty;
+
+    public int NocheDeLaUltimaPartida { get; private set; }
+
+    /// Instante en que el jumpscare deja de verse. La pantalla de derrota
+    /// espera hasta entonces para no taparlo.
+    public float MomentoEnQueTerminaElJumpscare { get; private set; }
+
     [Header("Jumpscare en la ventana de Unity")]
     [SerializeField] private Texture2D desktopJumpscareImage;
     [SerializeField] private AudioClip desktopJumpscareSound;
@@ -112,9 +127,13 @@ public class UnityGameSessionController : MonoBehaviour
     private bool desktopJumpscareShown;
 
     private const float TickSeconds = 0.5f;
-    private const float GameTimeScale = 3f;
+    // Segundos reales que dura cada noche (2:00, 2:15, 2:30, 2:30, 2:45,
+    // 2:45). La noche son 6 horas de juego, así que la escala de tiempo sale
+    // de dividir 360 unidades de reloj entre esa duración. Índice = noche - 1.
+    private static readonly float[] SegundosRealesPorNoche = { 120f, 135f, 150f, 150f, 165f, 165f };
     private const float MaxMusicBox = 2000f;
     private const float SegundosEntreTareas = 30f;
+    private const float ProbabilidadDeWifi = 0.2f;
     private const int MaxNight = 6;
     private const string InitialTask = "cables";
     
@@ -139,9 +158,10 @@ public class UnityGameSessionController : MonoBehaviour
     private static readonly int[] FreddyNightLevels = { 0, 0, 1, 0, 3, 4 };
     private static readonly int[] VixyNightLevels = { 0, 1, 5, 4, 7, 12 };
     private static readonly int[] PuppetNightLevels = { 0, 3, 0, 2, 5, 10 };
-    // Segundos reales que tarda la caja en vaciarse por noche: 50, 45, 40,
-    // 35, 30, 25. El valor sale de MaxMusicBox / (drain * GameTimeScale /
-    // TickSeconds); cambiar GameTimeScale o TickSeconds obliga a recalcular.
+    // Ritmo de vaciado de la caja por noche. El drenaje se aplica por unidad
+    // de reloj de juego, así que al estirarse la noche (ver
+    // SegundosRealesPorNoche) la caja también dura proporcionalmente más en
+    // segundos reales; lo que sube de noche en noche es la presión relativa.
     private static readonly int[] PuppetDrainRates = { 13, 15, 17, 19, 22, 27 };
 
     private readonly List<TaskData> activeTasks = new List<TaskData>();
@@ -288,7 +308,12 @@ public class UnityGameSessionController : MonoBehaviour
                     if (gestorSonido != null) gestorSonido.ReproducirCuerdaCajaMusica();
                     break;
                 case "dar_cuerda_fin": windingPuppet = false; break;
-                case "disconnect": partidaActiva = false; break;
+                case "disconnect":
+                    // El jugador volvió al menú de la tablet: recién ahí se
+                    // retira la pantalla del resultado anterior.
+                    partidaActiva = false;
+                    ResultadoDeLaUltimaPartida = string.Empty;
+                    break;
             }
         }
         catch (Exception exception)
@@ -319,6 +344,7 @@ public class UnityGameSessionController : MonoBehaviour
         segundosDesdeUltimaTarea = 0f;
         partidaActiva = true;
         desktopJumpscareShown = false;
+        ResultadoDeLaUltimaPartida = string.Empty;
         if (gestorSonido != null) gestorSonido.DetenerMusica();
         if (coordinator != null)
         {
@@ -340,10 +366,16 @@ public class UnityGameSessionController : MonoBehaviour
         PublishTaskList();
     }
 
+    /// Unidades de reloj de juego por segundo real. Una noche son 6 horas de
+    /// 60 unidades; repartirlas en la duración de la noche actual hace que
+    /// las noches largas transcurran más despacio en vez de durar más horas.
+    private float EscalaDeTiempoDeLaNoche =>
+        360f / SegundosRealesPorNoche[Mathf.Clamp(noche - 1, 0, SegundosRealesPorNoche.Length - 1)];
+
     private void TickGame()
     {
         totalSeconds += TickSeconds;
-        float gameDelta = TickSeconds * GameTimeScale;
+        float gameDelta = TickSeconds * EscalaDeTiempoDeLaNoche;
         secondsIntoHour += gameDelta;
 
         int drain = PuppetDrainRates[Mathf.Clamp(noche - 1, 0, PuppetDrainRates.Length - 1)];
@@ -415,7 +447,9 @@ public class UnityGameSessionController : MonoBehaviour
             if (HasTask(type)) continue;
             if (owner == "Vixy")
             {
-                if ((type == "procesar_datos" || type == "subir_datos") && hora < 4) continue;
+                // Romper el WiFi corta la cadena procesar -> subir, así que
+                // es un estorbo puntual, no una tarea rutinaria.
+                if (type == "wifi" && UnityEngine.Random.value > ProbabilidadDeWifi) continue;
                 if (type == "subir_datos" && !completedTaskTypes.Contains("procesar_datos")) continue;
                 if (type == "subir_datos" && HasTask("wifi")) continue;
             }
@@ -491,7 +525,7 @@ public class UnityGameSessionController : MonoBehaviour
             allTypes.AddRange(FreddyTypes);
             foreach (string type in VixyTypes)
             {
-                if ((type == "procesar_datos" || type == "subir_datos") && hora < 4) continue;
+                if (type == "wifi" && UnityEngine.Random.value > ProbabilidadDeWifi) continue;
                 if (type == "subir_datos" && !completedTaskTypes.Contains("procesar_datos")) continue;
                 allTypes.Add(type);
             }
@@ -607,6 +641,7 @@ public class UnityGameSessionController : MonoBehaviour
             Debug.LogError("No se encontró Resources/desktop_jumpscare.ogg para el jumpscare de Unity.");
 
         float visibleDuration = Mathf.Max(desktopJumpscareDuration, sound != null ? sound.length : 0f);
+        MomentoEnQueTerminaElJumpscare = Time.time + visibleDuration;
         Destroy(overlay, visibleDuration);
     }
 
@@ -647,6 +682,8 @@ public class UnityGameSessionController : MonoBehaviour
             },
             timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         });
+        ResultadoDeLaUltimaPartida = result;
+        NocheDeLaUltimaPartida = noche;
         if (coordinator != null)
         {
             coordinator.partidaFinalizada = true;

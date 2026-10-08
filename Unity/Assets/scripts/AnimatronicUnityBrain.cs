@@ -59,15 +59,21 @@ public class AnimatronicUnityBrain : MonoBehaviour
     private float proximoIntentoPenultimo;
     private Vector3 initialPosition;
     private Quaternion initialRotation;
-    // Vixy avanza con 3 tareas suyas pendientes y ataca con 4 desde el
-    // penúltimo punto; por debajo de eso se queda donde está. Revisa las
-    // tareas más seguido una vez llega al penúltimo punto: ya decidido el
-    // desenlace, la espera corta sube la tensión sin quitarle margen al
-    // jugador para resolver y frenarla.
-    private const int TareasParaQueVixyAvance = 3;
-    private const int TareasParaQueVixyAtaque = 4;
+    // Vixy mide el descuido de la tablet en conjunto, no solo sus propias
+    // tareas: cuenta todas las pendientes (10 tipos entre Freddy y ella).
+    // Los umbrales bajan con la noche, así el mismo descuido que en la noche
+    // 1 era tolerable en la noche 6 ya la trae encima. Índice = noche - 1.
+    private static readonly int[] TareasParaQueVixyAvancePorNoche = { 6, 6, 5, 5, 4, 4 };
+    private static readonly int[] TareasParaQueVixyAtaquePorNoche = { 8, 8, 7, 7, 6, 6 };
     private const float SegundosEntreAvancesDeVixy = 8f;
+    // Revisa más seguido una vez llega al penúltimo punto: ya decidido el
+    // desenlace, la espera corta sube la tensión sin quitarle al jugador el
+    // margen para resolver y frenarla.
     private const float SegundosEntreRevisionesDeVixyEnPenultimo = 5f;
+
+    // Segundos que Freddy tolera sin ser mirado antes de avanzar un nodo.
+    // Índice = noche - 1.
+    private static readonly float[] SegundosDeFreddyPorNoche = { 35f, 32f, 29f, 26f, 23f, 20f };
 
     // Freddy se defiende solo con la mirada: sus tareas siguen apareciendo en
     // la tablet (las genera UnityGameSessionController), pero no alteran su
@@ -77,6 +83,17 @@ public class AnimatronicUnityBrain : MonoBehaviour
     private static readonly string[] PuppetTasks = Array.Empty<string>();
 
     public bool EsPuppet => esPuppet || string.Equals(nombreAnimatronico, "Puppet", StringComparison.OrdinalIgnoreCase);
+
+    private int IndiceDeNoche => Mathf.Clamp(currentNight - 1, 0, 5);
+
+    private int TareasParaAvanzar => TareasParaQueVixyAvancePorNoche[IndiceDeNoche];
+
+    private int TareasParaAtacar => TareasParaQueVixyAtaquePorNoche[IndiceDeNoche];
+
+    /// Freddy escala con la noche; el resto conserva el valor del Inspector.
+    private float SegundosEntreAvances => detenerseCuandoMira
+        ? SegundosDeFreddyPorNoche[IndiceDeNoche]
+        : Mathf.Max(0.1f, segundosEntreMovimientos);
 
     private void Awake()
     {
@@ -119,7 +136,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
             // siempre dispone del intervalo completo para reaccionar.
             proximoIntentoPenultimo = Time.time + (ataqueVixyPorTresTareas
                 ? SegundosEntreRevisionesDeVixyEnPenultimo
-                : Mathf.Max(1f, segundosEntreMovimientos));
+                : SegundosEntreAvances);
             return;
         }
 
@@ -144,7 +161,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
         if (!usarPatrullaExistente)
             TryMove(Time.deltaTime, ataqueVixyPorTresTareas
                 ? SegundosEntreAvancesDeVixy
-                : Mathf.Max(0.1f, segundosEntreMovimientos));
+                : SegundosEntreAvances);
         UpdatePendingTaskThreat(Time.deltaTime);
     }
 
@@ -217,7 +234,10 @@ public class AnimatronicUnityBrain : MonoBehaviour
             foreach (AnimatronicGameCoordinator.TaskState task in tasks)
             {
                 if (task == null || string.IsNullOrEmpty(task.task_type)) continue;
-                if (OwnsTask(task.task_type)) current.Add(task.task_type);
+                // Vixy mide el descuido de la tablet entera, así que cuenta
+                // cualquier tarea pendiente, no solo las de su propia lista.
+                if (ataqueVixyPorTresTareas || OwnsTask(task.task_type))
+                    current.Add(task.task_type);
             }
         }
 
@@ -232,7 +252,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
         // Vixy solo mata desde el penúltimo punto, nunca a distancia: hasta
         // llegar ahí el jugador siempre puede frenarla resolviendo tareas.
         if (activo && ataqueVixyPorTresTareas && esperandoAtaquePenultimo &&
-            current.Count >= TareasParaQueVixyAtaque)
+            current.Count >= TareasParaAtacar)
             TriggerAttack("Vixy te alcanzó con las tareas sin resolver");
     }
 
@@ -273,7 +293,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
             // Vixy no usa azar: avanza solo mientras se acumulen sus tareas
             // sin resolver. Bajar de ese umbral la deja clavada donde esté,
             // así el jugador puede frenarla incluso al borde del ataque.
-            if (segundosTareaPendiente.Count < TareasParaQueVixyAvance) return;
+            if (segundosTareaPendiente.Count < TareasParaAvanzar) return;
         }
         else if (!detenerseCuandoMira)
         {
@@ -424,7 +444,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
         {
             // Mirarlo no solo cancela este intento: reinicia la cuenta, así el
             // jugador recupera el margen completo cada vez que vuelve a mirar.
-            proximoIntentoPenultimo = Time.time + Mathf.Max(1f, segundosEntreMovimientos);
+            proximoIntentoPenultimo = Time.time + SegundosEntreAvances;
             return;
         }
 
@@ -432,7 +452,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
         {
             // Vixy espera en el penúltimo punto hasta que las tareas sin
             // resolver lleguen al umbral; el azar no decide su ataque.
-            if (segundosTareaPendiente.Count >= TareasParaQueVixyAtaque)
+            if (segundosTareaPendiente.Count >= TareasParaAtacar)
                 TriggerAttack(nombreAnimatronico + " te alcanzó con las tareas sin resolver");
             else
                 proximoIntentoPenultimo = Time.time + SegundosEntreRevisionesDeVixyEnPenultimo;
