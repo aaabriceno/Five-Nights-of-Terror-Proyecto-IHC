@@ -7,6 +7,41 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: Circulos_de_personajes.006
+    second: {fileID: 2100000, guid: 8777d6f91c134bc35a4e906c9b857da5, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Focos.006
+    second: {fileID: 2100000, guid: a8fb4e5e59bb05b43a0cf33dd4c1dca7, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Mayolica_blanca.011
+    second: {fileID: 2100000, guid: 274065014508ce4389ee316effed1566, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Mayolica_negra.008
+    second: {fileID: 2100000, guid: 7cde35dd25695b9d18f7a8bf71577185, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Pared_gris_calida.008
+    second: {fileID: 2100000, guid: 6ce6f69dbb649a55caf4c7bc85401323, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Puertas_de_habitaciones.006
+    second: {fileID: 2100000, guid: 24e177d42b4f52595a8f8703d186b6ec, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Techo.008
+    second: {fileID: 2100000, guid: c7abea1c75d59bc3a95c9df2d6ba3b07, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: defaultMat
     second: {fileID: 2100000, guid: cd022b03db091654a94f5e67bb3dbff7, type: 2}
   materials:
