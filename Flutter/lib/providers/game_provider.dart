@@ -11,6 +11,10 @@ class GameProvider extends ChangeNotifier {
   Attack? lastAttack;
   bool isGameOver = false;
   bool esVictoriaFinal = false;
+
+  /// El jugador llegó a las 6 AM y pasó a la noche siguiente. Es distinto de
+  /// `isGameOver` (lo atraparon) y de `esVictoriaFinal` (superó las seis).
+  bool esNocheSuperada = false;
   int? ultimaNocheDeGameOver;
 
   /// Asignado por la capa de pantallas al `sender` del provider activo
@@ -60,10 +64,13 @@ class GameProvider extends ChangeNotifier {
         break;
       case 'game_over':
         ultimaNocheDeGameOver = (message['night'] as int?) ?? session.nocheActual;
-        if (message['result'] == 'final_victory') {
-          esVictoriaFinal = true;
-        } else {
-          isGameOver = true;
+        switch (message['result']) {
+          case 'final_victory':
+            esVictoriaFinal = true;
+          case 'win':
+            esNocheSuperada = true;
+          default:
+            isGameOver = true;
         }
         break;
       default:
@@ -146,6 +153,7 @@ class GameProvider extends ChangeNotifier {
     lastAttack = null;
     isGameOver = false;
     esVictoriaFinal = false;
+    esNocheSuperada = false;
     ultimaNocheDeGameOver = null;
     notifyListeners();
   }

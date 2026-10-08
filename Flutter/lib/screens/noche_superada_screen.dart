@@ -4,27 +4,30 @@ import '../providers/game_provider.dart';
 import '../providers/connection_provider.dart';
 import 'menu_principal_screen.dart';
 
-/// Se muestra al superar la última noche, cuando el jugador terminó el turno
-/// completo — GameProvider.esVictoriaFinal. Sin estadísticas: el logro es
-/// haber sobrevivido, no un puntaje.
-class PantallaVictoria extends StatelessWidget {
-  const PantallaVictoria({super.key});
+/// Se muestra al llegar a las 6 AM, cuando el jugador superó la noche y
+/// avanza a la siguiente. No lleva estadísticas: el logro es haber
+/// sobrevivido, y un marcador de puntos rompe la tensión que el juego
+/// construye durante la noche.
+class NocheSuperadaScreen extends StatelessWidget {
+  const NocheSuperadaScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final int? noche = context.watch<GameProvider>().ultimaNocheDeGameOver;
+
     return Scaffold(
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'TURNO COMPLETADO',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              '6:00 AM',
+              style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Sobreviviste todas las noches',
-              style: TextStyle(fontSize: 18),
+            Text(
+              noche != null ? 'Superaste la Noche $noche' : 'Superaste la noche',
+              style: const TextStyle(fontSize: 20),
             ),
             const SizedBox(height: 32),
             ElevatedButton(

@@ -114,7 +114,11 @@ class _SequenceGameWidgetState extends State<SequenceGameWidget> {
                   backgroundColor: yaTocado ? Colors.green : null,
                   shape: const CircleBorder(),
                 ),
-                child: Text('$numero', style: const TextStyle(fontSize: 20)),
+                // El check repite en forma lo que el fondo verde indica por
+                // color, para quien no distingue el verde del gris apagado.
+                child: yaTocado
+                    ? const Icon(Icons.check, size: 24)
+                    : Text('$numero', style: const TextStyle(fontSize: 20)),
               ),
             );
           }),

@@ -4,8 +4,15 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 
-/// Minijuego "Conectar Cables": arrastra cada cable de color hasta su
-/// conector correspondiente. Los conectores se mezclan aleatoriamente.
+/// Formas que identifican cada cable además de su color. Sin esto el
+/// minijuego sería injugable para quien no distingue rojo de verde (el par
+/// más común de daltonismo), porque emparejar cable y conector dependería
+/// solo del color — ver WCAG 1.4.1 "Uso del color".
+enum FormaDeCable { circulo, triangulo, cuadrado, rombo }
+
+/// Minijuego "Conectar Cables": arrastra cada cable hasta su conector
+/// correspondiente, emparejando por forma y color. Los conectores se
+/// mezclan aleatoriamente.
 class CableGameWidget extends StatefulWidget {
   final Task task;
   final void Function(bool success, List<Map<String, dynamic>> connections)
@@ -29,6 +36,12 @@ class _CableGameWidgetState extends State<CableGameWidget> {
     Colors.amber,
   ];
   static const List<String> _cableNames = ['red', 'blue', 'green', 'yellow'];
+  static const List<FormaDeCable> _cableFormas = [
+    FormaDeCable.circulo,
+    FormaDeCable.triangulo,
+    FormaDeCable.cuadrado,
+    FormaDeCable.rombo,
+  ];
 
   late List<int> _connectorOrder;
   final Map<int, int> _connections = {}; // índice cable -> índice conector
@@ -162,6 +175,7 @@ class _CableGameWidgetState extends State<CableGameWidget> {
                   size: size,
                   painter: _CableGamePainter(
                     cableColors: _cableColors,
+                    cableFormas: _cableFormas,
                     cablePositions: cablePositions,
                     connectorPositions: connectorPositions,
                     connectorOrder: _connectorOrder,
@@ -190,6 +204,7 @@ class _CableGameWidgetState extends State<CableGameWidget> {
 
 class _CableGamePainter extends CustomPainter {
   final List<Color> cableColors;
+  final List<FormaDeCable> cableFormas;
   final List<Offset> cablePositions;
   final List<Offset> connectorPositions;
   final List<int> connectorOrder;
@@ -199,6 +214,7 @@ class _CableGamePainter extends CustomPainter {
 
   _CableGamePainter({
     required this.cableColors,
+    required this.cableFormas,
     required this.cablePositions,
     required this.connectorPositions,
     required this.connectorOrder,
@@ -217,34 +233,46 @@ class _CableGamePainter extends CustomPainter {
     // Cables (origen, izquierda).
     for (int i = 0; i < cablePositions.length; i++) {
       nodePaint.color = cableColors[i];
-      canvas.drawCircle(cablePositions[i], 18, nodePaint);
+      _dibujarForma(canvas, cablePositions[i], 18, cableFormas[i], nodePaint);
     }
 
-    // Conectores (destino, derecha) — el color mostrado es el color real
-    // que le corresponde según connectorOrder, para que el jugador vea a
-    // qué cable pertenece cada conector.
+    // Conectores (destino, derecha) — la forma y el color mostrados son los
+    // del cable que le corresponde según connectorOrder, para que el jugador
+    // vea a qué cable pertenece cada conector.
     for (int slot = 0; slot < connectorPositions.length; slot++) {
       final int cableIndex = connectorOrder[slot];
+      final FormaDeCable forma = cableFormas[cableIndex];
       nodePaint.color = cableColors[cableIndex].withValues(alpha: 0.3);
-      canvas.drawCircle(connectorPositions[slot], 22, nodePaint);
+      _dibujarForma(canvas, connectorPositions[slot], 22, forma, nodePaint);
       final Paint borderPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
         ..color = cableColors[cableIndex];
-      canvas.drawCircle(connectorPositions[slot], 22, borderPaint);
+      _dibujarForma(canvas, connectorPositions[slot], 22, forma, borderPaint);
     }
 
-    // Conexiones ya hechas.
+    // Conexiones ya hechas. Una conexión incorrecta se dibuja punteada
+    // además de cambiar de color: el acierto no debe depender de distinguir
+    // rojo de verde.
     connections.forEach((cableIndex, connectorIndex) {
       final int slot = connectorOrder.indexOf(connectorIndex);
       final bool correct = cableIndex == connectorIndex;
       linePaint.color =
           correct ? cableColors[cableIndex] : Colors.red.withValues(alpha: 0.6);
-      canvas.drawLine(
-        cablePositions[cableIndex],
-        connectorPositions[slot],
-        linePaint,
-      );
+      if (correct) {
+        canvas.drawLine(
+          cablePositions[cableIndex],
+          connectorPositions[slot],
+          linePaint,
+        );
+      } else {
+        _dibujarLineaPunteada(
+          canvas,
+          cablePositions[cableIndex],
+          connectorPositions[slot],
+          linePaint,
+        );
+      }
     });
 
     // Cable en arrastre.
@@ -255,6 +283,78 @@ class _CableGamePainter extends CustomPainter {
         dragPosition!,
         linePaint,
       );
+    }
+  }
+
+  /// Dibuja la forma del cable centrada en [centro], inscrita en un círculo
+  /// de radio [radio] para que todas ocupen un área similar.
+  void _dibujarForma(
+    Canvas canvas,
+    Offset centro,
+    double radio,
+    FormaDeCable forma,
+    Paint paint,
+  ) {
+    switch (forma) {
+      case FormaDeCable.circulo:
+        canvas.drawCircle(centro, radio, paint);
+      case FormaDeCable.cuadrado:
+        final double lado = radio * 1.6;
+        canvas.drawRect(
+          Rect.fromCenter(center: centro, width: lado, height: lado),
+          paint,
+        );
+      case FormaDeCable.triangulo:
+        canvas.drawPath(
+          _poligono(centro, radio, lados: 3, rotacion: -pi / 2),
+          paint,
+        );
+      case FormaDeCable.rombo:
+        canvas.drawPath(
+          _poligono(centro, radio, lados: 4, rotacion: -pi / 2),
+          paint,
+        );
+    }
+  }
+
+  Path _poligono(
+    Offset centro,
+    double radio, {
+    required int lados,
+    required double rotacion,
+  }) {
+    final Path path = Path();
+    for (int i = 0; i < lados; i++) {
+      final double angulo = rotacion + i * 2 * pi / lados;
+      final Offset punto = Offset(
+        centro.dx + radio * cos(angulo),
+        centro.dy + radio * sin(angulo),
+      );
+      if (i == 0) {
+        path.moveTo(punto.dx, punto.dy);
+      } else {
+        path.lineTo(punto.dx, punto.dy);
+      }
+    }
+    return path..close();
+  }
+
+  void _dibujarLineaPunteada(Canvas canvas, Offset desde, Offset hasta, Paint paint) {
+    const double largoTrazo = 10;
+    const double largoHueco = 8;
+    final double distancia = (hasta - desde).distance;
+    if (distancia == 0) return;
+    final Offset direccion = (hasta - desde) / distancia;
+
+    double recorrido = 0;
+    while (recorrido < distancia) {
+      final double fin = min(recorrido + largoTrazo, distancia);
+      canvas.drawLine(
+        desde + direccion * recorrido,
+        desde + direccion * fin,
+        paint,
+      );
+      recorrido = fin + largoHueco;
     }
   }
 

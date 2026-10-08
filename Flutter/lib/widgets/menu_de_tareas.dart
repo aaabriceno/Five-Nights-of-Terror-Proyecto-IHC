@@ -72,6 +72,16 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
     return AppColors.panelBorde;
   }
 
+  /// Ícono que acompaña al color del borde para que la urgencia se perciba
+  /// sin depender de distinguir ámbar de rojo. Sigue sin mostrar números:
+  /// la urgencia es deliberadamente ambigua (ver comentario de la clase).
+  IconData? _iconoDeUrgencia(Task tarea) {
+    final Duration antiguedad = DateTime.now().difference(tarea.createdAt);
+    if (antiguedad >= _umbralRojo) return Icons.priority_high;
+    if (antiguedad >= _umbralAmbar) return Icons.schedule;
+    return null;
+  }
+
   String _nombreLegible(String taskType) {
     switch (taskType) {
       case 'cables':
@@ -235,6 +245,7 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
   Widget _buildTarjeta(BuildContext context, Task tarea) {
     final bool bloqueadaPorWifi =
         tarea.taskType == 'subir_datos' && !widget.wifiActivo;
+    final IconData? iconoUrgencia = _iconoDeUrgencia(tarea);
     return Opacity(
       opacity: bloqueadaPorWifi ? 0.4 : 1.0,
       child: Container(
@@ -270,11 +281,23 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _nombreLegible(tarea.taskType),
-                          style: Theme.of(context).textTheme.titleMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _nombreLegible(tarea.taskType),
+                                style: Theme.of(context).textTheme.titleMedium,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (iconoUrgencia != null)
+                              Icon(
+                                iconoUrgencia,
+                                size: 18,
+                                color: _colorDeUrgencia(tarea),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Text(

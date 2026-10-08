@@ -111,6 +111,13 @@ class ConnectionProvider extends ChangeNotifier {
   }
 
   void disconnect() {
+    // Avisar antes de cortar: Unity deja la pantalla de resultado ("6:00 AM"
+    // o el jumpscare) a la vista hasta recibir esto, porque es el momento en
+    // que el jugador volvió al menú de la tablet. Si solo se cerrara el
+    // socket, la pantalla de la PC se quedaría mostrando el final.
+    if (!ServerConfig.useMock && _state == ConnectionState.connected) {
+      _wsService.sendMessage({'type': 'disconnect'});
+    }
     _forwardingSubscription?.cancel();
     _forwardingSubscription = null;
     _wsService.disconnect();

@@ -43,10 +43,15 @@ class MockServerService {
     'trazar_curso': 20,
   };
 
-  // Duración de una noche en segundos reales. 360 = 6 minutos (spec real).
-  // Se puede acortar temporalmente para pruebas manuales rápidas.
-  static const int segundosPorNoche = 360;
-  static const int totalNoches = 5;
+  // Duración real de cada noche en segundos, espejo de
+  // SegundosRealesPorNoche en UnityGameSessionController (2:00, 2:15, 2:30,
+  // 2:30, 2:45, 2:45). Si cambia allá, cambiar acá: el mock existe para
+  // probar la tablet sin Unity, y sirve de poco si simula otro juego.
+  static const List<int> segundosPorNochePorNivel = [120, 135, 150, 150, 165, 165];
+  static const int totalNoches = 6;
+
+  int get _segundosDeEstaNoche =>
+      segundosPorNochePorNivel[(_nocheActual - 1).clamp(0, segundosPorNochePorNivel.length - 1)];
 
   // Índice = noche - 1. riesgoInicial: valor de risk_percent al empezar
   // la noche. incrementoPorCheckpoint: cuánto sube risk_percent en cada
@@ -57,6 +62,7 @@ class MockServerService {
     {'riesgoInicial': 8, 'incrementoPorCheckpoint': 7},
     {'riesgoInicial': 10, 'incrementoPorCheckpoint': 9},
     {'riesgoInicial': 12, 'incrementoPorCheckpoint': 12},
+    {'riesgoInicial': 15, 'incrementoPorCheckpoint': 14},
   ];
 
   int _nocheActual = 1;
@@ -131,7 +137,7 @@ class MockServerService {
     _segundosTranscurridosEstaNoche++;
 
     final int checkpointsEsperados =
-        (_segundosTranscurridosEstaNoche / (segundosPorNoche / 6)).floor();
+        (_segundosTranscurridosEstaNoche / (_segundosDeEstaNoche / 6)).floor();
     if (checkpointsEsperados > _ultimoCheckpointAplicado &&
         checkpointsEsperados <= 5) {
       final int incremento =
@@ -145,11 +151,11 @@ class MockServerService {
       'night': _nocheActual,
       'in_game_time': _formatearHoraEnJuego(_segundosTranscurridosEstaNoche),
       'seconds_elapsed': _segundosTranscurridosEstaNoche,
-      'seconds_total': segundosPorNoche,
+      'seconds_total': _segundosDeEstaNoche,
       'risk_percent': _riesgoActual,
     });
 
-    if (_segundosTranscurridosEstaNoche >= segundosPorNoche) {
+    if (_segundosTranscurridosEstaNoche >= _segundosDeEstaNoche) {
       if (_nocheActual >= totalNoches) {
         _emitirVictoriaFinal();
       } else {
@@ -162,10 +168,10 @@ class MockServerService {
     }
   }
 
-  /// Convierte segundos transcurridos (0..segundosPorNoche) a una hora
-  /// simulada 12:00 AM -> 6:00 AM, formateada como "H:MM AM".
+  /// Convierte segundos transcurridos en la noche actual a una hora simulada
+  /// 12:00 AM -> 6:00 AM, formateada como "H:MM AM".
   String _formatearHoraEnJuego(int segundosTranscurridos) {
-    final double fraccion = segundosTranscurridos / segundosPorNoche;
+    final double fraccion = segundosTranscurridos / _segundosDeEstaNoche;
     final int minutosTotalesSimulados = (fraccion * 6 * 60).round();
     int hora = 12 + (minutosTotalesSimulados ~/ 60);
     final int minuto = minutosTotalesSimulados % 60;

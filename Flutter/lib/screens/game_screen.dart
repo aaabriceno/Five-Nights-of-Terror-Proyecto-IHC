@@ -21,6 +21,7 @@ import '../widgets/trazar_curso_game_widget.dart';
 import 'game_over_screen.dart';
 import 'jumpscare_screen.dart';
 import 'menu_principal_screen.dart';
+import 'noche_superada_screen.dart';
 import 'pantalla_victoria.dart';
 
 class GameScreen extends StatefulWidget {
@@ -56,6 +57,12 @@ class _GameScreenState extends State<GameScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(builder: (_) => const PantallaVictoria()),
+        );
+      });
+    } else if (game.esNocheSuperada) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const NocheSuperadaScreen()),
         );
       });
     } else if (game.isGameOver && !_gameOverTransitionScheduled) {

@@ -30,6 +30,15 @@ class _RhythmGameWidgetState extends State<RhythmGameWidget> {
     Colors.blue,
   ];
 
+  // Cada botón lleva su propio icono: el rojo y el verde son el par que no
+  // distingue el daltonismo más común, así que el color no puede ser la
+  // única forma de saber cuál se está pulsando.
+  static const List<IconData> _iconosBotones = [
+    Icons.change_history,
+    Icons.circle,
+    Icons.square,
+  ];
+
   Timer? _timerPulso;
   Timer? _countdownTimer;
   int _segundosRestantes = 15;
@@ -143,9 +152,19 @@ class _RhythmGameWidgetState extends State<RhythmGameWidget> {
                   backgroundColor: resaltado
                       ? _coloresBotones[indice]
                       : _coloresBotones[indice].withValues(alpha: 0.3),
-                  shape: const CircleBorder(),
+                  // El botón a pulsar se marca además con un borde grueso,
+                  // visible aunque el color del relleno no se distinga.
+                  shape: CircleBorder(
+                    side: resaltado
+                        ? const BorderSide(color: Colors.white, width: 4)
+                        : BorderSide.none,
+                  ),
                 ),
-                child: const SizedBox.shrink(),
+                child: Icon(
+                  _iconosBotones[indice],
+                  size: resaltado ? 32 : 24,
+                  color: Colors.white,
+                ),
               ),
             );
           }),

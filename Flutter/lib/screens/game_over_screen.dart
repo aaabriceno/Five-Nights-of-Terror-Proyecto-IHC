@@ -10,7 +10,6 @@ class GameOverScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GameProvider game = context.watch<GameProvider>();
-    final session = game.session;
     final int? noche = game.ultimaNocheDeGameOver;
 
     return Scaffold(
@@ -21,11 +20,7 @@ class GameOverScreen extends StatelessWidget {
             const Text('JUEGO TERMINADO',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            if (noche != null) Text('Fallaste en la Noche $noche'),
-            const SizedBox(height: 16),
-            Text('Tareas completadas: ${session.tasksCompleted}'),
-            Text('Tareas fallidas: ${session.tasksFailed}'),
-            Text('Puntuación: ${session.score}'),
+            if (noche != null) Text('Te atraparon en la Noche $noche'),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {

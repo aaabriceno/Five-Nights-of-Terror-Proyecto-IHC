@@ -20,8 +20,12 @@ class WifiGameWidget extends StatefulWidget {
 }
 
 class _WifiGameWidgetState extends State<WifiGameWidget> {
-  static const Duration _duracionMantenerPresionado = Duration(seconds: 3);
-  static const Duration _duracionReconexion = Duration(seconds: 5);
+  // Ambas esperas corren en tiempo real, no en el reloj del juego: cada
+  // segundo acá es un segundo sin mirar la pantalla, con el animatrónico
+  // avanzando. Por eso se mantienen cortas pese a simular un reinicio.
+  static const Duration _duracionMantenerPresionado =
+      Duration(milliseconds: 1500);
+  static const Duration _duracionReconexion = Duration(milliseconds: 2500);
 
   int _segundosRestantes = 20;
   Timer? _contadorCuentaRegresiva;

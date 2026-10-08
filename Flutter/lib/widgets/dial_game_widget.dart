@@ -159,12 +159,22 @@ class _DialGameWidgetState extends State<DialGameWidget> {
                     width: 3,
                   ),
                 ),
-                child: Transform.rotate(
-                  angle: _angulosActuales[indice] * pi / 180,
-                  child: const Align(
-                    alignment: Alignment(0, -0.8),
-                    child: Icon(Icons.circle, size: 16, color: Colors.red),
-                  ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Transform.rotate(
+                      angle: _angulosActuales[indice] * pi / 180,
+                      child: const Align(
+                        alignment: Alignment(0, -0.8),
+                        child: Icon(Icons.circle, size: 16, color: Colors.red),
+                      ),
+                    ),
+                    // El check marca "en posición" sin depender del color del
+                    // borde: verde y gris son indistinguibles para parte de
+                    // los jugadores.
+                    if (completado)
+                      const Icon(Icons.check, size: 24, color: Colors.green),
+                  ],
                 ),
               ),
             );
