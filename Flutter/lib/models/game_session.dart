@@ -13,7 +13,6 @@ class GameSession {
   int nocheActual;
   String horaEnJuego;
   List<Task> tareasPendientes;
-  bool wifiActivo;
 
   /// true cuando el servidor avisa que la caja de música de Puppet bajó
   /// del 20% de su valor máximo (o Puppet ya salió de la caja). El
@@ -40,7 +39,6 @@ class GameSession {
     this.nocheActual = 1,
     this.horaEnJuego = '12:00 AM',
     List<Task>? tareasPendientes,
-    this.wifiActivo = false,
     this.puppetEnPeligro = false,
     this.puppetValorCajaPorcentaje = 100,
   }) : tareasPendientes = tareasPendientes ?? [];

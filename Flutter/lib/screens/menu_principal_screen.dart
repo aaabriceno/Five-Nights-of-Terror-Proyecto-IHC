@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'configurar_servidor_screen.dart';
 import 'splash_screen.dart';
+import 'tutorial_screen.dart';
 
 /// Pantalla de menú principal: fondo con el título y las opciones
-/// "Nuevo Juego/Continuar/Opciones/Salir" ya dibujados en la imagen
-/// (assets/images/FondoJuegoFNT.jpeg). Como el texto es parte del JPEG
+/// "Tutorial/Nuevo Juego/Continuar/Opciones/Salir" ya dibujadas en la imagen
+/// (assets/images/FondoJuego.jpeg). Como el texto es parte del JPEG
 /// (no widgets de Flutter), esta pantalla superpone zonas táctiles
 /// invisibles en las coordenadas relativas donde cada palabra aparece
 /// dibujada, en vez de dibujar botones propios encima.
@@ -39,14 +40,15 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
   // Posición relativa (fracción del ancho/alto DE LA IMAGEN, no de la
   // pantalla) del centro de cada palabra en FondoJuegoFNT.jpeg. Si se
   // cambia la imagen de fondo, estos valores deben recalibrarse a mano.
-  static const double _xOpciones = 0.155;
+  static const double _xOpciones = 0.16;
   static const double _anchoZona = 0.28;
-  static const double _altoZona = 0.09;
+  static const double _altoZona = 0.085;
 
-  static const double _yNuevoJuego = 0.464;
-  static const double _yContinuar = 0.573;
-  static const double _yOpciones = 0.681;
-  static const double _ySalir = 0.789;
+  static const double _yTutorial = 0.408;
+  static const double _yNuevoJuego = 0.518;
+  static const double _yContinuar = 0.625;
+  static const double _yOpciones = 0.733;
+  static const double _ySalir = 0.839;
 
   static const String _rutaMusicaMenu =
       'sounds/FNaF_2_-_Música_del_menú.ogg';
@@ -84,9 +86,14 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
             children: [
               Positioned.fill(
                 child: Image.asset(
-                  'assets/images/FondoJuegoFNT.jpeg',
+                  'assets/images/FondoJuego.jpeg',
                   fit: BoxFit.cover,
                 ),
+              ),
+              _zonaTactil(
+                rectangulo: rectangulo,
+                yRelativo: _yTutorial,
+                onTap: () => _alTocarTutorial(context),
               ),
               _zonaTactil(
                 rectangulo: rectangulo,
@@ -161,6 +168,13 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
     _reproductor.stop();
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => SplashScreen(modo: modo)),
+    );
+  }
+
+  void _alTocarTutorial(BuildContext context) {
+    _reproductor.stop();
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(builder: (_) => const TutorialScreen()),
     );
   }
 

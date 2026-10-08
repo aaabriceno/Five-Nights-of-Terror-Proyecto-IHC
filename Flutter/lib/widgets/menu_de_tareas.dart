@@ -20,7 +20,6 @@ import '../utils/colors.dart';
 class MenuDeTareas extends StatefulWidget {
   final List<Task> tareas;
   final void Function(Task tarea) alElegirTarea;
-  final bool wifiActivo;
 
   /// La caja de música de Puppet no es una `Task` del protocolo
   /// `task_list` (no la genera el servidor como tarea) — es una acción
@@ -33,7 +32,6 @@ class MenuDeTareas extends StatefulWidget {
     super.key,
     required this.tareas,
     required this.alElegirTarea,
-    required this.wifiActivo,
     required this.puppetEnPeligro,
     required this.alAbrirCajaDePuppet,
   });
@@ -242,9 +240,13 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
     );
   }
 
+  /// El WiFi está caído mientras haya una tarea "wifi" sin resolver. Es el
+  /// mismo criterio que usa Unity al generar tareas, y no depende de ningún
+  /// mensaje aparte: con el WiFi funcionando, "Subir Datos" se puede hacer.
+  bool get _wifiCaido => widget.tareas.any((Task tarea) => tarea.taskType == 'wifi');
+
   Widget _buildTarjeta(BuildContext context, Task tarea) {
-    final bool bloqueadaPorWifi =
-        tarea.taskType == 'subir_datos' && !widget.wifiActivo;
+    final bool bloqueadaPorWifi = tarea.taskType == 'subir_datos' && _wifiCaido;
     final IconData? iconoUrgencia = _iconoDeUrgencia(tarea);
     return Opacity(
       opacity: bloqueadaPorWifi ? 0.4 : 1.0,
@@ -302,7 +304,7 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                         const SizedBox(height: 2),
                         Text(
                           bloqueadaPorWifi
-                              ? 'Requiere WiFi activo'
+                              ? 'Primero reiniciá el WiFi'
                               : '${tarea.duration}s',
                           style: Theme.of(context).textTheme.bodySmall,
                           maxLines: 1,

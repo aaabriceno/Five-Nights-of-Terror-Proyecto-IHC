@@ -3,10 +3,9 @@ import 'dart:math';
 import '../utils/logger.dart';
 
 /// Simula el comportamiento del backend (eventos task_list / attack /
-/// night_status / wifi_status) para poder desarrollar y probar la app
-/// tablet antes de que exista el backend real en Python. `night_status`
-/// (con `risk_percent`), `task_list` y `wifi_status` son PROPUESTAS de
-/// extensión del protocolo (ver
+/// night_status) para poder desarrollar y probar la app tablet sin levantar
+/// Unity ni el relay. `night_status` (con `risk_percent`) y `task_list`
+/// fueron PROPUESTAS de extensión del protocolo (ver
 /// docs/superpowers/specs/2026-08-28-sistema-de-noches-design.md,
 /// docs/superpowers/specs/2026-09-08-menu-de-tareas-design.md y
 /// docs/superpowers/specs/2026-09-09-sistema-de-riesgo-y-tareas-nuevas-design.md)
@@ -15,7 +14,6 @@ class MockServerService {
   Timer? _taskTimer;
   Timer? _temporizadorRelojDeNoche;
   Timer? _temporizadorRollDeAtaque;
-  Timer? _temporizadorWifi;
   int _taskCounter = 0;
   final StreamController<Map<String, dynamic>> _messageController =
       StreamController<Map<String, dynamic>>.broadcast();
@@ -69,12 +67,6 @@ class MockServerService {
   int _segundosTranscurridosEstaNoche = 0;
   int _riesgoActual = 0;
   int _ultimoCheckpointAplicado = 0; // 0..5, cuántos checkpoints ya sumaron
-  // Se mantiene solo para posible uso interno futuro del mock (ej.
-  // validaciones antes de emitir un mensaje). El estado real del wifi se
-  // transmite al Flutter vía el mensaje 'wifi_status' y se lee del lado
-  // de GameSession.wifiActivo, no de este campo.
-  // ignore: unused_field
-  bool _wifiActivo = false;
   final Random _aleatorio = Random();
 
   void start() {
@@ -196,8 +188,34 @@ class MockServerService {
   /// Llamado por GameProvider cuando el widget de tarea reporta que
   /// terminó. Ya no dispara automáticamente la siguiente tarea — con el
   /// menú de tareas, es el jugador quien decide cuál sigue, no el mock.
+  /// Cantidad de diapositivas que simula el mock. Sirve para probar los
+  /// controles del tutorial en la tablet sin levantar Unity ni el relay; el
+  /// número real lo informa Unity al contar los archivos de
+  /// `Resources/tutorial/`.
+  static const int diapositivasSimuladas = 9;
+
   void sendTaskCompleted(Map<String, dynamic> data) {
+    // En modo mock todos los mensajes salientes pasan por acá, así que es el
+    // lugar donde responder los del tutorial.
+    switch (data['type']) {
+      case 'tutorial_abrir':
+        _emitirEstadoDeTutorial(0);
+        return;
+      case 'tutorial_slide':
+        _emitirEstadoDeTutorial((data['indice'] as int?) ?? 0);
+        return;
+      case 'tutorial_cerrar':
+        return;
+    }
     appLogger.i('Mock received task_completed: $data');
+  }
+
+  void _emitirEstadoDeTutorial(int indice) {
+    _messageController.add({
+      'type': 'tutorial_estado',
+      'indice': indice.clamp(0, diapositivasSimuladas - 1),
+      'total': diapositivasSimuladas,
+    });
   }
 
   /// Reinicia el reloj de la noche actual (sin cambiar `_nocheActual`),
@@ -218,31 +236,15 @@ class MockServerService {
   /// No se resta nada: el riesgo sumado al activarse la tarea queda.
   void notificarTareaFallada() {}
 
-  /// Llamado por GameProvider cuando el jugador completa la tarea 'wifi'
-  /// con éxito. Activa el WiFi por 30 segundos reales (wall-clock, no
-  /// segundos de juego simulados), tras lo cual vuelve a apagarse (para
-  /// que 'subir_datos' vuelva a bloquearse si no se resuelve en ese lapso).
-  void activarWifiTemporalmente() {
-    _temporizadorWifi?.cancel();
-    _wifiActivo = true;
-    _messageController.add({'type': 'wifi_status', 'activo': true});
-    _temporizadorWifi = Timer(const Duration(seconds: 30), () {
-      _wifiActivo = false;
-      _messageController.add({'type': 'wifi_status', 'activo': false});
-    });
-  }
-
   void stop() {
     _taskTimer?.cancel();
     _temporizadorRollDeAtaque?.cancel();
     _temporizadorRelojDeNoche?.cancel();
-    _temporizadorWifi?.cancel();
     _taskCounter = 0;
     _nocheActual = 1;
     _segundosTranscurridosEstaNoche = 0;
     _riesgoActual = _tablaRiesgoPorNoche[_nocheActual - 1]['riesgoInicial']!;
     _ultimoCheckpointAplicado = 0;
-    _wifiActivo = false;
   }
 
   void dispose() {

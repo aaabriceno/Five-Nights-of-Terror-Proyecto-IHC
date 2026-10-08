@@ -54,9 +54,6 @@ class GameProvider extends ChangeNotifier {
         session.horaEnJuego = message['in_game_time'] as String;
         session.riesgo = (message['risk_percent'] as int).clamp(0, 100);
         break;
-      case 'wifi_status':
-        session.wifiActivo = message['activo'] as bool;
-        break;
       case 'estado_puppet':
         session.puppetEnPeligro = message['en_peligro'] as bool;
         session.puppetValorCajaPorcentaje =
@@ -125,9 +122,6 @@ class GameProvider extends ChangeNotifier {
         (Task tarea) => tarea.taskId == task.taskId,
       );
       mockServidor?.notificarTareaCompletada();
-      if (task.taskType == 'wifi') {
-        mockServidor?.activarWifiTemporalmente();
-      }
     } else {
       session.tasksFailed++;
       mockServidor?.notificarTareaFallada();

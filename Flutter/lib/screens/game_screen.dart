@@ -154,7 +154,6 @@ class _GameScreenState extends State<GameScreen> {
     return MenuDeTareas(
       tareas: game.session.tareasPendientes,
       alElegirTarea: game.elegirTarea,
-      wifiActivo: game.session.wifiActivo,
       puppetEnPeligro: game.session.puppetEnPeligro,
       alAbrirCajaDePuppet: () => setState(() => _mostrandoCajaDePuppet = true),
     );

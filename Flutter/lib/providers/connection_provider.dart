@@ -62,7 +62,9 @@ class ConnectionProvider extends ChangeNotifier {
       _forwardingSubscription = _mockService.messages.listen(
         (Map<String, dynamic> mensaje) => onMessage?.call(mensaje),
       );
-      _mockService.start();
+      // El tutorial no juega ninguna noche: arrancar el mock pondría a
+      // correr el reloj y a generar tareas de fondo sin que nadie las vea.
+      if (modo != 'tutorial') _mockService.start();
       _state = ConnectionState.connected;
       _reconnectAttempts = 0;
       notifyListeners();
