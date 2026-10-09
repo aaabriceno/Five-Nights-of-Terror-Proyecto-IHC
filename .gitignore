@@ -54,3 +54,13 @@ informePresentacionLunes-*/*.fls
 informePresentacionLunes-*/*.fdb_latexmk
 informePresentacionLunes-*/*.synctex.gz
 informePresentacionLunes-*/*.bak
+
+# LaTeX (informe_final_IHC): mismos archivos generados al compilar
+informe_final_IHC/*.aux
+informe_final_IHC/*.log
+informe_final_IHC/*.out
+informe_final_IHC/*.toc
+informe_final_IHC/*.fls
+informe_final_IHC/*.fdb_latexmk
+informe_final_IHC/*.synctex.gz
+informe_final_IHC/*.bak
