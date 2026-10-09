@@ -13,12 +13,15 @@ public class GestorSonidoJuego : MonoBehaviour
     [Header("Canales")]
     [SerializeField] private AudioSource fuenteMusica;
     [SerializeField] private AudioSource fuenteEfectos;
+    [SerializeField] private AudioSource fuenteEstatica;
 
     [Header("Musica de ambiente")]
     public AudioClip musicaMenu;
+    public AudioClip estatica;
 
     [Header("Caja de Puppet (prioridad baja)")]
     public AudioClip cuerdaCajaMusica;
+    public AudioClip miGrandfathersClock;
     public AudioClip peligro;
     public AudioClip popGoesTheWeasel;
 
@@ -26,6 +29,7 @@ public class GestorSonidoJuego : MonoBehaviour
     public AudioClip campanas6am;
 
     private Prioridad prioridadActual = Prioridad.Baja;
+    private float volumenEstaticaNormal = 0.5f;
 
     private void Awake()
     {
@@ -41,6 +45,22 @@ public class GestorSonidoJuego : MonoBehaviour
             fuenteEfectos.loop = false;
             fuenteEfectos.playOnAwake = false;
         }
+        if (fuenteEstatica == null)
+        {
+            fuenteEstatica = gameObject.AddComponent<AudioSource>();
+            fuenteEstatica.loop = true;
+            fuenteEstatica.playOnAwake = false;
+            fuenteEstatica.volume = volumenEstaticaNormal;
+        }
+
+        // Cargar clips si no están asignados en el Inspector
+        if (musicaMenu == null) musicaMenu = Resources.Load<AudioClip>("sounds/FNaF_2_-_Música_del_menú");
+        if (estatica == null) estatica = Resources.Load<AudioClip>("sounds/FNaF_2_-_Estática");
+        if (cuerdaCajaMusica == null) cuerdaCajaMusica = Resources.Load<AudioClip>("sounds/FNaF_2_-_Dándole_cuerda_a_la_caja_de_música");
+        if (miGrandfathersClock == null) miGrandfathersClock = Resources.Load<AudioClip>("sounds/FNaF_2_-_My_Grandfather's_Clock");
+        if (peligro == null) peligro = Resources.Load<AudioClip>("sounds/FNaF_2_-_Peligro");
+        if (popGoesTheWeasel == null) popGoesTheWeasel = Resources.Load<AudioClip>("sounds/FNaF_2_-_Pop!_Goes_the_Weasel");
+        if (campanas6am == null) campanas6am = Resources.Load<AudioClip>("sounds/FNaF_2_-_Campanas_(6_a.m.)");
     }
 
     public void ReproducirMusicaMenu()
@@ -53,13 +73,50 @@ public class GestorSonidoJuego : MonoBehaviour
         fuenteMusica.Stop();
     }
 
-    public void ReproducirCuerdaCajaMusica() => ReproducirEfecto(cuerdaCajaMusica, Prioridad.Baja);
+    public void IniciarEstativa()
+    {
+        if (fuenteEstatica != null && estatica != null)
+        {
+            fuenteEstatica.clip = estatica;
+            fuenteEstatica.volume = volumenEstaticaNormal;
+            fuenteEstatica.Play();
+        }
+    }
 
-    public void ReproducirPeligro() => ReproducirEfecto(peligro, Prioridad.Baja);
+    public void DetenerEstatica()
+    {
+        if (fuenteEstatica != null) fuenteEstatica.Stop();
+    }
 
-    public void ReproducirPopGoesTheWeasel() => ReproducirEfecto(popGoesTheWeasel, Prioridad.Baja);
+    public void ReproducirCuerdaCajaMusica()
+    {
+        if (fuenteEstatica != null) fuenteEstatica.volume = volumenEstaticaNormal * 0.3f;
+        ReproducirEfecto(cuerdaCajaMusica, Prioridad.Baja);
+    }
 
-    public void ReproducirCampanas6am() => ReproducirEfecto(campanas6am, Prioridad.Alta);
+    public void ReproducirMiGrandfathersClock()
+    {
+        if (fuenteEstatica != null) fuenteEstatica.volume = volumenEstaticaNormal * 0.3f;
+        ReproducirEfecto(miGrandfathersClock, Prioridad.Baja);
+    }
+
+    public void ReproducirPeligro()
+    {
+        if (fuenteEstatica != null) fuenteEstatica.volume = volumenEstaticaNormal * 0.3f;
+        ReproducirEfecto(peligro, Prioridad.Baja);
+    }
+
+    public void ReproducirPopGoesTheWeasel()
+    {
+        if (fuenteEstatica != null) fuenteEstatica.volume = volumenEstaticaNormal * 0.3f;
+        ReproducirEfecto(popGoesTheWeasel, Prioridad.Baja);
+    }
+
+    public void ReproducirCampanas6am()
+    {
+        if (fuenteEstatica != null) fuenteEstatica.volume = 0;
+        ReproducirEfecto(campanas6am, Prioridad.Alta);
+    }
 
     /// <summary>
     /// El jumpscare de escritorio reproduce su propio audio (ver
@@ -92,5 +149,14 @@ public class GestorSonidoJuego : MonoBehaviour
         fuenteEfectos.Stop();
         fuenteEfectos.clip = clip;
         fuenteEfectos.Play();
+        // Cuando termina un efecto, vuelve estática a volumen normal
+        StartCoroutine(RestablecerEstaticaAlTerminar(clip.length));
+    }
+
+    private System.Collections.IEnumerator RestablecerEstaticaAlTerminar(float duracion)
+    {
+        yield return new WaitForSeconds(duracion);
+        if (fuenteEstatica != null && fuenteEstatica.isPlaying)
+            fuenteEstatica.volume = volumenEstaticaNormal;
     }
 }

@@ -462,7 +462,11 @@ public class UnityGameSessionController : MonoBehaviour
         partidaActiva = true;
         desktopJumpscareShown = false;
         ResultadoDeLaUltimaPartida = string.Empty;
-        if (gestorSonido != null) gestorSonido.DetenerMusica();
+        if (gestorSonido != null)
+        {
+            gestorSonido.DetenerMusica();
+            gestorSonido.IniciarEstativa();
+        }
         if (coordinator != null)
         {
             coordinator.partidaFinalizada = false;
@@ -770,6 +774,7 @@ public class UnityGameSessionController : MonoBehaviour
 
         if (gestorSonido != null)
         {
+            gestorSonido.DetenerEstatica();
             if (won) gestorSonido.ReproducirCampanas6am();
             gestorSonido.ReproducirMusicaMenu();
         }
