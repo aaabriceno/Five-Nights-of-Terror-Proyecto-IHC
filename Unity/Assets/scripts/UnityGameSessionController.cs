@@ -14,6 +14,16 @@ public class UnityGameSessionController : MonoBehaviour
     [Serializable] private class ConnectMessage { public string type; public string player_id; public string modo; }
     [Serializable] private class TaskResultMessage { public string type; public int task_id; public bool success = true; }
     [Serializable] private class TutorialSlideMessage { public string type; public int indice; }
+    [Serializable] private class TutorialPracticeMessage { public string type; public bool exito; }
+
+    [Serializable] private class TutorialPracticeStatus
+    {
+        public string type = "tutorial_prueba_estado";
+        public bool mirando;
+        public bool mirada_completada;
+        public bool tarea_completada;
+        public bool camara_disponible;
+    }
 
     [Serializable] private class TutorialEstadoMessage
     {
@@ -133,6 +143,10 @@ public class UnityGameSessionController : MonoBehaviour
     public bool EnTutorial { get; private set; }
 
     public int IndiceDeDiapositiva { get; private set; }
+    public bool TutorialMiradaCompletada => tutorialMiradaCompletada;
+    public bool TutorialTareaCompletada => tutorialTareaCompletada;
+    public bool TutorialMirandoCamara => detectorCabeza != null && detectorCabeza.mirandoPC;
+    public bool TutorialCamaraDisponible => detectorCabeza != null;
 
     /// Lo informa PantallaDeTutorial al cargar las imágenes, para que la
     /// tablet sepa cuántas hay sin tener el número escrito de su lado.
@@ -196,6 +210,10 @@ public class UnityGameSessionController : MonoBehaviour
     private bool puppetEnPeligroPrevio;
     private bool puppetCajaVaciaPrevio;
     private float segundosDesdeUltimaTarea;
+    private float tutorialMiradaSegundos;
+    private float tutorialEstadoReloj;
+    private bool tutorialMiradaCompletada;
+    private bool tutorialTareaCompletada;
 
     private void Awake()
     {
@@ -217,6 +235,18 @@ public class UnityGameSessionController : MonoBehaviour
 
     private void Update()
     {
+        if (EnTutorial && IndiceDeDiapositiva == 2)
+        {
+            bool mirando = TutorialMirandoCamara;
+            tutorialMiradaSegundos = mirando ? tutorialMiradaSegundos + Time.deltaTime : 0f;
+            if (tutorialMiradaSegundos >= 2f) tutorialMiradaCompletada = true;
+            tutorialEstadoReloj += Time.deltaTime;
+            if (tutorialEstadoReloj >= 0.5f)
+            {
+                tutorialEstadoReloj = 0f;
+                PublicarEstadoDePrueba();
+            }
+        }
         if (!partidaActiva) return;
         tickClock += Time.deltaTime;
         while (tickClock >= TickSeconds)
@@ -336,11 +366,21 @@ public class UnityGameSessionController : MonoBehaviour
                 case "tutorial_abrir":
                     EnTutorial = true;
                     IndiceDeDiapositiva = 0;
+                    ReiniciarPruebaDeTutorial();
                     PublicarEstadoDeTutorial();
                     break;
                 case "tutorial_slide":
                     IndiceDeDiapositiva = JsonUtility.FromJson<TutorialSlideMessage>(json).indice;
                     PublicarEstadoDeTutorial();
+                    if (IndiceDeDiapositiva == 2) PublicarEstadoDePrueba();
+                    break;
+                case "tutorial_prueba_tarea":
+                    if (EnTutorial && IndiceDeDiapositiva == 2 &&
+                        JsonUtility.FromJson<TutorialPracticeMessage>(json).exito)
+                    {
+                        tutorialTareaCompletada = true;
+                        PublicarEstadoDePrueba();
+                    }
                     break;
                 case "tutorial_cerrar":
                     EnTutorial = false;
@@ -367,6 +407,25 @@ public class UnityGameSessionController : MonoBehaviour
         });
     }
 
+    private void ReiniciarPruebaDeTutorial()
+    {
+        tutorialMiradaSegundos = 0f;
+        tutorialEstadoReloj = 0f;
+        tutorialMiradaCompletada = false;
+        tutorialTareaCompletada = false;
+    }
+
+    private void PublicarEstadoDePrueba()
+    {
+        Send(new TutorialPracticeStatus
+        {
+            mirando = TutorialMirandoCamara,
+            mirada_completada = tutorialMiradaCompletada,
+            tarea_completada = tutorialTareaCompletada,
+            camara_disponible = TutorialCamaraDisponible
+        });
+    }
+
     private void StartGame(ConnectMessage message)
     {
         if (message == null) return;
@@ -378,6 +437,7 @@ public class UnityGameSessionController : MonoBehaviour
         {
             EnTutorial = true;
             IndiceDeDiapositiva = 0;
+            ReiniciarPruebaDeTutorial();
             PublicarEstadoDeTutorial();
             return;
         }

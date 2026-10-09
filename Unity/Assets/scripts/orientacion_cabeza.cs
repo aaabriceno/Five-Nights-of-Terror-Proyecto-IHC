@@ -12,6 +12,7 @@ public class HeadOrientationTracker : MonoBehaviour
 
     // Referencia al contenedor de los puntos verdes
     private Transform contenedorPuntos;
+    private UnityGameSessionController controladorTutorial;
 
     void Update()
     {
@@ -79,6 +80,9 @@ public class HeadOrientationTracker : MonoBehaviour
     private void OnGUI()
     {
         if (!Application.isPlaying) return;
+        if (controladorTutorial == null)
+            controladorTutorial = FindObjectOfType<UnityGameSessionController>();
+        if (controladorTutorial != null && controladorTutorial.EnTutorial) return;
 
         GUIStyle style = new GUIStyle();
         style.fontSize = 25;

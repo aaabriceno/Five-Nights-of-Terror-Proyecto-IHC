@@ -13,6 +13,9 @@ namespace Mediapipe.Unity
   {
     [SerializeField] private RawImage _screen;
 
+    // Permite que otras pantallas muestren la misma cámara y orientación.
+    public RawImage display => _screen;
+
     private ImageSource _imageSource;
 
     public Texture texture
