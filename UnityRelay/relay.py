@@ -30,6 +30,15 @@ async def send_to(clients, payload):
             unity_clients.discard(client)
 
 
+def olvidar_connect_si_no_hay_tablets():
+    """El último `connect` solo sirve para un Unity que se abre cuando la
+    tablet ya está conectada. Si la tablet se fue, reenviarlo haría que el
+    juego arranque solo (o repita el tutorial) con una orden vieja."""
+    global last_connect_message
+    if not tablets:
+        last_connect_message = None
+
+
 async def handle_connection(socket):
     global last_connect_message
     role = None
@@ -64,12 +73,14 @@ async def handle_connection(socket):
 
             if message_type == "disconnect":
                 tablets.discard(socket)
+                olvidar_connect_si_no_hay_tablets()
                 role = None
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
         tablets.discard(socket)
         unity_clients.discard(socket)
+        olvidar_connect_si_no_hay_tablets()
         print("Cliente desconectado")
 
 

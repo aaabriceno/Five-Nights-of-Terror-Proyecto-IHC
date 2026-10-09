@@ -430,11 +430,21 @@ public class UnityGameSessionController : MonoBehaviour
     {
         if (message == null) return;
 
+        // "Salir" en el menú de la tablet: cierra el juego de la PC. Viaja como
+        // `connect` porque el relay necesita ese mensaje para reconocer a la
+        // tablet; no es una partida. (En el editor Application.Quit no hace nada.)
+        if (message.modo == "salir")
+        {
+            Application.Quit();
+            return;
+        }
+
         // El tutorial se conecta con el mismo mensaje `connect` (el relay lo
         // necesita para asignarle el rol de tablet y reenviar lo que mande),
         // pero no debe arrancar ninguna noche.
         if (message.modo == "tutorial")
         {
+            if (gestorSonido != null) gestorSonido.DetenerEstatica();
             EnTutorial = true;
             IndiceDeDiapositiva = 0;
             ReiniciarPruebaDeTutorial();

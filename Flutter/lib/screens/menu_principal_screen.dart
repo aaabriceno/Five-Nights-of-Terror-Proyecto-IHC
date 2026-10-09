@@ -1,6 +1,9 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../config/server_config.dart';
+import '../providers/connection_provider.dart';
 import 'configurar_servidor_screen.dart';
 import 'splash_screen.dart';
 import 'tutorial_screen.dart';
@@ -184,7 +187,19 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
     );
   }
 
-  void _alSalir() {
-    SystemNavigator.pop();
+  /// Le avisa a Unity (con un `connect` de modo "salir") para que cierre el
+  /// juego de la PC y después cierra la app de la tablet. Sin servidor real
+  /// (mock) o sin conexión solo se cierra la tablet.
+  Future<void> _alSalir() async {
+    _reproductor.stop();
+    if (!ServerConfig.useMock) {
+      final ConnectionProvider conexion = context.read<ConnectionProvider>();
+      conexion.connect(modo: 'salir');
+      // El mensaje sale por un socket recién abierto: darle un instante antes
+      // de cerrarlo para que llegue a Unity.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      conexion.disconnect();
+    }
+    await SystemNavigator.pop();
   }
 }
