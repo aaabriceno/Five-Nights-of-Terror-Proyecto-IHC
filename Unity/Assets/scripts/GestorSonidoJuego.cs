@@ -133,7 +133,7 @@ public class GestorSonidoJuego : MonoBehaviour
 
     private void ReproducirMusica(AudioClip clip)
     {
-        if (clip == null || fuenteMusica.clip == clip) return;
+        if (clip == null || (fuenteMusica.clip == clip && fuenteMusica.isPlaying)) return;
         fuenteMusica.clip = clip;
         fuenteMusica.Play();
     }

@@ -247,6 +247,9 @@ public class UnityGameSessionController : MonoBehaviour
                 PublicarEstadoDePrueba();
             }
         }
+        // La estática es del juego en curso: sin partida (espera, tutorial,
+        // resultado o la X de la tablet) no debe sonar, sea cual sea el camino.
+        if (!partidaActiva && gestorSonido != null) gestorSonido.DetenerEstatica();
         if (!partidaActiva) return;
         tickClock += Time.deltaTime;
         while (tickClock >= TickSeconds)
@@ -362,6 +365,7 @@ public class UnityGameSessionController : MonoBehaviour
                     partidaActiva = false;
                     ResultadoDeLaUltimaPartida = string.Empty;
                     EnTutorial = false;
+                    if (gestorSonido != null) gestorSonido.ReproducirMusicaMenu();
                     break;
                 case "tutorial_abrir":
                     EnTutorial = true;
