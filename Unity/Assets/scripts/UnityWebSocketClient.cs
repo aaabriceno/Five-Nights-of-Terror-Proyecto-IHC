@@ -11,6 +11,10 @@ public class UnityWebSocketClient : MonoBehaviour
     [SerializeField]
     private string serverUrl = "ws://127.0.0.1:8000";
 
+    /// Puerto del relay, leído de la misma URL a la que se conecta el
+    /// cliente: así la pantalla de espera muestra siempre el que se usa.
+    public int Puerto => new Uri(serverUrl).Port;
+
     private WebSocket websocket;
 
     public async void SendJsonMessage(string message)

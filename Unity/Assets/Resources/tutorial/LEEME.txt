@@ -1,6 +1,6 @@
 Diapositivas del tutorial.
 
-Poné acá las imágenes, nombradas con número al principio para que el orden
+Pon acá las imágenes, nombradas con número al principio para que el orden
 sea el correcto:
 
     slide_01.png
@@ -12,7 +12,11 @@ PantallaDeTutorial.cs las carga todas y las ordena por nombre. No hace falta
 tocar código: agregar, quitar o reordenar diapositivas es cuestión de
 archivos. La tablet recibe el total automáticamente.
 
-Formato recomendado: 16:9 (1920x1080), con los bordes oscuros para que el
-recorte en monitores de otra proporción no se note.
+Formato: 16:9 (1920x1080). La diapositiva se muestra entera; en monitores
+de otra proporción (por ejemplo 16:10) aparecen franjas negras arriba y abajo.
+
+Al agregar una imagen nueva, en su Inspector pon "Non-Power of 2" en None y
+desactiva "Generate Mip Maps": si no, Unity la reescala a 2048x1024 y el
+texto se ve borroso.
 
 Guion propuesto en docs/PLAN_TUTORIAL.md.

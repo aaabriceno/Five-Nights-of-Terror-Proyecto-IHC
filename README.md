@@ -291,7 +291,31 @@ Unity:
 3. Abrir el proyecto en Unity Hub — el resto de paquetes (NativeWebSocket,
    AI Navigation) se resuelven solos vía `manifest.json`.
 
-### Cómo iniciar una partida conectada
+### Ejecutar el juego con un doble clic (Linux)
+
+Para jugar o presentar, sin abrir el editor ni terminales:
+
+1. Exporta el juego una vez, con el editor de Unity cerrado:
+   `./exportar_linux.sh` (genera `Unity/Builds/Linux/FiveNightsOfTerror.x86_64`).
+2. Crea el acceso directo del Escritorio: `./crear_acceso_directo.sh`
+3. Doble clic en **Five Nights of Terror**. Se levantan el relay y el juego
+   juntos; al cerrar el juego se apaga el relay.
+4. En la tablet, **Opciones**: servidor = la IP que muestra la pantalla de
+   espera ("Conecta la tablet a …"), puerto `8000`.
+
+Sin acceso directo funciona igual con `./iniciar.sh`. Si ya había un relay
+corriendo a mano, lo reutiliza y no lo apaga; si el puerto 8000 lo ocupa otro
+programa, avisa y no abre el juego. Un segundo doble clic mientras carga no
+abre otra copia. Si algo falla, el relay deja su salida en
+`Unity/Builds/Linux/relay.log`.
+
+Requiere el entorno del relay creado (`UnityRelay/.venv`, ver abajo). Diseño
+y decisiones en `docs/DISENO_EJECUTABLE_UNICO.md`.
+
+Pruebas de estos scripts (con el puerto 8000 libre):
+`./pruebas/probar_iniciar.sh` y `./pruebas/probar_direccion_de_red.sh`.
+
+### Cómo iniciar una partida conectada (desarrollo, desde el editor)
 
 Mantener abiertas tres ventanas: relay, Unity y Flutter.
 

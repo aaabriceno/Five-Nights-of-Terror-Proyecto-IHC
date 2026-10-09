@@ -91,7 +91,6 @@ public class PantallaDeTutorial : MonoBehaviour
         Texture2D textura = diapositivas[indice];
         imagen.texture = textura;
         imagen.color = Color.white;
-        imagen.uvRect = CalcularRecorte(textura);
         aviso.text = string.Empty;
         estadoPrueba.gameObject.SetActive(indice == 2);
         vistaCamara.gameObject.SetActive(indice == 2);
@@ -148,26 +147,6 @@ public class PantallaDeTutorial : MonoBehaviour
             : Color.white;
     }
 
-    /// Rectángulo UV que llena la pantalla sin deformar la imagen, para que
-    /// la diapositiva se vea bien en cualquier proporción de monitor.
-    private Rect CalcularRecorte(Texture2D textura)
-    {
-        float proporcionPantalla = (float)Screen.width / Screen.height;
-        float proporcionImagen = (float)textura.width / textura.height;
-
-        if (Mathf.Approximately(proporcionImagen, proporcionPantalla))
-            return new Rect(0f, 0f, 1f, 1f);
-
-        if (proporcionImagen > proporcionPantalla)
-        {
-            float ancho = proporcionPantalla / proporcionImagen;
-            return new Rect((1f - ancho) / 2f, 0f, ancho, 1f);
-        }
-
-        float alto = proporcionImagen / proporcionPantalla;
-        return new Rect(0f, (1f - alto) / 2f, 1f, alto);
-    }
-
     private void ConstruirLienzo()
     {
         lienzo = new GameObject(
@@ -184,14 +163,28 @@ public class PantallaDeTutorial : MonoBehaviour
         CanvasScaler escalador = lienzo.GetComponent<CanvasScaler>();
         escalador.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         escalador.referenceResolution = new Vector2(1920f, 1080f);
+        // Expand garantiza que un rectángulo de 1920x1080 entre completo en
+        // cualquier monitor: la diapositiva se ve entera (con franjas negras
+        // si la pantalla no es 16:9) en vez de recortarse, y la cámara y el
+        // estado de la práctica caen siempre sobre el mismo punto de ella.
+        escalador.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+
+        GameObject objetoFondo = new GameObject("FondoNegro", typeof(RectTransform), typeof(Image));
+        objetoFondo.transform.SetParent(canvas.transform, false);
+        RectTransform rectFondo = objetoFondo.GetComponent<RectTransform>();
+        rectFondo.anchorMin = Vector2.zero;
+        rectFondo.anchorMax = Vector2.one;
+        rectFondo.offsetMin = Vector2.zero;
+        rectFondo.offsetMax = Vector2.zero;
+        objetoFondo.GetComponent<Image>().color = Color.black;
 
         GameObject objetoImagen = new GameObject("Diapositiva", typeof(RectTransform), typeof(RawImage));
         objetoImagen.transform.SetParent(canvas.transform, false);
         RectTransform rectImagen = objetoImagen.GetComponent<RectTransform>();
-        rectImagen.anchorMin = Vector2.zero;
-        rectImagen.anchorMax = Vector2.one;
-        rectImagen.offsetMin = Vector2.zero;
-        rectImagen.offsetMax = Vector2.zero;
+        rectImagen.anchorMin = new Vector2(0.5f, 0.5f);
+        rectImagen.anchorMax = new Vector2(0.5f, 0.5f);
+        rectImagen.pivot = new Vector2(0.5f, 0.5f);
+        rectImagen.sizeDelta = new Vector2(1920f, 1080f);
         imagen = objetoImagen.GetComponent<RawImage>();
         imagen.color = Color.black;
 

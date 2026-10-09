@@ -22,14 +22,24 @@ public class PantallaDeEspera : MonoBehaviour
     [SerializeField] private Texture2D imagenDeFondo;
     [SerializeField] private string textoDeEspera = "Esperando...";
 
+    // Respaldo si en la escena no hay cliente WebSocket del que leer el puerto.
+    private const int PuertoPorDefecto = 8000;
+    // La PC puede conectarse a la red después de abrir el juego.
+    private const float SegundosEntreRevisionesDeIp = 3f;
+
     private GameObject lienzo;
+    private Text textoDeConexion;
+    private UnityWebSocketClient clienteWebSocket;
+    private float segundosHastaRevisarIp;
     private bool visible;
 
     private void Start()
     {
         if (controlador == null) controlador = FindObjectOfType<UnityGameSessionController>();
+        clienteWebSocket = FindObjectOfType<UnityWebSocketClient>();
         ConstruirLienzo();
         AplicarVisibilidad(true);
+        ActualizarTextoDeConexion();
     }
 
     private void Update()
@@ -38,6 +48,17 @@ public class PantallaDeEspera : MonoBehaviour
         // cualquier momento y hay que seguirlo cuadro a cuadro.
         bool deberiaVerse = controlador == null || !controlador.PartidaActiva;
         if (deberiaVerse != visible) AplicarVisibilidad(deberiaVerse);
+
+        if (!visible) return;
+        segundosHastaRevisarIp -= Time.deltaTime;
+        if (segundosHastaRevisarIp <= 0f) ActualizarTextoDeConexion();
+    }
+
+    private void ActualizarTextoDeConexion()
+    {
+        segundosHastaRevisarIp = SegundosEntreRevisionesDeIp;
+        int puerto = clienteWebSocket != null ? clienteWebSocket.Puerto : PuertoPorDefecto;
+        textoDeConexion.text = DireccionDeRed.TextoParaConectar(DireccionDeRed.ObtenerIpLocal(), puerto);
     }
 
     private void AplicarVisibilidad(bool mostrar)
@@ -123,21 +144,28 @@ public class PantallaDeEspera : MonoBehaviour
 
     private void AgregarTexto(Transform padre)
     {
-        GameObject objetoTexto = new GameObject("TextoDeEspera", typeof(RectTransform), typeof(Text));
+        CrearTexto(padre, "TextoDeEspera", textoDeEspera, new Vector2(60f, 100f), 32);
+        textoDeConexion = CrearTexto(padre, "TextoDeConexion", string.Empty, new Vector2(60f, 50f), 26);
+    }
+
+    private Text CrearTexto(Transform padre, string nombre, string contenido, Vector2 posicion, int tamano)
+    {
+        GameObject objetoTexto = new GameObject(nombre, typeof(RectTransform), typeof(Text));
         objetoTexto.transform.SetParent(padre, false);
 
         RectTransform rect = objetoTexto.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0f, 0f);
         rect.anchorMax = new Vector2(0f, 0f);
         rect.pivot = new Vector2(0f, 0f);
-        rect.anchoredPosition = new Vector2(60f, 50f);
-        rect.sizeDelta = new Vector2(700f, 60f);
+        rect.anchoredPosition = posicion;
+        rect.sizeDelta = new Vector2(1200f, 60f);
 
         Text texto = objetoTexto.GetComponent<Text>();
-        texto.text = textoDeEspera;
+        texto.text = contenido;
         texto.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        texto.fontSize = 32;
+        texto.fontSize = tamano;
         texto.alignment = TextAnchor.LowerLeft;
         texto.color = new Color(0.85f, 0.85f, 0.8f, 0.9f);
+        return texto;
     }
 }
