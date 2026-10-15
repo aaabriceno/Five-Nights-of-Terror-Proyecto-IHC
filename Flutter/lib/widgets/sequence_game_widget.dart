@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import 'encabezado_de_minijuego.dart';
 
 /// Minijuego de completar secuencias de números para poder terminar, en este caso
 /// son 5 números, de prueba, podremos agregar más botones hasta en un máx de 10
@@ -86,46 +87,56 @@ class _SequenceGameWidgetState extends State<SequenceGameWidget> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          'Resolver Secuencia',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 4),
-        Text('Tiempo restante: $_segundosRestantes s'),
+        EncabezadoDeMinijuego(titulo: 'Resolver Secuencia', segundosRestantes: _segundosRestantes),
         const SizedBox(height: 8),
+        const SizedBox(height: 8),
+        // El orden a seguir es lo más importante de la pantalla: grande y en
+        // negrita, no un texto de apoyo.
         Text(
           'Orden: ${_ordenCorrecto.join(" → ")}',
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          alignment: WrapAlignment.center,
-          children: List<Widget>.generate(_cantidadBotones, (index) {
-            final int numero = index + 1;
-            final bool yaTocado = _secuenciaUsuario.contains(numero);
-            return SizedBox(
-              width: 64,
-              height: 64,
-              child: ElevatedButton(
-                onPressed: yaTocado ? null : () => _alTocarBoton(numero),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: yaTocado ? Colors.green : null,
-                  shape: const CircleBorder(),
-                ),
-                // El check repite en forma lo que el fondo verde indica por
-                // color, para quien no distingue el verde del gris apagado.
-                child: yaTocado
-                    ? const Icon(Icons.check, size: 24)
-                    : Text('$numero', style: const TextStyle(fontSize: 20)),
-              ),
-            );
-          }),
+          style: const TextStyle(fontSize: 44, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        Text('Progreso: ${_secuenciaUsuario.length}/${_ordenCorrecto.length}'),
-        if (_errores > 0) Text('Errores: $_errores'),
+        LayoutBuilder(
+          builder: (context, restricciones) {
+            // Botones lo más grandes posible, sin pasar de una fila de alto
+            // razonable: se reparten el ancho entre todos.
+            final double lado = ((restricciones.maxWidth / _cantidadBotones) - 24)
+                .clamp(88.0, 128.0)
+                .toDouble();
+            return Wrap(
+              spacing: 20,
+              runSpacing: 20,
+              alignment: WrapAlignment.center,
+              children: List<Widget>.generate(_cantidadBotones, (index) {
+                final int numero = index + 1;
+                final bool yaTocado = _secuenciaUsuario.contains(numero);
+                return SizedBox(
+                  width: lado,
+                  height: lado,
+                  child: ElevatedButton(
+                    onPressed: yaTocado ? null : () => _alTocarBoton(numero),
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      backgroundColor: yaTocado ? Colors.green : null,
+                      shape: const CircleBorder(),
+                    ),
+                    // El check repite en forma lo que el fondo verde indica por
+                    // color, para quien no distingue el verde del gris apagado.
+                    child: yaTocado
+                        ? Icon(Icons.check, size: lado * 0.5)
+                        : Text('$numero',
+                            style: TextStyle(
+                                fontSize: lado * 0.5, fontWeight: FontWeight.bold)),
+                  ),
+                );
+              }),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        Text('Progreso: ${_secuenciaUsuario.length}/${_ordenCorrecto.length}', style: EstilosDeMinijuego.estado),
+        if (_errores > 0) Text('Errores: $_errores', style: EstilosDeMinijuego.estado),
       ],
     );
   }

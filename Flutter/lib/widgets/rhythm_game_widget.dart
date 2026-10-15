@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import 'encabezado_de_minijuego.dart';
 
 /// Minijuego "Ritmo Crítico": presionar el botón que se resalta al ritmo
 /// de un pulso (BPM), dentro de una ventana de tolerancia en milisegundos.
@@ -131,47 +132,51 @@ class _RhythmGameWidgetState extends State<RhythmGameWidget> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          'Ritmo Crítico',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 4),
-        Text('Tiempo restante: $_segundosRestantes s'),
+        EncabezadoDeMinijuego(titulo: 'Ritmo Crítico', segundosRestantes: _segundosRestantes),
         const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List<Widget>.generate(_coloresBotones.length, (indice) {
-            final bool resaltado =
-                indice == _botonEsperado && !_yaRespondioPulsoActual;
-            return SizedBox(
-              width: 72,
-              height: 72,
-              child: ElevatedButton(
-                onPressed: () => _alPresionarBoton(indice),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: resaltado
-                      ? _coloresBotones[indice]
-                      : _coloresBotones[indice].withValues(alpha: 0.3),
-                  // El botón a pulsar se marca además con un borde grueso,
-                  // visible aunque el color del relleno no se distinga.
-                  shape: CircleBorder(
-                    side: resaltado
-                        ? const BorderSide(color: Colors.white, width: 4)
-                        : BorderSide.none,
+        // Botones lo más grandes posible: se reparten el ancho disponible.
+        LayoutBuilder(
+          builder: (context, restricciones) {
+            final double lado = ((restricciones.maxWidth / _coloresBotones.length) - 24)
+                .clamp(100.0, 150.0)
+                .toDouble();
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List<Widget>.generate(_coloresBotones.length, (indice) {
+                final bool resaltado =
+                    indice == _botonEsperado && !_yaRespondioPulsoActual;
+                return SizedBox(
+                  width: lado,
+                  height: lado,
+                  child: ElevatedButton(
+                    onPressed: () => _alPresionarBoton(indice),
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      backgroundColor: resaltado
+                          ? _coloresBotones[indice]
+                          : _coloresBotones[indice].withValues(alpha: 0.3),
+                      // El botón a pulsar se marca además con un borde grueso,
+                      // visible aunque el color del relleno no se distinga.
+                      shape: CircleBorder(
+                        side: resaltado
+                            ? const BorderSide(color: Colors.white, width: 8)
+                            : BorderSide.none,
+                      ),
+                    ),
+                    child: Icon(
+                      _iconosBotones[indice],
+                      size: resaltado ? lado * 0.55 : lado * 0.4,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                child: Icon(
-                  _iconosBotones[indice],
-                  size: resaltado ? 32 : 24,
-                  color: Colors.white,
-                ),
-              ),
+                );
+              }),
             );
-          }),
+          },
         ),
         const SizedBox(height: 24),
-        Text('Aciertos: $_aciertos/$_totalPulsos'),
-        Text('Pulso: ${_pulsosEmitidos.clamp(0, _totalPulsos)}/$_totalPulsos'),
+        Text('Aciertos: $_aciertos/$_totalPulsos', style: EstilosDeMinijuego.estado),
+        Text('Pulso: ${_pulsosEmitidos.clamp(0, _totalPulsos)}/$_totalPulsos', style: EstilosDeMinijuego.estado),
       ],
     );
   }

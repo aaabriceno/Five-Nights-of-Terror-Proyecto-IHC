@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import 'encabezado_de_minijuego.dart';
 
 /// Formas que identifican cada cable además de su color. Sin esto el
 /// minijuego sería injugable para quien no distingue rojo de verde (el par
@@ -16,7 +17,7 @@ enum FormaDeCable { circulo, triangulo, cuadrado, rombo }
 class CableGameWidget extends StatefulWidget {
   final Task task;
   final void Function(bool success, List<Map<String, dynamic>> connections)
-      onComplete;
+  onComplete;
 
   const CableGameWidget({
     super.key,
@@ -84,8 +85,9 @@ class _CableGameWidgetState extends State<CableGameWidget> {
       final int? connectorIndex = _connections[cableIndex];
       connections.add({
         'cable': _cableNames[cableIndex],
-        'connector':
-            connectorIndex != null ? _cableNames[connectorIndex] : null,
+        'connector': connectorIndex != null
+            ? _cableNames[connectorIndex]
+            : null,
         'correct': connectorIndex == cableIndex,
       });
     }
@@ -106,41 +108,61 @@ class _CableGameWidgetState extends State<CableGameWidget> {
     );
   }
 
+  /// Radio, en píxeles, dentro del cual un toque cuenta como "sobre" un nodo.
+  /// Es bastante mayor que la forma dibujada: con el dedo cuesta acertar.
+  static const double _radioDeToque = 70;
+
+  /// El nodo más cercano al toque, si está dentro de [_radioDeToque]. Se elige
+  /// el más cercano (no el primero) porque las zonas de nodos vecinos se
+  /// pueden solapar.
   int? _connectorAt(Offset position, List<Offset> connectorPositions) {
-    const double hitRadius = 30;
+    int? masCercano;
+    double menorDistancia = _radioDeToque;
     for (int i = 0; i < connectorPositions.length; i++) {
-      if ((connectorPositions[i] - position).distance <= hitRadius) {
-        return i;
+      final double distancia = (connectorPositions[i] - position).distance;
+      if (distancia <= menorDistancia) {
+        menorDistancia = distancia;
+        masCercano = i;
       }
     }
-    return null;
+    return masCercano;
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          'Conectar Cables',
-          style: Theme.of(context).textTheme.headlineSmall,
+        EncabezadoDeMinijuego(
+          titulo: 'Conectar Cables',
+          segundosRestantes: _remainingSeconds,
         ),
-        const SizedBox(height: 4),
-        Text('Tiempo restante: $_remainingSeconds s'),
         const SizedBox(height: 8),
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final Size size =
-                  Size(constraints.maxWidth, constraints.maxHeight);
-              final List<Offset> cablePositions =
-                  _nodePositions(size, left: true);
-              final List<Offset> connectorPositions =
-                  _nodePositions(size, left: false);
+              final Size size = Size(
+                constraints.maxWidth,
+                constraints.maxHeight,
+              );
+              final List<Offset> cablePositions = _nodePositions(
+                size,
+                left: true,
+              );
+              final List<Offset> connectorPositions = _nodePositions(
+                size,
+                left: false,
+              );
+              // Formas lo más grandes posible sin tocarse entre filas.
+              final double separacion = size.height / (_cableColors.length + 1);
+              final double radioOrigen = min(34.0, separacion * 0.40);
+              final double radioDestino = min(40.0, separacion * 0.46);
 
               return GestureDetector(
                 onPanStart: (details) {
-                  final int? cableIndex =
-                      _connectorAt(details.localPosition, cablePositions);
+                  final int? cableIndex = _connectorAt(
+                    details.localPosition,
+                    cablePositions,
+                  );
                   if (cableIndex != null) {
                     setState(() {
                       _draggingCableIndex = cableIndex;
@@ -158,8 +180,10 @@ class _CableGameWidgetState extends State<CableGameWidget> {
                   if (_draggingCableIndex == null || _dragPosition == null) {
                     return;
                   }
-                  final int? connectorSlot =
-                      _connectorAt(_dragPosition!, connectorPositions);
+                  final int? connectorSlot = _connectorAt(
+                    _dragPosition!,
+                    connectorPositions,
+                  );
                   if (connectorSlot != null) {
                     final int connectorIndex = _connectorOrder[connectorSlot];
                     setState(() {
@@ -182,6 +206,8 @@ class _CableGameWidgetState extends State<CableGameWidget> {
                     connections: _connections,
                     draggingCableIndex: _draggingCableIndex,
                     dragPosition: _dragPosition,
+                    radioOrigen: radioOrigen,
+                    radioDestino: radioDestino,
                   ),
                 ),
               );
@@ -189,12 +215,22 @@ class _CableGameWidgetState extends State<CableGameWidget> {
           ),
         ),
         const SizedBox(height: 8),
-        Text('Conectados: ${_connections.length}/${_cableColors.length}'),
+        Text(
+          'Conectados: ${_connections.length}/${_cableColors.length}',
+          style: EstilosDeMinijuego.estado,
+        ),
         const SizedBox(height: 8),
         ElevatedButton(
           onPressed: _allConnectedCorrectly
               ? () => _finish(success: true)
               : null,
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(220, 60),
+            textStyle: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           child: const Text('Enviar'),
         ),
       ],
@@ -211,6 +247,8 @@ class _CableGamePainter extends CustomPainter {
   final Map<int, int> connections;
   final int? draggingCableIndex;
   final Offset? dragPosition;
+  final double radioOrigen;
+  final double radioDestino;
 
   _CableGamePainter({
     required this.cableColors,
@@ -221,6 +259,8 @@ class _CableGamePainter extends CustomPainter {
     required this.connections,
     required this.draggingCableIndex,
     required this.dragPosition,
+    required this.radioOrigen,
+    required this.radioDestino,
   });
 
   @override
@@ -228,12 +268,19 @@ class _CableGamePainter extends CustomPainter {
     final Paint nodePaint = Paint()..style = PaintingStyle.fill;
     final Paint linePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
 
     // Cables (origen, izquierda).
     for (int i = 0; i < cablePositions.length; i++) {
       nodePaint.color = cableColors[i];
-      _dibujarForma(canvas, cablePositions[i], 18, cableFormas[i], nodePaint);
+      _dibujarForma(
+        canvas,
+        cablePositions[i],
+        radioOrigen,
+        cableFormas[i],
+        nodePaint,
+      );
     }
 
     // Conectores (destino, derecha) — la forma y el color mostrados son los
@@ -243,12 +290,24 @@ class _CableGamePainter extends CustomPainter {
       final int cableIndex = connectorOrder[slot];
       final FormaDeCable forma = cableFormas[cableIndex];
       nodePaint.color = cableColors[cableIndex].withValues(alpha: 0.3);
-      _dibujarForma(canvas, connectorPositions[slot], 22, forma, nodePaint);
+      _dibujarForma(
+        canvas,
+        connectorPositions[slot],
+        radioDestino,
+        forma,
+        nodePaint,
+      );
       final Paint borderPaint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
+        ..strokeWidth = 6
         ..color = cableColors[cableIndex];
-      _dibujarForma(canvas, connectorPositions[slot], 22, forma, borderPaint);
+      _dibujarForma(
+        canvas,
+        connectorPositions[slot],
+        radioDestino,
+        forma,
+        borderPaint,
+      );
     }
 
     // Conexiones ya hechas. Una conexión incorrecta se dibuja punteada
@@ -257,8 +316,9 @@ class _CableGamePainter extends CustomPainter {
     connections.forEach((cableIndex, connectorIndex) {
       final int slot = connectorOrder.indexOf(connectorIndex);
       final bool correct = cableIndex == connectorIndex;
-      linePaint.color =
-          correct ? cableColors[cableIndex] : Colors.red.withValues(alpha: 0.6);
+      linePaint.color = correct
+          ? cableColors[cableIndex]
+          : Colors.red.withValues(alpha: 0.6);
       if (correct) {
         canvas.drawLine(
           cablePositions[cableIndex],
@@ -339,9 +399,14 @@ class _CableGamePainter extends CustomPainter {
     return path..close();
   }
 
-  void _dibujarLineaPunteada(Canvas canvas, Offset desde, Offset hasta, Paint paint) {
-    const double largoTrazo = 10;
-    const double largoHueco = 8;
+  void _dibujarLineaPunteada(
+    Canvas canvas,
+    Offset desde,
+    Offset hasta,
+    Paint paint,
+  ) {
+    const double largoTrazo = 16;
+    const double largoHueco = 10;
     final double distancia = (hasta - desde).distance;
     if (distancia == 0) return;
     final Offset direccion = (hasta - desde) / distancia;

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../utils/colors.dart';
+import '../utils/urgencia_de_tareas.dart';
 
 /// Muestra la lista de tareas pendientes de la noche como tarjetas
 /// tocables. Al tocar una, llama `alElegirTarea` con esa tarea — la
@@ -41,9 +42,6 @@ class MenuDeTareas extends StatefulWidget {
 }
 
 class _MenuDeTareasState extends State<MenuDeTareas> {
-  static const Duration _umbralAmbar = Duration(seconds: 20);
-  static const Duration _umbralRojo = Duration(seconds: 40);
-
   Timer? _temporizadorRepintado;
 
   @override
@@ -63,21 +61,37 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
     super.dispose();
   }
 
+  NivelDeUrgencia _urgencia(Task tarea) =>
+      nivelDeUrgencia(tarea, DateTime.now());
+
   Color _colorDeUrgencia(Task tarea) {
-    final Duration antiguedad = DateTime.now().difference(tarea.createdAt);
-    if (antiguedad >= _umbralRojo) return AppColors.peligro;
-    if (antiguedad >= _umbralAmbar) return AppColors.advertencia;
-    return AppColors.panelBorde;
+    switch (_urgencia(tarea)) {
+      case NivelDeUrgencia.roja:
+        return AppColors.peligro;
+      case NivelDeUrgencia.ambar:
+        return AppColors.advertencia;
+      case NivelDeUrgencia.normal:
+        return AppColors.panelBorde;
+    }
   }
+
+  /// Grosor del borde: el rojo es más grueso, para que se distinga sin
+  /// depender del color.
+  double _grosorDelBorde(Task tarea) =>
+      _urgencia(tarea) == NivelDeUrgencia.roja ? 5 : 2;
 
   /// Ícono que acompaña al color del borde para que la urgencia se perciba
   /// sin depender de distinguir ámbar de rojo. Sigue sin mostrar números:
   /// la urgencia es deliberadamente ambigua (ver comentario de la clase).
   IconData? _iconoDeUrgencia(Task tarea) {
-    final Duration antiguedad = DateTime.now().difference(tarea.createdAt);
-    if (antiguedad >= _umbralRojo) return Icons.priority_high;
-    if (antiguedad >= _umbralAmbar) return Icons.schedule;
-    return null;
+    switch (_urgencia(tarea)) {
+      case NivelDeUrgencia.roja:
+        return Icons.priority_high;
+      case NivelDeUrgencia.ambar:
+        return Icons.schedule;
+      case NivelDeUrgencia.normal:
+        return null;
+    }
   }
 
   String _nombreLegible(String taskType) {
@@ -216,7 +230,9 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: widget.puppetEnPeligro
-                      ? Image.asset('assets/images/puppet_advertencia_roja.webp')
+                      ? Image.asset(
+                          'assets/images/puppet_advertencia_roja.webp',
+                        )
                       : const Icon(
                           Icons.music_note,
                           color: AppColors.acento,
@@ -243,7 +259,8 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
   /// El WiFi está caído mientras haya una tarea "wifi" sin resolver. Es el
   /// mismo criterio que usa Unity al generar tareas, y no depende de ningún
   /// mensaje aparte: con el WiFi funcionando, "Subir Datos" se puede hacer.
-  bool get _wifiCaido => widget.tareas.any((Task tarea) => tarea.taskType == 'wifi');
+  bool get _wifiCaido =>
+      widget.tareas.any((Task tarea) => tarea.taskType == 'wifi');
 
   Widget _buildTarjeta(BuildContext context, Task tarea) {
     final bool bloqueadaPorWifi = tarea.taskType == 'subir_datos' && _wifiCaido;
@@ -253,7 +270,10 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _colorDeUrgencia(tarea), width: 2),
+          border: Border.all(
+            color: _colorDeUrgencia(tarea),
+            width: _grosorDelBorde(tarea),
+          ),
         ),
         child: Card(
           margin: EdgeInsets.zero,
@@ -293,10 +313,33 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            // En rojo, además del icono grande, una etiqueta con
+                            // texto: no depende de ver el color.
+                            if (_urgencia(tarea) == NivelDeUrgencia.roja) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.peligro,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  '¡URGENTE!',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                             if (iconoUrgencia != null)
                               Icon(
                                 iconoUrgencia,
-                                size: 18,
+                                size: 32,
                                 color: _colorDeUrgencia(tarea),
                               ),
                           ],
@@ -304,7 +347,7 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                         const SizedBox(height: 2),
                         Text(
                           bloqueadaPorWifi
-                              ? 'Primero reiniciá el WiFi'
+                              ? 'Primero reinicia el WiFi'
                               : '${tarea.duration}s',
                           style: Theme.of(context).textTheme.bodySmall,
                           maxLines: 1,

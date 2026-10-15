@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/task.dart';
 import '../providers/connection_provider.dart';
 import '../providers/game_provider.dart';
+import '../services/servicio_de_avisos.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/barra_reloj_de_noche.dart';
 import '../widgets/puppet_game_widget.dart';
@@ -35,6 +36,31 @@ class _GameScreenState extends State<GameScreen> {
   bool _wired = false;
   bool _mostrandoCajaDePuppet = false;
   bool _gameOverTransitionScheduled = false;
+  ServicioDeAvisos? _avisos;
+
+  @override
+  void initState() {
+    super.initState();
+    // Los avisos por vibración (caja en peligro, tarea en rojo) viven aquí, y no
+    // en el menú de tareas, para que funcionen aunque el jugador esté dentro de
+    // una tarea o de la caja.
+    _avisos = ServicioDeAvisos(
+      vibrador: VibradorReal(),
+      leerEstado: () {
+        final GameProvider juego = context.read<GameProvider>();
+        return (
+          cajaEnPeligro: juego.session.puppetEnPeligro,
+          tareas: juego.session.tareasPendientes,
+        );
+      },
+    )..iniciar();
+  }
+
+  @override
+  void dispose() {
+    _avisos?.detener();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,41 +98,72 @@ class _GameScreenState extends State<GameScreen> {
         final Widget destination = game.lastAttack != null
             ? const JumpscareScreen()
             : const GameOverScreen();
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => destination),
-        );
+        Navigator.of(
+          context,
+        ).pushReplacement(MaterialPageRoute<void>(builder: (_) => destination));
       });
     }
 
     return Scaffold(
+      // Barra alta y con botones grandes: en una tablet de 11" la flecha de
+      // 24 px y la X estándar eran difíciles de acertar con el dedo.
       appBar: AppBar(
+        toolbarHeight: _alturaDeLaBarra,
+        leadingWidth: _ladoDelBoton + 16,
         leading: _buildBotonVolver(game),
         title: StatusBar(
           connectionState: connection.state,
           reconnectAttempts: connection.reconnectAttempts,
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.close),
+          _botonDeBarra(
+            icono: Icons.close,
             tooltip: 'Salir al menú principal',
-            onPressed: () => _confirmarSalidaAlMenu(context),
+            alTocar: () => _confirmarSalidaAlMenu(context),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            BarraRelojDeNoche(
-              nocheActual: game.session.nocheActual,
-              horaEnJuego: game.session.horaEnJuego,
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _buildContenidoPrincipal(game),
-            ),
-          ],
+      // SafeArea: la tablet dibuja la app bajo la barra de gestos del sistema
+      // y lo que quedaba al fondo (como "Enviar") se veía cortado.
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              BarraRelojDeNoche(
+                nocheActual: game.session.nocheActual,
+                horaEnJuego: game.session.horaEnJuego,
+              ),
+              const SizedBox(height: 16),
+              Expanded(child: _buildContenidoPrincipal(game)),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  static const double _alturaDeLaBarra = 88;
+  static const double _ladoDelBoton = 80;
+
+  /// Botón de la barra superior: icono de 52 px dentro de una zona táctil de
+  /// 80×80, bastante más grande que el IconButton estándar (48×48 con icono de
+  /// 24).
+  Widget _botonDeBarra({
+    required IconData icono,
+    required String tooltip,
+    required VoidCallback alTocar,
+  }) {
+    return IconButton(
+      icon: Icon(icono),
+      iconSize: 52,
+      tooltip: tooltip,
+      onPressed: alTocar,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(_ladoDelBoton, _ladoDelBoton),
+        fixedSize: const Size(_ladoDelBoton, _ladoDelBoton),
       ),
     );
   }
@@ -116,18 +173,18 @@ class _GameScreenState extends State<GameScreen> {
   /// tarea no la resuelve ni la falla: sigue pendiente en el menú.
   Widget? _buildBotonVolver(GameProvider game) {
     if (_mostrandoCajaDePuppet) {
-      return IconButton(
-        icon: const Icon(Icons.arrow_back),
+      return _botonDeBarra(
+        icono: Icons.arrow_back,
         tooltip: 'Volver al menú de tareas',
-        onPressed: () => setState(() => _mostrandoCajaDePuppet = false),
+        alTocar: () => setState(() => _mostrandoCajaDePuppet = false),
       );
     }
 
     if (game.session.currentTask != null) {
-      return IconButton(
-        icon: const Icon(Icons.arrow_back),
+      return _botonDeBarra(
+        icono: Icons.arrow_back,
         tooltip: 'Volver al menú de tareas',
-        onPressed: game.volverAlMenuDeTareas,
+        alTocar: game.volverAlMenuDeTareas,
       );
     }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import 'encabezado_de_minijuego.dart';
 
 /// Minijuego "Reiniciar WiFi": el jugador mantiene presionado un botón
 /// unos segundos (simula sostener el botón físico del router), luego
@@ -116,9 +117,7 @@ class _WifiGameWidgetState extends State<WifiGameWidget> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('Reiniciar WiFi', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 8),
-        Text('Tiempo restante: $_segundosRestantes s'),
+        EncabezadoDeMinijuego(titulo: 'Reiniciar WiFi', segundosRestantes: _segundosRestantes),
         const SizedBox(height: 32),
         if (!_reconectando) ...[
           const Text('Mantén presionado para reiniciar el router'),

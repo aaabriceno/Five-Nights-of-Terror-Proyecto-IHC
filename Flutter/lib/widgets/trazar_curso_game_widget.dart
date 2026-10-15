@@ -2,6 +2,53 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import 'encabezado_de_minijuego.dart';
+
+/// Coloca [cantidad] puntos de radio [radio] dentro de [area] (centros en
+/// píxeles) sin que se encimen ni se salgan. Con la misma [semilla] da siempre
+/// la misma colocación, para que no salten al redibujar la pantalla.
+///
+/// Prueba posiciones al azar con una separación mínima de `2 * radio + 8`; si
+/// no logra colocarlos todos, usa una cuadrícula, que siempre cabe.
+List<Offset> colocarPuntosSinSolaparse(
+  int cantidad,
+  Size area,
+  double radio,
+  int semilla,
+) {
+  const double holgura = 8;
+  final double separacionMinima = 2 * radio + holgura;
+  final double ancho = area.width - 2 * radio;
+  final double alto = area.height - 2 * radio;
+  final Random azar = Random(semilla);
+  final List<Offset> puntos = <Offset>[];
+
+  for (int intento = 0; intento < 400 && puntos.length < cantidad; intento++) {
+    final Offset candidato = Offset(
+      radio + azar.nextDouble() * ancho,
+      radio + azar.nextDouble() * alto,
+    );
+    if (puntos.every(
+      (Offset p) => (p - candidato).distance >= separacionMinima,
+    )) {
+      puntos.add(candidato);
+    }
+  }
+  if (puntos.length == cantidad) return puntos;
+
+  // Respaldo: cuadrícula de 3 columnas, un punto por celda, mezclada.
+  const int columnas = 3;
+  final int filas = (cantidad / columnas).ceil();
+  final List<Offset> celdas = <Offset>[
+    for (int i = 0; i < cantidad; i++)
+      Offset(
+        radio + (ancho * ((i % columnas) / (columnas - 1))),
+        radio +
+            (filas == 1 ? alto / 2 : alto * ((i ~/ columnas) / (filas - 1))),
+      ),
+  ]..shuffle(azar);
+  return celdas;
+}
 
 /// Minijuego "Trazar Curso": puntos numerados dispersos en pantalla; el
 /// jugador debe tocarlos en orden (1, 2, 3...) para completar el
@@ -22,9 +69,10 @@ class TrazarCursoGameWidget extends StatefulWidget {
 
 class _TrazarCursoGameWidgetState extends State<TrazarCursoGameWidget> {
   static const int _cantidadPuntos = 6;
-  static const double _radioToque = 28;
 
-  late List<Offset> _posicionesRelativas;
+  // Semilla de la colocación: fija durante la tarea para que los puntos no
+  // cambien de lugar al redibujar, y distinta en cada tarea.
+  late int _semilla;
   int _siguientePuntoEsperado = 0;
   int _segundosRestantes = 20;
   Timer? _contadorCuentaRegresiva;
@@ -33,14 +81,7 @@ class _TrazarCursoGameWidgetState extends State<TrazarCursoGameWidget> {
   @override
   void initState() {
     super.initState();
-    final Random random = Random();
-    _posicionesRelativas = List<Offset>.generate(
-      _cantidadPuntos,
-      (_) => Offset(
-        0.1 + random.nextDouble() * 0.8,
-        0.1 + random.nextDouble() * 0.8,
-      ),
-    );
+    _semilla = Random().nextInt(1 << 30);
     _segundosRestantes = widget.task.duration;
     _contadorCuentaRegresiva = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_finalizado) return;
@@ -80,38 +121,69 @@ class _TrazarCursoGameWidgetState extends State<TrazarCursoGameWidget> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text('Trazar Curso', style: Theme.of(context).textTheme.headlineSmall),
+        EncabezadoDeMinijuego(
+          titulo: 'Trazar Curso',
+          segundosRestantes: _segundosRestantes,
+        ),
         const SizedBox(height: 4),
-        Text('Tiempo restante: $_segundosRestantes s'),
-        const SizedBox(height: 4),
-        Text('Conectados: $_siguientePuntoEsperado/$_cantidadPuntos'),
+        Text(
+          'Conectados: $_siguientePuntoEsperado/$_cantidadPuntos',
+          style: EstilosDeMinijuego.estado,
+        ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, restricciones) {
+              final Size area = Size(
+                restricciones.maxWidth,
+                restricciones.maxHeight,
+              );
+              // Círculos lo más grandes que permite el espacio (antes 56 px de
+              // diámetro con el número en el tamaño por defecto): entre 80 y
+              // 128 px, y el número ocupa casi todo el círculo.
+              final double radio = (min(area.width, area.height) * 0.1).clamp(
+                36.0,
+                64.0,
+              );
+              final List<Offset> centros = colocarPuntosSinSolaparse(
+                _cantidadPuntos,
+                area,
+                radio,
+                _semilla,
+              );
               return Stack(
                 children: List<Widget>.generate(_cantidadPuntos, (i) {
-                  final Offset relativa = _posicionesRelativas[i];
                   final bool conectado = i < _siguientePuntoEsperado;
                   final bool esSiguiente = i == _siguientePuntoEsperado;
                   return Positioned(
-                    left: relativa.dx * restricciones.maxWidth - _radioToque,
-                    top: relativa.dy * restricciones.maxHeight - _radioToque,
+                    left: centros[i].dx - radio,
+                    top: centros[i].dy - radio,
                     child: GestureDetector(
                       onTap: () => _alTocarPunto(i),
                       child: Container(
-                        width: _radioToque * 2,
-                        height: _radioToque * 2,
+                        width: radio * 2,
+                        height: radio * 2,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: conectado
                               ? Colors.green
-                              : (esSiguiente ? Colors.amber : Colors.grey),
+                              : (esSiguiente
+                                    ? Colors.amber
+                                    : Colors.grey.shade700),
+                          // El que toca ahora lleva un aro blanco grueso: se
+                          // distingue por forma y no solo por el color.
+                          border: Border.all(
+                            color: esSiguiente
+                                ? Colors.white
+                                : Colors.transparent,
+                            width: 6,
+                          ),
                         ),
                         child: Center(
                           child: Text(
                             '${i + 1}',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: esSiguiente ? Colors.black : Colors.white,
+                              fontSize: radio * 0.95,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

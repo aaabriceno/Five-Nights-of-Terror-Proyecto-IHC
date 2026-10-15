@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import 'encabezado_de_minijuego.dart';
 
 /// Minijuego "Reparar Temperatura": mover un slider hasta ubicarlo
 /// dentro de un rango objetivo y soltarlo ahí.
@@ -66,9 +67,7 @@ class _TemperaturaGameWidgetState extends State<TemperaturaGameWidget> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('Reparar Temperatura', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 8),
-        Text('Tiempo restante: $_segundosRestantes s'),
+        EncabezadoDeMinijuego(titulo: 'Reparar Temperatura', segundosRestantes: _segundosRestantes),
         const SizedBox(height: 16),
         Text('Objetivo: ${_objetivo.round()}°C (±${_margenObjetivo.round()}°)'),
         const SizedBox(height: 24),

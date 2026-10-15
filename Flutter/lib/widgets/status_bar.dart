@@ -42,9 +42,16 @@ class StatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(Icons.circle, size: 10, color: _dotColor()),
-        const SizedBox(width: 6),
-        Text(_label(), style: const TextStyle(color: AppColors.textoSecundario)),
+        Icon(Icons.circle, size: 18, color: _dotColor()),
+        const SizedBox(width: 10),
+        Text(
+          _label(),
+          style: const TextStyle(
+            color: AppColors.textoSecundario,
+            fontSize: 26,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }

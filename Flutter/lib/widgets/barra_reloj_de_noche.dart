@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../utils/colors.dart';
+import '../utils/constants.dart';
 
-/// Muestra la noche actual y la hora simulada del reloj (12 AM -> 6 AM).
-/// Hay 5 noches base más una 6ta noche extra ("Custom Night", mucho más
-/// difícil, no cuenta como parte de las 5 base) — por eso el texto no fija
-/// el total ("Noche 6/5" se vería mal), solo dice "Noche X" seguido de
-/// "(Extra)" cuando corresponde a esa 6ta noche.
+/// Muestra la noche actual ("Noche 3/6") y la hora simulada del reloj
+/// (12 AM -> 6 AM). El total sale de [AppConstants.totalNoches], que debe ser el
+/// mismo número de noches que tiene Unity.
 ///
 /// Los minutos llegan en el mensaje pero no se muestran: un número que
 /// cambia todo el tiempo atrae la mirada a la tablet, que es justo la
@@ -16,6 +15,9 @@ import '../utils/colors.dart';
 class BarraRelojDeNoche extends StatelessWidget {
   final int nocheActual;
   final String horaEnJuego;
+
+  static const TextStyle _estiloGrande =
+      TextStyle(fontSize: 32, fontWeight: FontWeight.bold);
 
   const BarraRelojDeNoche({
     super.key,
@@ -36,10 +38,10 @@ class BarraRelojDeNoche extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         color: AppColors.panel,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.panelBorde),
       ),
       child: Row(
@@ -47,21 +49,21 @@ class BarraRelojDeNoche extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.nightlight_round, size: 20, color: AppColors.acento),
-              const SizedBox(width: 8),
+              const Icon(Icons.nightlight_round, size: 36, color: AppColors.acento),
+              const SizedBox(width: 12),
               Text(
-                nocheActual > 5 ? 'Noche $nocheActual (Extra)' : 'Noche $nocheActual/5',
-                style: Theme.of(context).textTheme.titleMedium,
+                'Noche $nocheActual/${AppConstants.totalNoches}',
+                style: _estiloGrande,
               ),
             ],
           ),
           Row(
             children: [
-              const Icon(Icons.access_time, size: 20, color: AppColors.acento),
-              const SizedBox(width: 8),
+              const Icon(Icons.access_time, size: 36, color: AppColors.acento),
+              const SizedBox(width: 12),
               Text(
                 _soloLaHora(horaEnJuego),
-                style: Theme.of(context).textTheme.titleMedium,
+                style: _estiloGrande,
               ),
             ],
           ),
