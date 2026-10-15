@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../providers/game_provider.dart';
+import '../utils/animatronicos.dart';
 import 'game_over_screen.dart';
 
 class JumpscareScreen extends StatefulWidget {
@@ -49,13 +52,36 @@ class _JumpscareScreenState extends State<JumpscareScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    final String? quien = context.watch<GameProvider>().lastAttack?.animatronic;
+    return Scaffold(
       backgroundColor: Colors.black,
-      body: SizedBox.expand(
-        child: Image(
-          image: AssetImage('assets/images/jumpscare.jpg'),
-          fit: BoxFit.cover,
-        ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const Image(
+            image: AssetImage('assets/images/jumpscare.jpg'),
+            fit: BoxFit.cover,
+          ),
+          // El nombre sobre la imagen: así el jugador asocia el susto con quién
+          // lo causó, y sigue visible después en la pantalla de juego terminado.
+          if (quien != null)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 64),
+                child: Text(
+                  infoDeAnimatronico(quien).nombre,
+                  style: const TextStyle(
+                    fontSize: 96,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 8,
+                    shadows: [Shadow(blurRadius: 24, color: Colors.black)],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

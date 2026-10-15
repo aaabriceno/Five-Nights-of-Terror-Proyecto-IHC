@@ -65,15 +65,19 @@ public class AnimatronicUnityBrain : MonoBehaviour
     // 1 era tolerable en la noche 6 ya la trae encima. Índice = noche - 1.
     private static readonly int[] TareasParaQueVixyAvancePorNoche = { 6, 6, 5, 5, 4, 4 };
     private static readonly int[] TareasParaQueVixyAtaquePorNoche = { 8, 8, 7, 7, 6, 6 };
-    private const float SegundosEntreAvancesDeVixy = 8f;
+    // 8 -> 6 tras las pruebas con testers: las noches 1 y 2 se pasaban muy
+    // fácil.
+    private const float SegundosEntreAvancesDeVixy = 6f;
     // Revisa más seguido una vez llega al penúltimo punto: ya decidido el
     // desenlace, la espera corta sube la tensión sin quitarle al jugador el
     // margen para resolver y frenarla.
     private const float SegundosEntreRevisionesDeVixyEnPenultimo = 5f;
 
     // Segundos que Freddy tolera sin ser mirado antes de avanzar un nodo.
-    // Índice = noche - 1.
-    private static readonly float[] SegundosDeFreddyPorNoche = { 35f, 32f, 29f, 26f, 23f, 20f };
+    // Índice = noche - 1. Antes {35, 32, 29, 26, 23, 20}: se bajaron 3 s en
+    // todas las noches tras las pruebas con testers (las noches 1 y 2 se
+    // pasaban muy fácil).
+    private static readonly float[] SegundosDeFreddyPorNoche = { 32f, 29f, 26f, 23f, 20f, 17f };
 
     // Freddy se defiende solo con la mirada: sus tareas siguen apareciendo en
     // la tablet (las genera UnityGameSessionController), pero no alteran su
