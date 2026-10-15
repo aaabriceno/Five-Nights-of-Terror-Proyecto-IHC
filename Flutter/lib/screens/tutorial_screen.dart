@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide ConnectionState;
 import 'package:provider/provider.dart';
+import '../config/server_config.dart';
 import '../providers/connection_provider.dart';
 import '../models/task.dart';
 import '../utils/colors.dart';
@@ -26,7 +27,6 @@ class TutorialScreen extends StatefulWidget {
 class _TutorialScreenState extends State<TutorialScreen> {
   int _indice = 0;
   int _total = 0;
-  bool _conectado = false;
   bool _mirandoCamara = false;
   bool _miradaCompleta = false;
   bool _tareaCompleta = false;
@@ -69,7 +69,15 @@ class _TutorialScreenState extends State<TutorialScreen> {
     // Explícito además del modo del `connect`: así el tutorial también
     // funciona contra el mock, que no interpreta ese campo.
     conexion.sender({'type': 'tutorial_abrir'});
-    setState(() => _conectado = true);
+  }
+
+  /// Vuelve a buscar el juego tras un error, sin volver a enganchar el manejador
+  /// de mensajes (que ya está puesto).
+  void _reintentarConexion() {
+    final ConnectionProvider? conexion = _conexion;
+    if (conexion == null) return;
+    conexion.connect(modo: 'tutorial');
+    conexion.sender({'type': 'tutorial_abrir'});
   }
 
   void _alRecibirMensaje(Map<String, dynamic> mensaje) {
@@ -206,6 +214,10 @@ class _TutorialScreenState extends State<TutorialScreen> {
   Widget build(BuildContext context) {
     final bool hayAnterior = _indice > 0;
     final bool esLaUltima = _total > 0 && _indice >= _total - 1;
+    // "Conectado" solo cuando el juego de la PC respondió de verdad.
+    final ConnectionState conexion = context.watch<ConnectionProvider>().state;
+    final bool conectado = conexion == ConnectionState.connected;
+    final bool sinJuego = conexion == ConnectionState.error;
 
     return Scaffold(
       appBar: AppBar(
@@ -230,18 +242,29 @@ class _TutorialScreenState extends State<TutorialScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              _conectado
-                  ? 'Mirá la pantalla de la computadora'
-                  : 'Conectando...',
+              conectado
+                  ? 'Mira la pantalla de la computadora'
+                  : (sinJuego ? 'No se encontró el juego' : 'Conectando...'),
               style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Usá los botones de abajo para avanzar',
+              conectado
+                  ? 'Usa los botones de abajo para avanzar'
+                  : (sinJuego
+                      ? 'Revisa que el juego esté abierto y que la IP de Opciones sea la de la PC.'
+                      : 'Buscando el juego en ${ServerConfig.host}:${ServerConfig.port}'),
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
+            if (sinJuego) ...[
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _reintentarConexion,
+                child: const Text('Reintentar'),
+              ),
+            ],
             const SizedBox(height: 16),
             Text(
               _total > 0 ? '${_indice + 1} de $_total' : '—',

@@ -11,13 +11,22 @@ import '../utils/logger.dart';
 enum ConnectionState { idle, connecting, connected, reconnecting, error }
 
 class ConnectionProvider extends ChangeNotifier {
-  final WebSocketService _wsService = WebSocketService();
-  final MockServerService _mockService = MockServerService();
+  final WebSocketService _wsService;
+  final MockServerService _mockService;
+
+  /// Los servicios se pueden inyectar para probar el proveedor sin red.
+  ConnectionProvider({
+    WebSocketService? wsService,
+    MockServerService? mockService,
+  }) : _wsService = wsService ?? WebSocketService(),
+       _mockService = mockService ?? MockServerService();
 
   ConnectionState _state = ConnectionState.idle;
   int _reconnectAttempts = 0;
   String _ultimoModo = 'nuevo';
   StreamSubscription<Map<String, dynamic>>? _forwardingSubscription;
+  Timer? _temporizadorDeRespuesta;
+  Timer? _temporizadorDeReconexion;
 
   /// Callback asignado por la capa de pantallas (una sola vez, apenas
   /// arranca la app — ver main.dart) para reenviar cada mensaje entrante
@@ -36,8 +45,9 @@ class ConnectionProvider extends ChangeNotifier {
   Stream<Map<String, dynamic>> get messages =>
       ServerConfig.useMock ? _mockService.messages : _wsService.messages;
 
-  void Function(Map<String, dynamic>) get sender =>
-      ServerConfig.useMock ? _mockService.sendTaskCompleted : _wsService.sendMessage;
+  void Function(Map<String, dynamic>) get sender => ServerConfig.useMock
+      ? _mockService.sendTaskCompleted
+      : _wsService.sendMessage;
 
   /// Instancia de `MockServerService` activa, expuesta para que
   /// `GameProvider` pueda notificarle cambios de riesgo directamente.
@@ -50,12 +60,24 @@ class ConnectionProvider extends ChangeNotifier {
   /// servidor) o 'continuar' (retomar la última noche alcanzada según
   /// la base de datos del servidor). Se recuerda para que los reintentos
   /// automáticos de reconexión (`_handleDisconnect`) usen el mismo modo.
+  ///
+  /// Con el servidor real el estado queda en `connecting` hasta que llega el
+  /// primer mensaje del juego (Unity responde en menos de un segundo). Antes
+  /// pasaba a `connected` al instante, así que con una IP equivocada o el juego
+  /// cerrado la app decía "Conectado" sin que hubiera nadie del otro lado.
   void connect({String modo = 'nuevo'}) {
+    _reconnectAttempts = 0;
+    _conectar(modo);
+  }
+
+  void _conectar(String modo) {
     _ultimoModo = modo;
     _state = ConnectionState.connecting;
     notifyListeners();
 
     _forwardingSubscription?.cancel();
+    _temporizadorDeRespuesta?.cancel();
+    _temporizadorDeReconexion?.cancel();
 
     if (ServerConfig.useMock) {
       appLogger.i('Connecting via MockServerService');
@@ -78,9 +100,12 @@ class ConnectionProvider extends ChangeNotifier {
     // llegar y perderse antes de que este listener exista.
     _wsService.connect(ServerConfig.wsUrl);
     _forwardingSubscription = _wsService.messages.listen(
-      (Map<String, dynamic> mensaje) => onMessage?.call(mensaje),
-      onError: (Object error) => _handleDisconnect(),
-      onDone: _handleDisconnect,
+      (Map<String, dynamic> mensaje) {
+        _alResponderElJuego();
+        onMessage?.call(mensaje);
+      },
+      onError: (Object error) => _alFallarElSocket(),
+      onDone: _alFallarElSocket,
     );
 
     _wsService.sendMessage({
@@ -91,8 +116,48 @@ class ConnectionProvider extends ChangeNotifier {
       'modo': _ultimoModo,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
+    _temporizadorDeRespuesta = Timer(AppConstants.connectTimeout, () {
+      if (_state == ConnectionState.connecting) _fallarLaConexion();
+    });
+  }
+
+  /// Llegó un mensaje del juego: recién ahí hay alguien del otro lado.
+  void _alResponderElJuego() {
+    if (_state != ConnectionState.connecting) return;
+    _temporizadorDeRespuesta?.cancel();
     _state = ConnectionState.connected;
     _reconnectAttempts = 0;
+    notifyListeners();
+  }
+
+  /// El socket falló o se cerró. Si ya había conexión, se reconecta (la
+  /// partida se cayó); si todavía se estaba conectando, no hay a quién
+  /// reconectar: se avisa.
+  void _alFallarElSocket() {
+    switch (_state) {
+      case ConnectionState.connected:
+        _handleDisconnect();
+      case ConnectionState.connecting:
+        _fallarLaConexion();
+      case ConnectionState.idle:
+      case ConnectionState.reconnecting:
+      case ConnectionState.error:
+        break; // aviso atrasado de un socket que ya se descartó
+    }
+  }
+
+  /// No se logró hablar con el juego. En el primer intento es un error que el
+  /// jugador debe ver; dentro de una reconexión se sigue intentando.
+  void _fallarLaConexion() {
+    _temporizadorDeRespuesta?.cancel();
+    _forwardingSubscription?.cancel();
+    _forwardingSubscription = null;
+    _wsService.disconnect();
+    if (_reconnectAttempts > 0) {
+      _handleDisconnect();
+      return;
+    }
+    _state = ConnectionState.error;
     notifyListeners();
   }
 
@@ -106,9 +171,10 @@ class ConnectionProvider extends ChangeNotifier {
     _reconnectAttempts++;
     notifyListeners();
 
-    Future<void>.delayed(
+    _temporizadorDeReconexion?.cancel();
+    _temporizadorDeReconexion = Timer(
       AppConstants.reconnectDelay,
-      () => connect(modo: _ultimoModo),
+      () => _conectar(_ultimoModo),
     );
   }
 
@@ -120,6 +186,8 @@ class ConnectionProvider extends ChangeNotifier {
     if (!ServerConfig.useMock && _state == ConnectionState.connected) {
       _wsService.sendMessage({'type': 'disconnect'});
     }
+    _temporizadorDeRespuesta?.cancel();
+    _temporizadorDeReconexion?.cancel();
     _forwardingSubscription?.cancel();
     _forwardingSubscription = null;
     _wsService.disconnect();
@@ -130,6 +198,8 @@ class ConnectionProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _temporizadorDeRespuesta?.cancel();
+    _temporizadorDeReconexion?.cancel();
     _forwardingSubscription?.cancel();
     _wsService.dispose();
     _mockService.dispose();
