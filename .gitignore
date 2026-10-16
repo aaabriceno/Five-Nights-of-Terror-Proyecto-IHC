@@ -64,3 +64,14 @@ informe_final_IHC/*.fls
 informe_final_IHC/*.fdb_latexmk
 informe_final_IHC/*.synctex.gz
 informe_final_IHC/*.bak
+
+# LaTeX (informe_Parcial_Practico): solo se versionan main.tex, main.pdf e
+# imágenes; todo lo que genera la compilación queda fuera.
+informe_Parcial_Practico/*.aux
+informe_Parcial_Practico/*.log
+informe_Parcial_Practico/*.out
+informe_Parcial_Practico/*.toc
+informe_Parcial_Practico/*.fls
+informe_Parcial_Practico/*.fdb_latexmk
+informe_Parcial_Practico/*.synctex.gz
+informe_Parcial_Practico/*.bak
