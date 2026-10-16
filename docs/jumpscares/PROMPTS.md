@@ -67,6 +67,17 @@ in a split second it snaps forward, scaling up violently until it fills the
 whole screen, with violent camera shake, flickering light and glitchy
 stuttering motion. Total duration 1.5 seconds, very fast. No text, no music.
 
+## Origen de cada video (para el informe)
+
+| Animatrónico | Cómo se hizo |
+|---|---|
+| Freddy | Generado con IA (Gemini) con el prompt de arriba y `referencias/recorte_freddy.jpg`; recortado al tramo del salto (1,45 s). |
+| Puppet | Generado con IA (Gemini) con el prompt de arriba y `referencias/recorte_puppet.jpg`; recortado al tramo del salto (1,5 s). |
+| Vixy | **Sin IA.** Lo genera `generar_jumpscare_vixy.py` a partir de la imagen de espera del juego (acercamiento, temblor, destellos y brillo de los ojos). El prompt de Vixy de arriba no se usó: Gemini devolvió un video de Puppet. |
+
+Para regenerar el de Vixy: `python3 docs/jumpscares/generar_jumpscare_vixy.py` (Pillow, numpy y
+ffmpeg con libvpx). El resultado es siempre el mismo.
+
 ## Después
 
 Dejar los archivos en cualquier carpeta y avisar: se recortan al tramo del
