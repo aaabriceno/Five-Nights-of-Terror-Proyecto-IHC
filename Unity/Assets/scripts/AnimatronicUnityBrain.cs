@@ -77,7 +77,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
     // Índice = noche - 1. Antes {35, 32, 29, 26, 23, 20}: se bajaron 3 s en
     // todas las noches tras las pruebas con testers (las noches 1 y 2 se
     // pasaban muy fácil).
-    private static readonly float[] SegundosDeFreddyPorNoche = { 32f, 29f, 26f, 23f, 20f, 17f };
+    private static readonly float[] SegundosDeFreddyPorNoche = { 22f, 20f, 18f, 16f, 14f, 12f };
 
     // Freddy se defiende solo con la mirada: sus tareas siguen apareciendo en
     // la tablet (las genera UnityGameSessionController), pero no alteran su

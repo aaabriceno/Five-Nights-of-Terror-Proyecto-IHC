@@ -155,8 +155,9 @@ public class UnityGameSessionController : MonoBehaviour
     [Header("Jumpscare en la ventana de Unity")]
     [SerializeField] private Texture2D desktopJumpscareImage;
     [SerializeField] private AudioClip desktopJumpscareSound;
-    [SerializeField, Min(0.1f)] private float desktopJumpscareDuration = 2.5f;
+    [SerializeField, Min(0.1f)] private float desktopJumpscareDuration = 1.6f;
     private bool desktopJumpscareShown;
+    private ReproductorDeJumpscare reproductorDeJumpscare;
 
     private const float TickSeconds = 0.5f;
     // Segundos reales que dura cada noche (2:00, 2:15, 2:30, 2:30, 2:45,
@@ -221,6 +222,7 @@ public class UnityGameSessionController : MonoBehaviour
         if (coordinator == null) coordinator = FindObjectOfType<AnimatronicGameCoordinator>();
         if (detectorCabeza == null) detectorCabeza = FindObjectOfType<HeadOrientationTracker>();
         if (gestorSonido == null) gestorSonido = FindObjectOfType<GestorSonidoJuego>();
+        reproductorDeJumpscare = gameObject.AddComponent<ReproductorDeJumpscare>();
         if (jugador == null && Camera.main != null) jugador = Camera.main.transform;
         ConfigureSceneActors();
     }
@@ -228,6 +230,22 @@ public class UnityGameSessionController : MonoBehaviour
     private void Start()
     {
         if (!partidaActiva && gestorSonido != null) gestorSonido.ReproducirMusicaMenu();
+
+        // Solo para probar un jumpscare sin esperar a que ataquen:
+        //   FiveNightsOfTerror.x86_64 -jumpscare-prueba freddy
+        // Lo muestra a los 4 s de abrir el juego y cierra el juego al terminar.
+        string[] argumentos = Environment.GetCommandLineArgs();
+        for (int i = 0; i < argumentos.Length - 1; i++)
+            if (argumentos[i] == "-jumpscare-prueba")
+                StartCoroutine(ProbarJumpscare(argumentos[i + 1]));
+    }
+
+    private System.Collections.IEnumerator ProbarJumpscare(string animatronico)
+    {
+        yield return new WaitForSeconds(4f);
+        ShowDesktopJumpscare(animatronico);
+        yield return new WaitForSeconds(Mathf.Max(MomentoEnQueTerminaElJumpscare - Time.time, 0f) + 2f);
+        Application.Quit();
     }
 
     private void OnEnable() => UnityWebSocketClient.MessageReceived += OnMessage;
@@ -702,11 +720,11 @@ public class UnityGameSessionController : MonoBehaviour
     private void OnAnimatronicAttack(string message)
     {
         if (!partidaActiva) return;
-        ShowDesktopJumpscare();
         string name = "Animatrónico";
         foreach (AnimatronicUnityBrain brain in brains)
             if (brain != null && brain.enabled && message.StartsWith(brain.nombreAnimatronico, StringComparison.OrdinalIgnoreCase))
             { name = brain.nombreAnimatronico; break; }
+        ShowDesktopJumpscare(name);
 
         Send(new AttackMessage
         {
@@ -718,7 +736,7 @@ public class UnityGameSessionController : MonoBehaviour
         FinishGame(false, true, name);
     }
 
-    private void ShowDesktopJumpscare()
+    private void ShowDesktopJumpscare(string animatronico)
     {
         if (desktopJumpscareShown) return;
         desktopJumpscareShown = true;
@@ -747,6 +765,7 @@ public class UnityGameSessionController : MonoBehaviour
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
 
+        RawImage imagenFija = null;
         if (image != null)
         {
             GameObject imageObject = new GameObject("JumpscareImage", typeof(RectTransform), typeof(RawImage));
@@ -758,6 +777,7 @@ public class UnityGameSessionController : MonoBehaviour
             rect.offsetMax = Vector2.zero;
 
             RawImage rawImage = imageObject.GetComponent<RawImage>();
+            imagenFija = rawImage;
             rawImage.texture = image;
             rawImage.color = Color.white;
             rawImage.raycastTarget = true;
@@ -765,6 +785,35 @@ public class UnityGameSessionController : MonoBehaviour
         else
         {
             Debug.LogError("No se encontró Resources/desktop_jumpscare.jpg para el jumpscare de Unity.");
+        }
+
+        // El video del animatrónico va encima de la imagen. Si no hay video
+        // (falta el archivo o no se pudo preparar) queda la imagen, como antes.
+        float duracionDelVideo = 0f;
+        if (reproductorDeJumpscare != null &&
+            reproductorDeJumpscare.TryReproducir(animatronico, out RenderTexture texturaDelVideo, out duracionDelVideo))
+        {
+            GameObject videoObject = new GameObject("JumpscareVideo", typeof(RectTransform), typeof(RawImage));
+            videoObject.transform.SetParent(canvas.transform, false);
+            RectTransform rectVideo = videoObject.GetComponent<RectTransform>();
+            rectVideo.anchorMin = Vector2.zero;
+            rectVideo.anchorMax = Vector2.one;
+            rectVideo.offsetMin = Vector2.zero;
+            rectVideo.offsetMax = Vector2.zero;
+
+            RawImage rawVideo = videoObject.GetComponent<RawImage>();
+            rawVideo.texture = texturaDelVideo;
+            rawVideo.uvRect = ReproductorDeJumpscare.RecorteParaLaPantalla();
+            rawVideo.color = Color.white;
+            rawVideo.raycastTarget = false;
+
+            // Con video, el fondo es negro: si quedara la imagen fija, se vería
+            // en cuanto el clip termine y antes de la pantalla de derrota.
+            if (imagenFija != null)
+            {
+                imagenFija.texture = null;
+                imagenFija.color = Color.black;
+            }
         }
 
         AudioSource audioSource = overlay.GetComponent<AudioSource>();
@@ -775,7 +824,10 @@ public class UnityGameSessionController : MonoBehaviour
         else
             Debug.LogError("No se encontró Resources/desktop_jumpscare.ogg para el jumpscare de Unity.");
 
-        float visibleDuration = Mathf.Max(desktopJumpscareDuration, sound != null ? sound.length : 0f);
+        float duracionDelSonido = sound != null ? sound.length : 0f;
+        float visibleDuration = duracionDelVideo > 0f
+            ? Mathf.Max(duracionDelSonido, duracionDelVideo)
+            : Mathf.Max(desktopJumpscareDuration, duracionDelSonido);
         MomentoEnQueTerminaElJumpscare = Time.time + visibleDuration;
         Destroy(overlay, visibleDuration);
     }

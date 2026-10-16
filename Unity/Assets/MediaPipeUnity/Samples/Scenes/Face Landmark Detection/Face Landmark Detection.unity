@@ -1944,7 +1944,7 @@ MonoBehaviour:
   valorCajaPuppet: 2000
   desktopJumpscareImage: {fileID: 0}
   desktopJumpscareSound: {fileID: 0}
-  desktopJumpscareDuration: 2.5
+  desktopJumpscareDuration: 1.6
 --- !u!1 &2136016334
 GameObject:
   m_ObjectHideFlags: 0
