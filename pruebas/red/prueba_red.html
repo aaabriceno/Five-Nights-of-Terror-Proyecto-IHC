@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de red</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 46rem; margin: 1.5rem auto; padding: 0 1rem; background: #111; color: #eee; }
+  h1 { margin-bottom: .2rem; }
+  fieldset { border: 1px solid #444; border-radius: 6px; margin: 1rem 0; }
+  legend { padding: 0 .4rem; color: #9cf; }
+  label { margin-right: .8rem; }
+  input, select { padding: .35rem; font-size: 1rem; background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; }
+  button { padding: .45rem 1rem; font-size: 1rem; cursor: pointer; }
+  #chat { background: #000; padding: .7rem; border-radius: 6px; height: 14rem; overflow-y: auto; font-size: .92rem; }
+  .linea { margin: .15rem 0; }
+  .mio { color: #9f9; } .suyo { color: #fd8; } .sistema { color: #999; font-style: italic; }
+  .fila { display: flex; gap: .5rem; margin-top: .5rem; } .fila input { flex: 1; }
+  #estado { font-weight: bold; margin-left: .6rem; }
+  pre { background: #000; padding: .7rem; border-radius: 6px; white-space: pre-wrap; margin: .5rem 0 0; }
+  small { color: #aaa; }
+</style>
+</head>
+<body>
+<h1>Prueba de red</h1>
+<small>Mismo canal que el juego: WebSocket sobre TCP, a través del relay. Hazlo con el juego cerrado.</small>
+
+<fieldset>
+  <legend>1. Conexión</legend>
+  <label>Soy <select id="rol">
+    <option value="computadora2">Computadora 2 (jugador 2)</option>
+    <option value="laptop">Laptop (servidor)</option>
+  </select></label>
+  <label>IP del relay <input id="host" size="14"></label>
+  <label>Puerto <input id="puerto" value="8000" size="5"></label>
+  <label>Nombre <input id="nombre" size="14"></label><br><br>
+  <button id="conectar">Conectar</button><span id="estado">Desconectado</span>
+</fieldset>
+
+<fieldset>
+  <legend>2. Chat con acuse de entrega</legend>
+  <div id="chat"></div>
+  <div class="fila">
+    <input id="texto" placeholder="Escribe un mensaje y pulsa Enter" disabled>
+    <button id="enviar" disabled>Enviar</button>
+  </div>
+  <small>Cada mensaje que llega al otro equipo vuelve con un acuse: aparece ✓ y el tiempo de ida y vuelta.</small>
+</fieldset>
+
+<fieldset>
+  <legend>3. Medir latencia</legend>
+  <label>Pings <input id="cantidad" value="200" size="5"></label>
+  <button id="medir" disabled>Medir</button>
+  <pre id="resultado">Necesita que el otro equipo esté conectado.</pre>
+</fieldset>
+
+<button id="descargar">Descargar registro (.txt)</button>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const parametros = new URLSearchParams(location.search);
+const esHttp = location.protocol.startsWith("http");
+$("host").value = parametros.get("host") || (esHttp && location.hostname ? location.hostname : "192.168.1.7");
+$("rol").value = parametros.get("rol") || "computadora2";
+$("nombre").value = parametros.get("nombre") ||
+  (($("rol").value === "laptop" ? "Laptop" : "Computadora 2") + " (" + (navigator.platform || "?") + ")");
+
+let socket = null;
+let medicion = null;
+let contador = 0;
+const pendientes = new Map();   // id de chat -> {envio, elemento}
+const registro = [];
+
+const hora = () => new Date().toLocaleTimeString("es-PE", { hour12: false });
+
+function anotar(texto, clase) {
+  registro.push(`[${hora()}] ${texto}`);
+  const linea = document.createElement("div");
+  linea.className = "linea " + (clase || "sistema");
+  linea.textContent = `[${hora()}] ${texto}`;
+  $("chat").appendChild(linea);
+  $("chat").scrollTop = $("chat").scrollHeight;
+  return linea;
+}
+
+function activarControles(conectado) {
+  $("estado").textContent = conectado ? "Conectado" : "Desconectado";
+  $("estado").style.color = conectado ? "#9f9" : "#f99";
+  for (const id of ["texto", "enviar", "medir"]) $(id).disabled = !conectado;
+  $("conectar").textContent = conectado ? "Desconectar" : "Conectar";
+  $("rol").disabled = $("host").disabled = $("puerto").disabled = conectado;
+}
+
+function conectar() {
+  const direccion = `ws://${$("host").value}:${$("puerto").value}`;
+  anotar(`Conectando a ${direccion} como ${$("nombre").value} …`);
+  const inicio = performance.now();
+  socket = new WebSocket(direccion);
+  socket.onerror = () => anotar("No se pudo conectar. Revisa: ¿relay corriendo? ¿IP correcta? ¿firewall deja el puerto?");
+  socket.onclose = () => { activarControles(false); anotar("Conexión cerrada."); socket = null; };
+  socket.onopen = () => {
+    anotar(`Conectado en ${(performance.now() - inicio).toFixed(1)} ms.`);
+    // Mismos anuncios de rol que ya conoce el relay.
+    socket.send(JSON.stringify($("rol").value === "laptop"
+      ? { type: "connect", device: "prueba_red" } : { type: "unity_connect" }));
+    activarControles(true);
+    if (parametros.get("auto")) setTimeout(() => { $("texto").value = "hola desde la prueba automática"; enviarChat(); }, 300);
+  };
+  socket.onmessage = (evento) => recibir(evento.data);
+}
+
+function recibir(crudo) {
+  const ahora = performance.now();
+  let m;
+  try { m = JSON.parse(crudo); } catch { return; }
+  if (m.type === "prueba_chat") {
+    anotar(`${m.de}: ${m.texto}`, "suyo");
+    socket.send(JSON.stringify({ type: "prueba_chat_ack", id: m.id, de: $("nombre").value }));
+  } else if (m.type === "prueba_chat_ack") {
+    const p = pendientes.get(m.id);
+    if (p) {
+      pendientes.delete(m.id);
+      p.elemento.textContent += `  ✓ recibido por ${m.de} (${(ahora - p.envio).toFixed(1)} ms)`;
+      registro.push(`[${hora()}] ACUSE del mensaje ${m.id} por ${m.de}: ${(ahora - p.envio).toFixed(1)} ms`);
+    }
+  } else if (m.type === "prueba_ping") {
+    m.type = "prueba_pong";
+    socket.send(JSON.stringify(m));
+  } else if (m.type === "prueba_pong" && medicion && medicion.enviados.has(m.n)) {
+    medicion.rtts.push(ahora - medicion.enviados.get(m.n));
+    medicion.enviados.delete(m.n);
+  }
+}
+
+function enviarChat() {
+  const texto = $("texto").value.trim();
+  if (!socket || !texto) return;
+  const id = `${$("rol").value}-${++contador}`;
+  const elemento = anotar(`Yo: ${texto}`, "mio");
+  pendientes.set(id, { envio: performance.now(), elemento });
+  socket.send(JSON.stringify({ type: "prueba_chat", id, de: $("nombre").value, texto }));
+  $("texto").value = "";
+}
+
+const percentil = (o, f) => o[Math.min(o.length - 1, Math.floor(o.length * f))];
+
+async function medirLatencia() {
+  const cantidad = parseInt($("cantidad").value, 10);
+  const relleno = "x".repeat(300);
+  medicion = { enviados: new Map(), rtts: [] };
+  $("medir").disabled = true;
+  $("resultado").textContent = `Enviando ${cantidad} pings …`;
+  for (let n = 0; n < cantidad && socket; n++) {
+    medicion.enviados.set(n, performance.now());
+    socket.send(JSON.stringify({ type: "prueba_ping", n, relleno }));
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  await new Promise((r) => setTimeout(r, 1500));
+  const { rtts } = medicion;
+  const perdidos = cantidad - rtts.length;
+  let texto = `Enviados ${cantidad} · recibidos ${rtts.length} · perdidos ${perdidos} (${(100 * perdidos / cantidad).toFixed(1)} %)`;
+  if (rtts.length) {
+    const o = [...rtts].sort((a, b) => a - b);
+    const media = o.reduce((s, x) => s + x, 0) / o.length;
+    const jitter = Math.sqrt(o.reduce((s, x) => s + (x - media) ** 2, 0) / o.length);
+    texto += `\nRTT (ms): mín ${o[0].toFixed(1)} · media ${media.toFixed(1)} · mediana ${percentil(o, .5).toFixed(1)} · p95 ${percentil(o, .95).toFixed(1)} · máx ${o[o.length - 1].toFixed(1)} · jitter ${jitter.toFixed(1)}`;
+    texto += `\nUn sentido ≈ ${(percentil(o, .5) / 2).toFixed(1)} ms. Tick del juego: 500 ms.`;
+  } else {
+    texto += "\nNo llegó ningún pong: ¿está conectado el otro equipo?";
+  }
+  $("resultado").textContent = texto;
+  registro.push(`[${hora()}] MEDICIÓN\n${texto}`);
+  medicion = null;
+  $("medir").disabled = !socket;
+}
+
+$("conectar").onclick = () => (socket ? socket.close() : conectar());
+$("enviar").onclick = enviarChat;
+$("texto").onkeydown = (e) => { if (e.key === "Enter") enviarChat(); };
+$("medir").onclick = medirLatencia;
+$("descargar").onclick = () => {
+  const enlace = document.createElement("a");
+  enlace.href = URL.createObjectURL(new Blob([registro.join("\n")], { type: "text/plain" }));
+  enlace.download = `registro_prueba_red_${$("rol").value}.txt`;
+  enlace.click();
+};
+if (parametros.get("auto")) conectar();
+</script>
+</body>
+</html>
