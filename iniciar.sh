@@ -103,10 +103,13 @@ if [ -f "$RAIZ/UnityRelay/operador/operador.html" ] && [ -x "$PYTHON_RELAY" ]; t
   else
     "$PYTHON_RELAY" -m http.server "$PUERTO_OPERADOR" --directory "$RAIZ/UnityRelay/operador" >/dev/null 2>&1 9>&- &
     PID_OPERADOR=$!
+    DIRECCIONES_OPERADOR=""
     for ip in $(hostname -I 2>/dev/null); do
       case "$ip" in *:*|172.1[78].*) continue ;; esac
-      echo "Jugador 2: abre http://$ip:$PUERTO_OPERADOR/operador.html en la otra computadora."
+      DIRECCIONES_OPERADOR="$DIRECCIONES_OPERADOR http://$ip:$PUERTO_OPERADOR/operador.html"
     done
+    # Con doble clic no hay terminal: por eso también va en una notificación.
+    [ -n "$DIRECCIONES_OPERADOR" ] && avisar "Jugador 2, abre en la otra computadora:$DIRECCIONES_OPERADOR"
   fi
 fi
 
