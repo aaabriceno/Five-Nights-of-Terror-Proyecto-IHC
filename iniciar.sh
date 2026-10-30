@@ -12,6 +12,8 @@ REGISTRO="${REGISTRO_RELAY:-$RAIZ/Unity/Builds/Linux/relay.log}"
 
 PID_RELAY=""
 PID_JUEGO=""
+PID_OPERADOR=""
+PUERTO_OPERADOR=8081
 
 avisar() {
   echo "$1" >&2
@@ -36,6 +38,9 @@ puerto_es_del_relay() {
 limpiar() {
   if [ -n "$PID_JUEGO" ] && kill -0 "$PID_JUEGO" 2>/dev/null; then
     kill "$PID_JUEGO" 2>/dev/null
+  fi
+  if [ -n "$PID_OPERADOR" ] && kill -0 "$PID_OPERADOR" 2>/dev/null; then
+    kill "$PID_OPERADOR" 2>/dev/null
   fi
   if [ -n "$PID_RELAY" ] && kill -0 "$PID_RELAY" 2>/dev/null; then
     kill "$PID_RELAY" 2>/dev/null
@@ -87,6 +92,21 @@ else
   if ! puerto_escuchando; then
     avisar "El relay no empezó a escuchar en el puerto $PUERTO a tiempo. Revisa $REGISTRO"
     exit 1
+  fi
+fi
+
+# Página del jugador 2 (operador): otra computadora de la misma red la abre en
+# su navegador. Si el puerto está ocupado o no hay Python, se sigue sin ella.
+if [ -f "$RAIZ/UnityRelay/operador/operador.html" ] && [ -x "$PYTHON_RELAY" ]; then
+  if (exec 3<>"/dev/tcp/127.0.0.1/$PUERTO_OPERADOR") 2>/dev/null; then
+    echo "El puerto $PUERTO_OPERADOR está ocupado: no se sirve la página del jugador 2."
+  else
+    "$PYTHON_RELAY" -m http.server "$PUERTO_OPERADOR" --directory "$RAIZ/UnityRelay/operador" >/dev/null 2>&1 9>&- &
+    PID_OPERADOR=$!
+    for ip in $(hostname -I 2>/dev/null); do
+      case "$ip" in *:*|172.1[78].*) continue ;; esac
+      echo "Jugador 2: abre http://$ip:$PUERTO_OPERADOR/operador.html en la otra computadora."
+    done
   fi
 fi
 
