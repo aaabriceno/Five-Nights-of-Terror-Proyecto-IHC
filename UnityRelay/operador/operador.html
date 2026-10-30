@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operador · Five Nights of Terror</title>
+<style>
+  :root { --fondo:#0c0c10; --panel:#16161d; --borde:#33333f; --texto:#eee; --suave:#9a9aa8; }
+  body { margin:0; font-family:system-ui,sans-serif; background:var(--fondo); color:var(--texto); }
+  main { max-width:56rem; margin:0 auto; padding:1rem; }
+  header { display:flex; flex-wrap:wrap; gap:.8rem 1.5rem; align-items:center; justify-content:space-between; }
+  h1 { font-size:1.3rem; margin:.3rem 0; }
+  #estado { font-weight:bold; }
+  .ok { color:#7f7; } .mal { color:#f88; }
+  #conexion { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin:.5rem 0; }
+  input { padding:.4rem; font-size:1rem; background:#222; color:var(--texto); border:1px solid #555; border-radius:4px; }
+  button { padding:.5rem 1rem; font-size:1rem; cursor:pointer; border-radius:6px; border:1px solid var(--borde); background:#2a2a36; color:var(--texto); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  canvas { width:100%; aspect-ratio:16/10; background:var(--panel); border:1px solid var(--borde); border-radius:8px; display:block; }
+  #acciones { display:grid; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); gap:.6rem; margin:.8rem 0; }
+  .tarjeta { background:var(--panel); border:1px solid var(--borde); border-radius:8px; padding:.7rem; }
+  .tarjeta h2 { margin:0 0 .4rem; font-size:1rem; }
+  .punto { display:inline-block; width:.8rem; height:.8rem; border-radius:50%; margin-right:.4rem; }
+  .detalle { color:var(--suave); font-size:.85rem; min-height:1.2rem; margin-bottom:.4rem; }
+  #aviso { min-height:1.6rem; font-weight:bold; }
+  small { color:var(--suave); }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Operador (jugador 2)</h1>
+  <div>Noche <span id="noche">–</span> · <span id="hora">–</span> · <span id="estado" class="mal">Desconectado</span></div>
+</header>
+
+<div id="conexion">
+  <label>IP del juego <input id="host" size="14"></label>
+  <label>Puerto <input id="puerto" value="8000" size="5"></label>
+  <button id="conectar">Conectar</button>
+</div>
+
+<canvas id="mapa" width="960" height="600" aria-label="Minimapa 2D con la posición de los animatrónicos"></canvas>
+<div id="aviso" role="status"></div>
+
+<div id="acciones"></div>
+<small>Retrasar baja a la mitad la velocidad del animatrónico por unos segundos y tiene un tiempo de espera. El jugador 1 verá el aviso en su pantalla. Unity valida cada acción.</small>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const COLORES = { freddy: "#6fcf6f", vixy: "#ff5a5a", puppet: "#d9a066" };
+const NOMBRES = { freddy: "Freddy", vixy: "Vixy", puppet: "Puppet" };
+const MOTIVOS = { sin_partida: "No hay una partida en curso.", enfriamiento: "Aún está en espera.", desconocido: "Animatrónico no válido." };
+
+const parametros = new URLSearchParams(location.search);
+$("host").value = parametros.get("host") ||
+  (location.protocol.startsWith("http") && location.hostname ? location.hostname : "127.0.0.1");
+
+let socket = null;
+let reintento = null;
+let quiereConexion = false;
+let puntos = [];
+let jugador = null;
+let animatronicos = [];            // último estado_mapa, con recibidoEn
+let limites = null;
+let avisoHasta = 0;
+
+// ---------- conexión ----------
+function conectar() {
+  clearTimeout(reintento);
+  const direccion = `ws://${$("host").value}:${$("puerto").value}`;
+  $("estado").textContent = "Conectando…"; $("estado").className = "";
+  socket = new WebSocket(direccion);
+  socket.onopen = () => {
+    socket.send(JSON.stringify({ type: "operador_connect" }));
+    $("estado").textContent = "Conectado"; $("estado").className = "ok";
+    $("conectar").textContent = "Desconectar";
+  };
+  socket.onmessage = (evento) => recibir(evento.data);
+  socket.onclose = () => {
+    socket = null;
+    $("estado").textContent = "Desconectado"; $("estado").className = "mal";
+    $("conectar").textContent = "Conectar";
+    if (quiereConexion) reintento = setTimeout(conectar, 3000);   // el juego puede abrirse después
+  };
+}
+
+$("conectar").onclick = () => {
+  if (socket) { quiereConexion = false; socket.close(); }
+  else { quiereConexion = true; conectar(); }
+};
+
+// ---------- mensajes de Unity ----------
+function recibir(crudo) {
+  let m;
+  try { m = JSON.parse(crudo); } catch { return; }
+  if (m.type === "mapa_puntos") {
+    puntos = m.puntos || []; jugador = m.jugador || null; limites = null;
+  } else if (m.type === "estado_mapa") {
+    const ahora = performance.now();
+    animatronicos = (m.animatronicos || []).map((a) => ({ ...a, recibidoEn: ahora }));
+    $("noche").textContent = m.partida_activa ? m.noche : "–";
+    $("hora").textContent = m.partida_activa ? m.hora : "sin partida";
+    asegurarBotones();
+  } else if (m.type === "efecto") {
+    avisar(`${m.message || NOMBRES[m.animatronic] + " se ralentizó"} (${Math.round(m.segundos)} s)`);
+  } else if (m.type === "accion_rechazada") {
+    avisar(`${MOTIVOS[m.motivo] || "Acción rechazada."}${m.espera_s > 0 ? ` Faltan ${Math.ceil(m.espera_s)} s.` : ""}`);
+  }
+}
+
+function avisar(texto) {
+  $("aviso").textContent = texto;
+  avisoHasta = performance.now() + 4000;
+}
+
+// ---------- botones ----------
+function asegurarBotones() {
+  const contenedor = $("acciones");
+  for (const a of animatronicos) {
+    if ($("tarjeta-" + a.nombre)) continue;
+    const t = document.createElement("div");
+    t.className = "tarjeta"; t.id = "tarjeta-" + a.nombre;
+    t.innerHTML = `<h2><span class="punto" style="background:${COLORES[a.nombre] || "#ccc"}"></span>${NOMBRES[a.nombre] || a.nombre}</h2>
+      <div class="detalle" id="detalle-${a.nombre}"></div>
+      <button id="boton-${a.nombre}">Retrasar</button>`;
+    contenedor.appendChild(t);
+    $("boton-" + a.nombre).onclick = () => {
+      if (socket) socket.send(JSON.stringify({ type: "accion_operador", accion: "retrasar", objetivo: a.nombre }));
+    };
+  }
+}
+
+// ---------- dibujo ----------
+function calcularLimites() {
+  const xs = [], zs = [];
+  for (const p of [...puntos, ...(jugador ? [jugador] : [])]) { xs.push(p.x); zs.push(p.z); }
+  if (!xs.length) return null;
+  const margen = 1.5;
+  return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
+}
+
+function proyectar(p, c) {
+  const L = limites, w = c.width, h = c.height;
+  const escala = Math.min(w / (L.x1 - L.x0), h / (L.z1 - L.z0));
+  const dx = (w - escala * (L.x1 - L.x0)) / 2, dz = (h - escala * (L.z1 - L.z0)) / 2;
+  return [dx + (p.x - L.x0) * escala, h - dz - (p.z - L.z0) * escala];   // norte arriba
+}
+
+function dibujar() {
+  const c = $("mapa"), g = c.getContext("2d");
+  g.clearRect(0, 0, c.width, c.height);
+  if (!limites) limites = calcularLimites();
+  if (limites) for (const a of animatronicos) {      // el mapa solo crece: no "baila" al moverse
+    limites.x0 = Math.min(limites.x0, a.x - 1); limites.x1 = Math.max(limites.x1, a.x + 1);
+    limites.z0 = Math.min(limites.z0, a.z - 1); limites.z1 = Math.max(limites.z1, a.z + 1);
+  }
+  if (!limites) {
+    g.fillStyle = "#888"; g.font = "24px system-ui"; g.textAlign = "center";
+    g.fillText("Esperando el mapa del juego…", c.width / 2, c.height / 2);
+  } else {
+    g.font = "16px system-ui"; g.textAlign = "left";
+    for (const p of puntos) {
+      const [x, y] = proyectar(p, c);
+      g.fillStyle = "#555"; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill();
+      g.fillStyle = "#777"; g.fillText(p.nombre, x + 9, y + 5);
+    }
+    if (jugador) {
+      const [x, y] = proyectar(jugador, c);
+      g.fillStyle = "#6af"; g.fillRect(x - 9, y - 9, 18, 18);
+      g.fillStyle = "#9cf"; g.fillText("Jugador 1", x + 14, y + 5);
+    }
+    for (const a of animatronicos) {
+      const [x, y] = proyectar(a, c);
+      const lento = a.retraso_s - (performance.now() - a.recibidoEn) / 1000 > 0;
+      g.fillStyle = COLORES[a.nombre] || "#ccc";
+      g.beginPath(); g.arc(x, y, 13, 0, 7); g.fill();
+      if (lento) { g.strokeStyle = "#fff"; g.lineWidth = 3; g.setLineDash([5, 4]); g.beginPath(); g.arc(x, y, 20, 0, 7); g.stroke(); g.setLineDash([]); }
+      g.fillStyle = "#fff"; g.font = "bold 17px system-ui";
+      g.fillText((NOMBRES[a.nombre] || a.nombre) + (lento ? " (lento)" : ""), x + 22, y + 6);
+    }
+  }
+  actualizarTarjetas();
+  if (performance.now() > avisoHasta) $("aviso").textContent = "";
+  requestAnimationFrame(dibujar);
+}
+
+function actualizarTarjetas() {
+  const ahora = performance.now();
+  for (const a of animatronicos) {
+    const espera = Math.max(0, a.espera_s - (ahora - a.recibidoEn) / 1000);
+    const retraso = Math.max(0, a.retraso_s - (ahora - a.recibidoEn) / 1000);
+    const detalle = $("detalle-" + a.nombre), boton = $("boton-" + a.nombre);
+    if (!detalle) continue;
+    detalle.textContent = retraso > 0 ? `Retrasado ${retraso.toFixed(0)} s` : (espera > 0 ? `Disponible en ${espera.toFixed(0)} s` : "Listo");
+    boton.disabled = !socket || espera > 0;
+  }
+}
+
+requestAnimationFrame(dibujar);
+if (parametros.get("auto")) $("conectar").click();
+</script>
+</body>
+</html>

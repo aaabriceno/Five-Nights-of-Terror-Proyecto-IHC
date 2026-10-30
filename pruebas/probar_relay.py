@@ -76,6 +76,62 @@ async def caso_tablet_sigue_conectada():
             comprobar("Unity recibe el connect de la tablet presente", mensaje == CONNECT_TUTORIAL)
 
 
+OPERADOR_CONNECT = json.dumps({"type": "operador_connect"})
+ESTADO_MAPA = json.dumps({"type": "estado_mapa", "animatronicos": []})
+EFECTO = json.dumps({"type": "efecto", "animatronic": "vixy", "tipo": "ralentizado"})
+ACCION = json.dumps({"type": "accion_operador", "accion": "retrasar", "objetivo": "vixy"})
+
+
+async def caso_operador_se_anuncia_a_unity():
+    print("Caso 4: el operador se anuncia y Unity se entera, sin que cuente como tablet")
+    async with websockets.connect(URL) as unity:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await asyncio.sleep(0.2)
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+            comprobar("Unity recibe operador_connect", await recibir_o_nada(unity) == OPERADOR_CONNECT)
+    await asyncio.sleep(0.3)
+    async with websockets.connect(URL) as unity_nuevo:
+        await unity_nuevo.send(json.dumps({"type": "unity_connect"}))
+        comprobar("un Unity nuevo no recibe un connect por culpa del operador",
+                  await recibir_o_nada(unity_nuevo) is None)
+
+
+async def caso_estado_del_mapa_solo_al_operador():
+    print("Caso 5: el mapa va solo al operador; los efectos, a ambos")
+    async with websockets.connect(URL) as unity, websockets.connect(URL) as tablet, \
+            websockets.connect(URL) as operador:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await tablet.send(CONNECT_TUTORIAL)
+        await operador.send(OPERADOR_CONNECT)
+        await asyncio.sleep(0.3)
+        while await recibir_o_nada(unity, 0.2) is not None:   # connect y operador_connect
+            pass
+        await unity.send(ESTADO_MAPA)
+        comprobar("el operador recibe estado_mapa", await recibir_o_nada(operador) == ESTADO_MAPA)
+        comprobar("la tablet no recibe estado_mapa", await recibir_o_nada(tablet, 0.5) is None)
+        await unity.send(EFECTO)
+        comprobar("el operador recibe el efecto", await recibir_o_nada(operador) == EFECTO)
+        comprobar("la tablet recibe el efecto", await recibir_o_nada(tablet) == EFECTO)
+
+
+async def caso_accion_del_operador_solo_a_unity():
+    print("Caso 6: la acción del operador llega a Unity y no a la tablet")
+    async with websockets.connect(URL) as unity, websockets.connect(URL) as tablet, \
+            websockets.connect(URL) as operador:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await tablet.send(CONNECT_TUTORIAL)
+        await operador.send(OPERADOR_CONNECT)
+        await asyncio.sleep(0.3)
+        while await recibir_o_nada(unity, 0.2) is not None:
+            pass
+        await operador.send(ACCION)
+        comprobar("Unity recibe la acción", await recibir_o_nada(unity) == ACCION)
+        comprobar("la tablet no recibe la acción", await recibir_o_nada(tablet, 0.5) is None)
+        await tablet.send(json.dumps({"type": "task_completed", "task_id": 1}))
+        comprobar("el operador no recibe lo que manda la tablet", await recibir_o_nada(operador, 0.5) is None)
+
+
 async def principal():
     relay = subprocess.Popen(
         [sys.executable, "-u", str(RAIZ / "UnityRelay" / "relay.py")],
@@ -89,6 +145,9 @@ async def principal():
         await caso_tablet_ya_se_fue()
         await caso_tablet_se_despide()
         await caso_tablet_sigue_conectada()
+        await caso_operador_se_anuncia_a_unity()
+        await caso_estado_del_mapa_solo_al_operador()
+        await caso_accion_del_operador_solo_a_unity()
     finally:
         relay.terminate()
         relay.wait()

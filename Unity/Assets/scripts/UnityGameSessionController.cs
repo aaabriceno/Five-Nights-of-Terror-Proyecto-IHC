@@ -76,6 +76,54 @@ public class UnityGameSessionController : MonoBehaviour
         public long timestamp;
     }
 
+    // Jugador 2 (operador): ver docs/PROTOCOLO_JUGADOR2.md
+    [Serializable] private class AccionOperadorMessage { public string type; public string accion; public string objetivo; }
+
+    [Serializable] private class PuntoDeMapa { public string nombre; public float x; public float z; }
+
+    [Serializable] private class MapaPuntosMessage
+    {
+        public string type = "mapa_puntos";
+        public PuntoDeMapa[] puntos;
+        public PuntoDeMapa jugador;
+    }
+
+    [Serializable] private class AnimatronicoEnMapa
+    {
+        public string nombre;
+        public float x;
+        public float z;
+        public float retraso_s;
+        public float espera_s;
+    }
+
+    [Serializable] private class EstadoMapaMessage
+    {
+        public string type = "estado_mapa";
+        public bool partida_activa;
+        public int noche;
+        public string hora;
+        public AnimatronicoEnMapa[] animatronicos;
+        public long timestamp;
+    }
+
+    [Serializable] private class EfectoMessage
+    {
+        public string type = "efecto";
+        public string animatronic;
+        public string tipo = "ralentizado";
+        public float segundos;
+        public string message;
+    }
+
+    [Serializable] private class AccionRechazadaMessage
+    {
+        public string type = "accion_rechazada";
+        public string objetivo;
+        public string motivo;
+        public float espera_s;
+    }
+
     [Serializable] private class AttackMessage
     {
         public string type = "attack";
@@ -216,6 +264,12 @@ public class UnityGameSessionController : MonoBehaviour
     private bool tutorialMiradaCompletada;
     private bool tutorialTareaCompletada;
 
+    // Jugador 2 (operador)
+    private readonly FrenoDeOperador freno = new FrenoDeOperador();
+    private string avisoDeOperador = string.Empty;
+    private float avisoDeOperadorHasta;
+    private GUIStyle estiloDelAviso;
+
     private void Awake()
     {
         if (websocketClient == null) websocketClient = FindObjectOfType<UnityWebSocketClient>();
@@ -269,6 +323,8 @@ public class UnityGameSessionController : MonoBehaviour
         // resultado o la X de la tablet) no debe sonar, sea cual sea el camino.
         if (!partidaActiva && gestorSonido != null) gestorSonido.DetenerEstatica();
         if (!partidaActiva) return;
+        foreach (AnimatronicUnityBrain brain in brains)
+            brain.FijarFactorDeVelocidad(freno.FactorDeVelocidad(brain.nombreAnimatronico, Time.time));
         tickClock += Time.deltaTime;
         while (tickClock >= TickSeconds)
         {
@@ -407,6 +463,14 @@ public class UnityGameSessionController : MonoBehaviour
                 case "tutorial_cerrar":
                     EnTutorial = false;
                     break;
+                case "operador_connect":
+                    // Un jugador 2 se unió: se le manda el mapa y dónde están.
+                    PublicarPuntosDelMapa();
+                    PublicarEstadoDelMapa();
+                    break;
+                case "accion_operador":
+                    AtenderAccionDelOperador(JsonUtility.FromJson<AccionOperadorMessage>(json));
+                    break;
             }
         }
         catch (Exception exception)
@@ -508,11 +572,14 @@ public class UnityGameSessionController : MonoBehaviour
             coordinator.puppetEnPeligro = false;
         }
 
+        freno.Reiniciar();
         foreach (AnimatronicUnityBrain brain in brains)
         {
+            brain.FijarFactorDeVelocidad(1f);
             brain.BeginSession(noche, GetInGameTime());
             brain.SetPuppetState(100f, false);
         }
+        PublicarPuntosDelMapa();
 
         CreateTask(InitialTask, "Freddy");
         PublishState();
@@ -583,6 +650,7 @@ public class UnityGameSessionController : MonoBehaviour
 
         PublishState();
         PublishPuppetState();
+        PublicarEstadoDelMapa();
     }
 
     private void TryGenerateNightTasks()
@@ -877,6 +945,109 @@ public class UnityGameSessionController : MonoBehaviour
             coordinator.partidaFinalizada = true;
             coordinator.alFinalizarPartida.Invoke(result);
         }
+    }
+
+    /// Rutas de los animatrónicos y posición del jugador: es el fondo del
+    /// minimapa del jugador 2, que solo necesita pedirlo una vez.
+    private void PublicarPuntosDelMapa()
+    {
+        var puntos = new List<PuntoDeMapa>();
+        var vistos = new HashSet<Transform>();
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            if (brain.ruta == null) continue;
+            foreach (Transform punto in brain.ruta)
+            {
+                if (punto == null || punto == jugador || !vistos.Add(punto)) continue;
+                puntos.Add(new PuntoDeMapa { nombre = punto.name, x = punto.position.x, z = punto.position.z });
+            }
+        }
+        Send(new MapaPuntosMessage
+        {
+            puntos = puntos.ToArray(),
+            jugador = jugador == null ? null
+                : new PuntoDeMapa { nombre = "jugador", x = jugador.position.x, z = jugador.position.z }
+        });
+    }
+
+    private void PublicarEstadoDelMapa()
+    {
+        var animatronicos = new List<AnimatronicoEnMapa>();
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            Vector3 posicion = brain.transform.position;
+            animatronicos.Add(new AnimatronicoEnMapa
+            {
+                nombre = brain.nombreAnimatronico.ToLowerInvariant(),
+                x = posicion.x,
+                z = posicion.z,
+                retraso_s = freno.SegundosDeRetraso(brain.nombreAnimatronico, Time.time),
+                espera_s = freno.SegundosDeEspera(brain.nombreAnimatronico, Time.time)
+            });
+        }
+        Send(new EstadoMapaMessage
+        {
+            partida_activa = partidaActiva,
+            noche = noche,
+            hora = GetInGameTime(),
+            animatronicos = animatronicos.ToArray(),
+            timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        });
+    }
+
+    /// Unity decide: valida la acción del jugador 2 con `FrenoDeOperador`, la
+    /// aplica y avisa a todos. El navegador solo pide.
+    private void AtenderAccionDelOperador(AccionOperadorMessage accion)
+    {
+        if (accion == null || accion.accion != "retrasar") return;
+        string objetivo = FrenoDeOperador.Normalizar(accion.objetivo);
+        if (!partidaActiva)
+        {
+            Send(new AccionRechazadaMessage { objetivo = accion.objetivo, motivo = "sin_partida" });
+            return;
+        }
+
+        FrenoDeOperador.Resultado resultado = freno.Intentar(accion.objetivo, Time.time);
+        if (resultado == FrenoDeOperador.Resultado.Aceptada)
+        {
+            string nombre = char.ToUpperInvariant(objetivo[0]) + objetivo.Substring(1);
+            string aviso = nombre + " se ralentizó";
+            avisoDeOperador = aviso;
+            avisoDeOperadorHasta = Time.time + 3f;
+            Send(new EfectoMessage
+            {
+                animatronic = objetivo,
+                segundos = FrenoDeOperador.DuracionSegundos,
+                message = aviso
+            });
+            PublicarEstadoDelMapa();
+            return;
+        }
+
+        Send(new AccionRechazadaMessage
+        {
+            objetivo = accion.objetivo,
+            motivo = resultado == FrenoDeOperador.Resultado.EnEnfriamiento ? "enfriamiento" : "desconocido",
+            espera_s = objetivo == null ? 0f : freno.SegundosDeEspera(objetivo, Time.time)
+        });
+    }
+
+    /// Aviso en la pantalla del jugador 1: el otro jugador hizo algo.
+    private void OnGUI()
+    {
+        if (!partidaActiva || Time.time >= avisoDeOperadorHasta || string.IsNullOrEmpty(avisoDeOperador)) return;
+        if (estiloDelAviso == null)
+            estiloDelAviso = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 40,
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold
+            };
+        Rect zona = new Rect(0f, Screen.height * 0.08f, Screen.width, 60f);
+        estiloDelAviso.normal.textColor = Color.black;
+        GUI.Label(new Rect(zona.x + 2f, zona.y + 2f, zona.width, zona.height), avisoDeOperador, estiloDelAviso);
+        estiloDelAviso.normal.textColor = new Color(1f, 0.85f, 0.3f);
+        GUI.Label(zona, avisoDeOperador, estiloDelAviso);
     }
 
     private void PublishState()

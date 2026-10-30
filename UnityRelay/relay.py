@@ -13,7 +13,12 @@ PORT = 8000
 
 tablets = set()
 unity_clients = set()
+operadores = set()
 last_connect_message = None
+
+# El minimapa y los rechazos son solo para el jugador 2 (operador): la tablet
+# no los usa, así que no se le reenvían.
+SOLO_PARA_OPERADORES = {"estado_mapa", "mapa_puntos", "accion_rechazada"}
 
 
 async def send_to(clients, payload):
@@ -28,6 +33,7 @@ async def send_to(clients, payload):
         if isinstance(result, Exception):
             tablets.discard(client)
             unity_clients.discard(client)
+            operadores.discard(client)
 
 
 def olvidar_connect_si_no_hay_tablets():
@@ -58,6 +64,16 @@ async def handle_connection(socket):
                 print("Unity conectado")
                 continue
 
+            if message_type == "operador_connect":
+                # Jugador 2: ve el mapa y manda acciones a Unity. No es una
+                # tablet: su anuncio no debe guardarse como `connect`, porque
+                # reiniciaría la partida de un Unity que se abre después.
+                role = "operador"
+                operadores.add(socket)
+                await send_to(unity_clients, raw)
+                print("Operador conectado")
+                continue
+
             if message_type == "connect":
                 role = "tablet"
                 tablets.add(socket)
@@ -67,8 +83,10 @@ async def handle_connection(socket):
                 continue
 
             if role == "unity":
-                await send_to(tablets, raw)
-            elif role == "tablet":
+                if message_type not in SOLO_PARA_OPERADORES:
+                    await send_to(tablets, raw)
+                await send_to(operadores, raw)
+            elif role in ("tablet", "operador"):
                 await send_to(unity_clients, raw)
 
             if message_type == "disconnect":
@@ -80,6 +98,7 @@ async def handle_connection(socket):
     finally:
         tablets.discard(socket)
         unity_clients.discard(socket)
+        operadores.discard(socket)
         olvidar_connect_si_no_hay_tablets()
         print("Cliente desconectado")
 

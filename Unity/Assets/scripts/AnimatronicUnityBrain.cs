@@ -44,6 +44,10 @@ public class AnimatronicUnityBrain : MonoBehaviour
     [SerializeField] private bool fueraDeCaja;
 
     private NavMeshAgent agent;
+    // Jugador 2: mientras lo retrasa, el tiempo de este animatrónico corre más
+    // lento (1 = normal). Lo fija UnityGameSessionController cada cuadro.
+    private float factorDeVelocidad = 1f;
+    private float velocidadBaseDelAgente;
     private readonly Dictionary<string, float> segundosTareaPendiente = new Dictionary<string, float>();
     private readonly HashSet<int> puntosVisitados = new HashSet<int>();
     private readonly Dictionary<int, Vector3> posicionesDeRutaNavMesh = new Dictionary<int, Vector3>();
@@ -102,6 +106,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
+        if (agent != null) velocidadBaseDelAgente = agent.speed;
         initialPosition = transform.position;
         initialRotation = transform.rotation;
         if (detectorCabeza == null && usaSeguimientoDeMirada)
@@ -112,9 +117,20 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
     }
 
+    /// Velocidad relativa de este animatrónico (1 = normal, 0.5 = a la mitad).
+    /// Afecta a sus esperas entre avances, a su amenaza por tareas pendientes,
+    /// a la cuenta del ataque desde el penúltimo punto y a su paso por la ruta.
+    public void FijarFactorDeVelocidad(float factor)
+    {
+        factorDeVelocidad = Mathf.Clamp(factor, 0.05f, 1f);
+        if (agent != null && velocidadBaseDelAgente > 0f)
+            agent.speed = velocidadBaseDelAgente * factorDeVelocidad;
+    }
+
     private void Update()
     {
         if (!activo || attackSent || ruta == null || ruta.Length == 0) return;
+        float deltaTime = Time.deltaTime * factorDeVelocidad;
 
         if (detenerseCuandoMira && usaSeguimientoDeMirada && detectorCabeza != null && detectorCabeza.mirandoPC)
         {
@@ -127,6 +143,8 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
         if (esperandoAtaquePenultimo)
         {
+            // El reloj de espera usa Time.time: se atrasa lo que se ralentizó.
+            proximoIntentoPenultimo += Time.deltaTime * (1f - factorDeVelocidad);
             if (Time.time >= proximoIntentoPenultimo)
                 TryPenultimateJumpscare();
             return;
@@ -156,17 +174,17 @@ public class AnimatronicUnityBrain : MonoBehaviour
         {
             // The server publishes Puppet's winding state every game tick.
             if (fueraDeCaja)
-                TryMove(Time.deltaTime, 1f);
+                TryMove(deltaTime, 1f);
             else
-                TryPuppetExit(Time.deltaTime);
+                TryPuppetExit(deltaTime);
             return;
         }
 
         if (!usarPatrullaExistente)
-            TryMove(Time.deltaTime, ataqueVixyPorTresTareas
+            TryMove(deltaTime, ataqueVixyPorTresTareas
                 ? SegundosEntreAvancesDeVixy
                 : SegundosEntreAvances);
-        UpdatePendingTaskThreat(Time.deltaTime);
+        UpdatePendingTaskThreat(deltaTime);
     }
 
     public void SetNight(int night, string inGameTime)
