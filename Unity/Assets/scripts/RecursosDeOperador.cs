@@ -13,6 +13,8 @@ public class RecursosDeOperador
     public enum ResultadoTrampa { Colocada, SinCargas, PuntoOcupado, PuntoInvalido }
     public enum ResultadoMiniTarea { Aceptada, MuyRapida, SinInicio }
 
+    /// Cuánto se queda quieto un animatrónico al pisar una trampa.
+    public const float SegundosDeTrampa = 6f;
     public const int CargasIniciales = 1;
     public const int MaxCargas = 3;
     /// Mini-tareas que hacen falta para desbloquear el rescate de Puppet.

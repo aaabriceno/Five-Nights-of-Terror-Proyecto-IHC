@@ -52,6 +52,37 @@ async def recolectar(socket, segundos):
     return mensajes
 
 
+async def esperar_respuesta(socket, identificador, espera=5.0):
+    """Lee hasta la respuesta (efecto o accion_rechazada) a la acción con ese id."""
+    try:
+        async with asyncio.timeout(espera):
+            while True:
+                mensaje = json.loads(await socket.recv())
+                if mensaje.get("type") in ("efecto", "accion_rechazada") and mensaje.get("id") == identificador:
+                    return mensaje
+    except TimeoutError:
+        return None
+
+
+async def esperar_estado_operador(socket, condicion, espera=5.0):
+    """Lee estado_operador hasta que cumpla la condición (o se acabe la espera)."""
+    try:
+        async with asyncio.timeout(espera):
+            while True:
+                mensaje = json.loads(await socket.recv())
+                if mensaje.get("type") == "estado_operador" and condicion(mensaje):
+                    return mensaje
+    except TimeoutError:
+        return None
+
+
+async def latidos(socket):
+    """Como la página: un ping cada 2 s para que Unity cuente al operador como conectado."""
+    while True:
+        await socket.send(json.dumps({"type": "ping_operador", "t": 1}))
+        await asyncio.sleep(2.0)
+
+
 async def principal():
     relay = subprocess.Popen([sys.executable, "-u", str(RAIZ / "UnityRelay/relay.py")],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -61,7 +92,8 @@ async def principal():
         juego = subprocess.Popen([str(JUEGO)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         await asyncio.sleep(12.0)   # el juego tarda en abrir y conectarse al relay
 
-        async with websockets.connect(URL) as tablet, websockets.connect(URL) as operador:
+        async with websockets.connect(URL, ping_interval=None, max_queue=None) as tablet, \
+                websockets.connect(URL, ping_interval=None, max_queue=None) as operador:
             await operador.send(json.dumps({"type": "operador_connect"}))
             puntos = await esperar_tipo(operador, "mapa_puntos")
             comprobar("el operador recibe mapa_puntos al conectarse", puntos is not None)
@@ -120,11 +152,59 @@ async def principal():
                       posicion is not None and len(posicion["animatronicos"]) == 3 and "jugador" in posicion)
 
             # Un segundo operador que se conecta a mitad de la noche recibe todo de golpe.
-            async with websockets.connect(URL) as operador2:
+            async with websockets.connect(URL, ping_interval=None, max_queue=None) as operador2:
                 await operador2.send(json.dumps({"type": "operador_connect"}))
                 inicial = {m.get("type") for m in await recolectar(operador2, 1.5)}
                 comprobar("un operador que reconecta recibe mapa, estado del mapa, del jugador y del operador",
                           {"mapa_puntos", "estado_mapa", "estado_jugador", "estado_operador"} <= inicial)
+
+            # --- trampas, mini-tarea de recarga y rescate de Puppet ---
+            tarea_latidos = asyncio.ensure_future(latidos(operador))
+            punto_a, punto_b = puntos["puntos"][0]["nombre"], puntos["puntos"][1]["nombre"]
+
+            def accion(identificador, **campos):
+                return json.dumps({"type": "accion_operador", "id": identificador, **campos})
+
+            await operador.send(accion(1, accion="trampa", punto=punto_a))
+            r = await esperar_respuesta(operador, 1)
+            comprobar("colocar una trampa con carga devuelve efecto trampa_colocada con el mismo id",
+                      r is not None and r["type"] == "efecto" and r.get("tipo") == "trampa_colocada")
+            e = await esperar_estado_operador(operador, lambda m: m["cargas"] == 0 and punto_a in m["trampas"])
+            comprobar("estado_operador muestra 0 cargas y la trampa puesta", e is not None)
+
+            await operador.send(accion(2, accion="trampa", punto=punto_b))
+            r = await esperar_respuesta(operador, 2)
+            comprobar("sin cargas se rechaza (sin_cargas)", r is not None and r.get("motivo") == "sin_cargas")
+
+            await operador.send(json.dumps({"type": "mini_tarea_fin"}))
+            r = await esperar_tipo(operador, "accion_rechazada")
+            comprobar("terminar una mini-tarea sin iniciarla se rechaza",
+                      r is not None and r.get("motivo") == "mini_tarea_sin_inicio")
+
+            await operador.send(json.dumps({"type": "mini_tarea_inicio"}))
+            await operador.send(json.dumps({"type": "mini_tarea_fin"}))
+            r = await esperar_tipo(operador, "accion_rechazada")
+            comprobar("terminarla al instante se rechaza por muy rápida",
+                      r is not None and r.get("motivo") == "mini_tarea_muy_rapida")
+
+            await asyncio.sleep(3.3)
+            await operador.send(json.dumps({"type": "mini_tarea_fin"}))
+            e = await esperar_estado_operador(operador, lambda m: m["cargas"] == 1 and m["progreso"] == 1)
+            comprobar("tras 3 s la mini-tarea se acepta: 1 carga y 1 de progreso", e is not None)
+
+            await operador.send(accion(3, accion="trampa", punto="PuntoQueNoExiste"))
+            r = await esperar_respuesta(operador, 3)
+            comprobar("un punto que no existe se rechaza (punto_invalido)", r is not None and r.get("motivo") == "punto_invalido")
+
+            await operador.send(accion(4, accion="trampa", punto=punto_a))
+            r = await esperar_respuesta(operador, 4)
+            comprobar("un punto ya ocupado se rechaza (punto_ocupado)", r is not None and r.get("motivo") == "punto_ocupado")
+
+            await operador.send(accion(5, accion="rescatar_puppet"))
+            r = await esperar_respuesta(operador, 5)
+            comprobar("rescatar a Puppet sin que haya salido se rechaza (sin_ventana)",
+                      r is not None and r.get("motivo") == "sin_ventana")
+            tarea_latidos.cancel()
 
             await tablet.send(json.dumps({"type": "disconnect"}))
     finally:

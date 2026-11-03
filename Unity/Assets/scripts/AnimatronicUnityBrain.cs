@@ -51,6 +51,10 @@ public class AnimatronicUnityBrain : MonoBehaviour
     // Con un jugador 2 conectado los intervalos entre avances se acortan
     // (1 = normal, menor = más agresivo). Lo fija UnityGameSessionController.
     private float factorDeAgresividad = 1f;
+    // Jugador 2: una trampa lo detiene unos segundos; mientras Puppet espera el
+    // rescate (ventana) tampoco avanza.
+    private float detenidoHasta;
+    private bool mantenidoQuieto;
     private readonly Dictionary<string, float> segundosTareaPendiente = new Dictionary<string, float>();
     private readonly HashSet<int> puntosVisitados = new HashSet<int>();
     private readonly Dictionary<int, Vector3> posicionesDeRutaNavMesh = new Dictionary<int, Vector3>();
@@ -130,6 +134,25 @@ public class AnimatronicUnityBrain : MonoBehaviour
             agent.speed = velocidadBaseDelAgente * factorDeVelocidad;
     }
 
+    public bool FueraDeCaja => fueraDeCaja;
+
+    /// Lo detiene `segundos` (trampa del jugador 2). Dos trampas no se suman.
+    public void DetenerPor(float segundos)
+    {
+        detenidoHasta = Mathf.Max(detenidoHasta, Time.time + segundos);
+    }
+
+    /// Mantiene al animatrónico quieto mientras sea verdadero (ventana de rescate).
+    public void MantenerQuieto(bool quieto) { mantenidoQuieto = quieto; }
+
+    /// Rescate: Puppet vuelve a su caja (que además se vuelve a llenar).
+    public void VolverALaCaja()
+    {
+        fueraDeCaja = false;
+        puppetPercent = 100f;
+        puppetExitClock = 0f;
+    }
+
     public void FijarFactorDeAgresividad(float factor)
     {
         factorDeAgresividad = Mathf.Clamp(factor, 0.2f, 1f);
@@ -139,6 +162,14 @@ public class AnimatronicUnityBrain : MonoBehaviour
     {
         if (!activo || attackSent || ruta == null || ruta.Length == 0) return;
         float deltaTime = Time.deltaTime * factorDeVelocidad;
+
+        if (mantenidoQuieto || Time.time < detenidoHasta)
+        {
+            if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
+            // El reloj de espera usa Time.time: se atrasa lo que estuvo detenido.
+            if (esperandoAtaquePenultimo) proximoIntentoPenultimo += Time.deltaTime;
+            return;
+        }
 
         if (detenerseCuandoMira && usaSeguimientoDeMirada && detectorCabeza != null && detectorCabeza.mirandoPC)
         {
@@ -221,6 +252,8 @@ public class AnimatronicUnityBrain : MonoBehaviour
         segundosTareaPendiente.Clear();
         fueraDeCaja = false;
         puppetPercent = 100f;
+        detenidoHasta = 0f;
+        mantenidoQuieto = false;
         attackSent = false;
         if (agent != null && !usarPatrullaExistente)
         {

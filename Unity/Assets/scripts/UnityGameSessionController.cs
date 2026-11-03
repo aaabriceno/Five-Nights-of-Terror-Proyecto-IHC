@@ -77,7 +77,7 @@ public class UnityGameSessionController : MonoBehaviour
     }
 
     // Jugador 2 (operador): ver docs/PROTOCOLO_JUGADOR2.md
-    [Serializable] private class AccionOperadorMessage { public string type; public string accion; public string objetivo; }
+    [Serializable] private class AccionOperadorMessage { public string type; public string accion; public string objetivo; public string punto; public int id; }
 
     [Serializable] private class PuntoDeMapa { public string nombre; public float x; public float z; }
 
@@ -114,6 +114,7 @@ public class UnityGameSessionController : MonoBehaviour
         public string tipo = "ralentizado";
         public float segundos;
         public string message;
+        public int id;
     }
 
     [Serializable] private class PingOperadorMessage { public string type; public long t; }
@@ -165,6 +166,7 @@ public class UnityGameSessionController : MonoBehaviour
         public string objetivo;
         public string motivo;
         public float espera_s;
+        public int id;
     }
 
     [Serializable] private class AttackMessage
@@ -315,6 +317,9 @@ public class UnityGameSessionController : MonoBehaviour
     // Las posiciones salen cada 0,05 s (20 veces por segundo).
     private const float SegundosEntrePosiciones = 0.05f;
     private float relojDePosiciones;
+    private const float RadioDeTrampaMetros = 1.5f;
+    private Dictionary<string, Vector3> puntosDeRuta;
+    private bool puppetVentanaYaAbierta;
     private bool miradaPublicada;
     private string avisoDeOperador = string.Empty;
     private float avisoDeOperadorHasta;
@@ -379,6 +384,8 @@ public class UnityGameSessionController : MonoBehaviour
             brain.FijarFactorDeVelocidad(freno.FactorDeVelocidad(brain.nombreAnimatronico, Time.time));
             brain.FijarFactorDeAgresividad(RecursosDeOperador.FactorDeAgresividad(brain.nombreAnimatronico, operadorVivo));
         }
+        RevisarTrampas();
+        GestionarRescateDePuppet();
         PublicarAlJugador2EnCadaCuadro();
         tickClock += Time.deltaTime;
         while (tickClock >= TickSeconds)
@@ -527,6 +534,12 @@ public class UnityGameSessionController : MonoBehaviour
                     PublicarEstadoJugador();
                     PublicarEstadoOperador();
                     break;
+                case "mini_tarea_inicio":
+                    recursos.IniciarMiniTarea(Time.time);
+                    break;
+                case "mini_tarea_fin":
+                    AtenderFinDeMiniTarea();
+                    break;
                 case "ping_operador":
                     presencia.Latir(Time.time);
                     Send(new PongOperadorMessage { t = JsonUtility.FromJson<PingOperadorMessage>(json).t });
@@ -638,6 +651,8 @@ public class UnityGameSessionController : MonoBehaviour
         freno.Reiniciar();
         recursos.Reiniciar();
         rescate.Reiniciar();
+        puppetVentanaYaAbierta = false;
+        puntosDeRuta = null;
         miradaPublicada = false;
         foreach (AnimatronicUnityBrain brain in brains)
         {
@@ -665,7 +680,7 @@ public class UnityGameSessionController : MonoBehaviour
         secondsIntoHour += gameDelta;
 
         int drain = PuppetDrainRates[Mathf.Clamp(noche - 1, 0, PuppetDrainRates.Length - 1)];
-        float signedRate = windingPuppet ? drain * 2f : -drain;
+        float signedRate = windingPuppet ? drain * 2f : -drain * rescate.FactorDeDescarga;
         valorCajaPuppet = Mathf.Clamp(valorCajaPuppet + signedRate * gameDelta, 0f, MaxMusicBox);
 
         bool puppetEnPeligroAhora = valorCajaPuppet < MaxMusicBox * 0.2f;
@@ -973,6 +988,8 @@ public class UnityGameSessionController : MonoBehaviour
         if (!partidaActiva) return;
         partidaActiva = false;
         foreach (AnimatronicUnityBrain brain in brains) brain.Detener();
+        rescate.Reiniciar();
+        foreach (AnimatronicUnityBrain brain in brains) brain.MantenerQuieto(false);
 
         if (gestorSonido != null)
         {
@@ -1135,11 +1152,21 @@ public class UnityGameSessionController : MonoBehaviour
     /// aplica y avisa a todos. El navegador solo pide.
     private void AtenderAccionDelOperador(AccionOperadorMessage accion)
     {
-        if (accion == null || accion.accion != "retrasar") return;
+        if (accion == null) return;
+        switch (accion.accion)
+        {
+            case "retrasar": RetrasarAnimatronico(accion); break;
+            case "trampa": ColocarTrampaDelOperador(accion); break;
+            case "rescatar_puppet": RescatarAPuppet(accion); break;
+        }
+    }
+
+    private void RetrasarAnimatronico(AccionOperadorMessage accion)
+    {
         string objetivo = FrenoDeOperador.Normalizar(accion.objetivo);
         if (!partidaActiva)
         {
-            Send(new AccionRechazadaMessage { objetivo = accion.objetivo, motivo = "sin_partida" });
+            Send(new AccionRechazadaMessage { objetivo = accion.objetivo, motivo = "sin_partida", id = accion.id });
             return;
         }
 
@@ -1154,7 +1181,8 @@ public class UnityGameSessionController : MonoBehaviour
             {
                 animatronic = objetivo,
                 segundos = FrenoDeOperador.DuracionSegundos,
-                message = aviso
+                message = aviso,
+                id = accion.id
             });
             PublicarEstadoDelMapa();
             return;
@@ -1164,8 +1192,154 @@ public class UnityGameSessionController : MonoBehaviour
         {
             objetivo = accion.objetivo,
             motivo = resultado == FrenoDeOperador.Resultado.EnEnfriamiento ? "enfriamiento" : "desconocido",
-            espera_s = objetivo == null ? 0f : freno.SegundosDeEspera(objetivo, Time.time)
+            espera_s = objetivo == null ? 0f : freno.SegundosDeEspera(objetivo, Time.time),
+            id = accion.id
         });
+    }
+
+    private void Rechazar(AccionOperadorMessage accion, string motivo)
+    {
+        Send(new AccionRechazadaMessage { objetivo = accion.objetivo ?? accion.punto, motivo = motivo, id = accion.id });
+    }
+
+    private void AvisarAlJugador1(string texto)
+    {
+        avisoDeOperador = texto;
+        avisoDeOperadorHasta = Time.time + 3f;
+    }
+
+    /// Nombre y posición de cada punto de las rutas (los mismos que ve el
+    /// jugador 2 en el mapa). Las rutas no cambian durante una partida.
+    private Dictionary<string, Vector3> PuntosDeRuta()
+    {
+        if (puntosDeRuta != null) return puntosDeRuta;
+        puntosDeRuta = new Dictionary<string, Vector3>();
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            if (brain.ruta == null) continue;
+            foreach (Transform punto in brain.ruta)
+                if (punto != null && punto != jugador && !puntosDeRuta.ContainsKey(punto.name))
+                    puntosDeRuta.Add(punto.name, punto.position);
+        }
+        return puntosDeRuta;
+    }
+
+    private void ColocarTrampaDelOperador(AccionOperadorMessage accion)
+    {
+        if (!partidaActiva) { Rechazar(accion, "sin_partida"); return; }
+        bool valido = !string.IsNullOrEmpty(accion.punto) && PuntosDeRuta().ContainsKey(accion.punto);
+        switch (recursos.ColocarTrampa(accion.punto, valido))
+        {
+            case RecursosDeOperador.ResultadoTrampa.Colocada:
+                string aviso = "Tu compañero puso una trampa";
+                AvisarAlJugador1(aviso);
+                Send(new EfectoMessage { animatronic = string.Empty, tipo = "trampa_colocada", segundos = 0f, message = aviso, id = accion.id });
+                PublicarEstadoOperador();
+                break;
+            case RecursosDeOperador.ResultadoTrampa.SinCargas: Rechazar(accion, "sin_cargas"); break;
+            case RecursosDeOperador.ResultadoTrampa.PuntoOcupado: Rechazar(accion, "punto_ocupado"); break;
+            default: Rechazar(accion, "punto_invalido"); break;
+        }
+    }
+
+    /// Cada cuadro: si un animatrónico pisa una trampa, se queda quieto unos
+    /// segundos y la trampa se gasta. Puppet dentro de su caja no cuenta.
+    private void RevisarTrampas()
+    {
+        if (recursos.Trampas.Count == 0) return;
+        Dictionary<string, Vector3> puntos = PuntosDeRuta();
+        foreach (string punto in new List<string>(recursos.Trampas))
+        {
+            Vector3 lugar;
+            if (!puntos.TryGetValue(punto, out lugar)) continue;
+            foreach (AnimatronicUnityBrain brain in brains)
+            {
+                if (brain.EsPuppet && !brain.FueraDeCaja) continue;
+                Vector3 a = new Vector3(brain.transform.position.x, 0f, brain.transform.position.z);
+                Vector3 b = new Vector3(lugar.x, 0f, lugar.z);
+                if (Vector3.Distance(a, b) > RadioDeTrampaMetros) continue;
+                if (!recursos.DispararTrampa(punto)) break;
+                brain.DetenerPor(RecursosDeOperador.SegundosDeTrampa);
+                string nombre = char.ToUpperInvariant(brain.nombreAnimatronico[0]) + brain.nombreAnimatronico.Substring(1);
+                string aviso = "Trampa: " + nombre + " atrapado";
+                AvisarAlJugador1(aviso);
+                Send(new EfectoMessage
+                {
+                    animatronic = brain.nombreAnimatronico.ToLowerInvariant(),
+                    tipo = "trampa_disparada",
+                    segundos = RecursosDeOperador.SegundosDeTrampa,
+                    message = aviso
+                });
+                PublicarEstadoOperador();
+                break;
+            }
+        }
+    }
+
+    private void AtenderFinDeMiniTarea()
+    {
+        if (!partidaActiva)
+        {
+            Send(new AccionRechazadaMessage { objetivo = "mini_tarea", motivo = "sin_partida" });
+            return;
+        }
+        RecursosDeOperador.ResultadoMiniTarea resultado = recursos.CompletarMiniTarea(Time.time);
+        if (resultado == RecursosDeOperador.ResultadoMiniTarea.Aceptada) { PublicarEstadoOperador(); return; }
+        Send(new AccionRechazadaMessage
+        {
+            objetivo = "mini_tarea",
+            motivo = resultado == RecursosDeOperador.ResultadoMiniTarea.MuyRapida ? "mini_tarea_muy_rapida" : "mini_tarea_sin_inicio"
+        });
+    }
+
+    /// Cuando Puppet sale de su caja se abre la ventana de rescate y se queda
+    /// quieto; si nadie lo rescata a tiempo, sigue su camino como siempre.
+    private void GestionarRescateDePuppet()
+    {
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            if (!brain.EsPuppet) continue;
+            if (brain.FueraDeCaja && !puppetVentanaYaAbierta)
+            {
+                puppetVentanaYaAbierta = true;
+                rescate.AbrirVentana(Time.time);
+                brain.MantenerQuieto(true);
+                PublicarEstadoOperador();
+            }
+            else if (!brain.FueraDeCaja)
+            {
+                puppetVentanaYaAbierta = false;
+            }
+            if (rescate.ConsumirVencimiento(Time.time))
+            {
+                brain.MantenerQuieto(false);
+                PublicarEstadoOperador();
+            }
+        }
+    }
+
+    private void RescatarAPuppet(AccionOperadorMessage accion)
+    {
+        if (!partidaActiva) { Rechazar(accion, "sin_partida"); return; }
+        switch (rescate.Rescatar(Time.time, recursos.HabilidadPuppet))
+        {
+            case RescateDePuppet.Resultado.SinVentana: Rechazar(accion, "sin_ventana"); return;
+            case RescateDePuppet.Resultado.SinHabilidad: Rechazar(accion, "sin_habilidad"); return;
+        }
+        recursos.GastarHabilidadPuppet();
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            if (!brain.EsPuppet) continue;
+            brain.VolverALaCaja();
+            brain.MantenerQuieto(false);
+        }
+        valorCajaPuppet = MaxMusicBox;
+        puppetEnPeligroPrevio = false;
+        puppetCajaVaciaPrevio = false;
+        string aviso = "Tu compañero te salvó de Puppet";
+        AvisarAlJugador1(aviso);
+        Send(new EfectoMessage { animatronic = "puppet", tipo = "puppet_rescatado", segundos = 0f, message = aviso, id = accion.id });
+        PublicarEstadoOperador();
     }
 
     /// Aviso en la pantalla del jugador 1: el otro jugador hizo algo.
