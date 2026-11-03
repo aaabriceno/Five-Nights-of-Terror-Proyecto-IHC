@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Compila las reglas del jugador 2 (recursos, presencia y rescate de Puppet)
+# con sus pruebas usando el Mono que trae Unity y las corre, sin abrir el editor.
+set -euo pipefail
+
+RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MONO_BIN="${MONO_BIN:-$HOME/Unity/Hub/Editor/2022.3.30f1/Editor/Data/MonoBleedingEdge/bin}"
+TEMP="$(mktemp -d)"
+trap 'rm -rf "$TEMP"' EXIT
+
+# Cada prueba tiene su propio Main, así que se compila una por una.
+for par in "RecursosDeOperador:PruebaRecursosDeOperador" "RescateDePuppet:PruebaRescateDePuppet"; do
+  regla="${par%%:*}"
+  prueba="${par##*:}"
+  echo "== $regla =="
+  "$MONO_BIN/mcs" -out:"$TEMP/$prueba.exe" \
+    "$RAIZ/Unity/Assets/scripts/$regla.cs" \
+    "$RAIZ/pruebas/$prueba.cs"
+  "$MONO_BIN/mono" "$TEMP/$prueba.exe"
+done
