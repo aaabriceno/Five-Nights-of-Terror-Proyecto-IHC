@@ -116,6 +116,49 @@ public class UnityGameSessionController : MonoBehaviour
         public string message;
     }
 
+    [Serializable] private class PingOperadorMessage { public string type; public long t; }
+
+    [Serializable] private class PongOperadorMessage
+    {
+        public string type = "pong_operador";
+        public long t;
+    }
+
+    [Serializable] private class PosicionDeAnimatronico { public string nombre; public float x; public float z; }
+
+    /// 20 veces por segundo: es lo único que la página necesita para dibujar
+    /// el movimiento fluido, sin esperar al tick de 0,5 s.
+    [Serializable] private class PosicionesMessage
+    {
+        public string type = "posiciones";
+        public long t;
+        public PosicionDeAnimatronico[] animatronicos;
+        public PuntoDeMapa jugador;
+    }
+
+    /// Lo que hace el jugador 1, reflejado en la pantalla del jugador 2.
+    [Serializable] private class EstadoJugadorMessage
+    {
+        public string type = "estado_jugador";
+        public bool mirando_pantalla;
+        public int tareas_pendientes;
+        public int caja_pct;
+        public bool caja_en_peligro;
+    }
+
+    [Serializable] private class EstadoOperadorMessage
+    {
+        public string type = "estado_operador";
+        public int cargas;
+        public int max_cargas;
+        public string[] trampas;
+        public int progreso;
+        public int necesario;
+        public bool habilidad_puppet;
+        public float ventana_rescate_s;
+        public float multa_factor;
+    }
+
     [Serializable] private class AccionRechazadaMessage
     {
         public string type = "accion_rechazada";
@@ -266,6 +309,13 @@ public class UnityGameSessionController : MonoBehaviour
 
     // Jugador 2 (operador)
     private readonly FrenoDeOperador freno = new FrenoDeOperador();
+    private readonly RecursosDeOperador recursos = new RecursosDeOperador();
+    private readonly PresenciaDeOperador presencia = new PresenciaDeOperador();
+    private readonly RescateDePuppet rescate = new RescateDePuppet();
+    // Las posiciones salen cada 0,05 s (20 veces por segundo).
+    private const float SegundosEntrePosiciones = 0.05f;
+    private float relojDePosiciones;
+    private bool miradaPublicada;
     private string avisoDeOperador = string.Empty;
     private float avisoDeOperadorHasta;
     private GUIStyle estiloDelAviso;
@@ -325,6 +375,7 @@ public class UnityGameSessionController : MonoBehaviour
         if (!partidaActiva) return;
         foreach (AnimatronicUnityBrain brain in brains)
             brain.FijarFactorDeVelocidad(freno.FactorDeVelocidad(brain.nombreAnimatronico, Time.time));
+        PublicarAlJugador2EnCadaCuadro();
         tickClock += Time.deltaTime;
         while (tickClock >= TickSeconds)
         {
@@ -464,9 +515,17 @@ public class UnityGameSessionController : MonoBehaviour
                     EnTutorial = false;
                     break;
                 case "operador_connect":
-                    // Un jugador 2 se unió: se le manda el mapa y dónde están.
+                    // Un jugador 2 se unió (o volvió a mitad de noche): se le
+                    // manda el mapa y todos los estados de golpe.
+                    presencia.Latir(Time.time);
                     PublicarPuntosDelMapa();
                     PublicarEstadoDelMapa();
+                    PublicarEstadoJugador();
+                    PublicarEstadoOperador();
+                    break;
+                case "ping_operador":
+                    presencia.Latir(Time.time);
+                    Send(new PongOperadorMessage { t = JsonUtility.FromJson<PingOperadorMessage>(json).t });
                     break;
                 case "accion_operador":
                     AtenderAccionDelOperador(JsonUtility.FromJson<AccionOperadorMessage>(json));
@@ -573,6 +632,9 @@ public class UnityGameSessionController : MonoBehaviour
         }
 
         freno.Reiniciar();
+        recursos.Reiniciar();
+        rescate.Reiniciar();
+        miradaPublicada = false;
         foreach (AnimatronicUnityBrain brain in brains)
         {
             brain.FijarFactorDeVelocidad(1f);
@@ -651,6 +713,8 @@ public class UnityGameSessionController : MonoBehaviour
         PublishState();
         PublishPuppetState();
         PublicarEstadoDelMapa();
+        PublicarEstadoJugador();
+        PublicarEstadoOperador();
     }
 
     private void TryGenerateNightTasks()
@@ -992,6 +1056,74 @@ public class UnityGameSessionController : MonoBehaviour
             hora = GetInGameTime(),
             animatronicos = animatronicos.ToArray(),
             timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        });
+    }
+
+    /// Lo que el jugador 2 necesita ver al instante: las posiciones a 20 Hz y
+    /// un cambio en la mirada del jugador 1 sin esperar al tick.
+    private void PublicarAlJugador2EnCadaCuadro()
+    {
+        if (!presencia.EstaVivo(Time.time)) return;
+        bool mirando = detectorCabeza != null && detectorCabeza.mirandoPC;
+        if (mirando != miradaPublicada)
+        {
+            miradaPublicada = mirando;
+            PublicarEstadoJugador();
+        }
+        relojDePosiciones += Time.deltaTime;
+        if (relojDePosiciones < SegundosEntrePosiciones) return;
+        relojDePosiciones -= SegundosEntrePosiciones;
+        if (relojDePosiciones > SegundosEntrePosiciones) relojDePosiciones = 0f;   // no recuperar de golpe tras un tirón
+        PublicarPosiciones();
+    }
+
+    private void PublicarPosiciones()
+    {
+        var animatronicos = new List<PosicionDeAnimatronico>();
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            Vector3 posicion = brain.transform.position;
+            animatronicos.Add(new PosicionDeAnimatronico
+            {
+                nombre = brain.nombreAnimatronico.ToLowerInvariant(),
+                x = posicion.x,
+                z = posicion.z
+            });
+        }
+        Send(new PosicionesMessage
+        {
+            t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            animatronicos = animatronicos.ToArray(),
+            jugador = jugador == null ? new PuntoDeMapa { nombre = "jugador" }
+                : new PuntoDeMapa { nombre = "jugador", x = jugador.position.x, z = jugador.position.z }
+        });
+    }
+
+    private void PublicarEstadoJugador()
+    {
+        if (!presencia.EstaVivo(Time.time)) return;
+        Send(new EstadoJugadorMessage
+        {
+            mirando_pantalla = detectorCabeza != null && detectorCabeza.mirandoPC,
+            tareas_pendientes = activeTasks.Count,
+            caja_pct = Mathf.RoundToInt(100f * valorCajaPuppet / MaxMusicBox),
+            caja_en_peligro = valorCajaPuppet < MaxMusicBox * 0.2f
+        });
+    }
+
+    private void PublicarEstadoOperador()
+    {
+        if (!presencia.EstaVivo(Time.time)) return;
+        Send(new EstadoOperadorMessage
+        {
+            cargas = recursos.Cargas,
+            max_cargas = RecursosDeOperador.MaxCargas,
+            trampas = new List<string>(recursos.Trampas).ToArray(),
+            progreso = recursos.Progreso,
+            necesario = RecursosDeOperador.MiniTareasParaHabilidad,
+            habilidad_puppet = recursos.HabilidadPuppet,
+            ventana_rescate_s = rescate.SegundosRestantes(Time.time),
+            multa_factor = rescate.FactorDeDescarga
         });
     }
 

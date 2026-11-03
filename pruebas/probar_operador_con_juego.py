@@ -40,6 +40,18 @@ async def esperar_tipo(socket, tipo, espera=10.0):
         return None
 
 
+async def recolectar(socket, segundos):
+    """Lee todo lo que llegue durante `segundos` y lo devuelve como lista."""
+    mensajes = []
+    try:
+        async with asyncio.timeout(segundos):
+            while True:
+                mensajes.append(json.loads(await socket.recv()))
+    except TimeoutError:
+        pass
+    return mensajes
+
+
 async def principal():
     relay = subprocess.Popen([sys.executable, "-u", str(RAIZ / "UnityRelay/relay.py")],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -89,6 +101,30 @@ async def principal():
             vixy = next((a for a in estado["animatronicos"] if a["nombre"] == "vixy"), None) if estado else None
             comprobar("estado_mapa marca a Vixy como retrasada y en espera",
                       vixy is not None and vixy["retraso_s"] > 0 and vixy["espera_s"] > 0)
+
+            # --- J1 -> J2: posiciones a 20 Hz, estado del jugador, estado del operador, pong ---
+            await operador.send(json.dumps({"type": "ping_operador", "t": 123}))
+            recibidos = await recolectar(operador, 2.0)
+            tipos = [m.get("type") for m in recibidos]
+            comprobar(f"llegan al menos 30 mensajes posiciones en 2 s (llegaron {tipos.count('posiciones')})",
+                      tipos.count("posiciones") >= 30)
+            jugador_estado = next((m for m in recibidos if m.get("type") == "estado_jugador"), None)
+            comprobar("llega estado_jugador con sus 4 datos",
+                      jugador_estado is not None and all(
+                          k in jugador_estado for k in ("mirando_pantalla", "tareas_pendientes", "caja_pct", "caja_en_peligro")))
+            comprobar("llega estado_operador", "estado_operador" in tipos)
+            pong = next((m for m in recibidos if m.get("type") == "pong_operador"), None)
+            comprobar("el ping se contesta con pong_operador y el mismo t", pong is not None and pong.get("t") == 123)
+            posicion = next((m for m in recibidos if m.get("type") == "posiciones"), None)
+            comprobar("posiciones trae a los 3 animatrónicos y al jugador",
+                      posicion is not None and len(posicion["animatronicos"]) == 3 and "jugador" in posicion)
+
+            # Un segundo operador que se conecta a mitad de la noche recibe todo de golpe.
+            async with websockets.connect(URL) as operador2:
+                await operador2.send(json.dumps({"type": "operador_connect"}))
+                inicial = {m.get("type") for m in await recolectar(operador2, 1.5)}
+                comprobar("un operador que reconecta recibe mapa, estado del mapa, del jugador y del operador",
+                          {"mapa_puntos", "estado_mapa", "estado_jugador", "estado_operador"} <= inicial)
 
             await tablet.send(json.dumps({"type": "disconnect"}))
     finally:
