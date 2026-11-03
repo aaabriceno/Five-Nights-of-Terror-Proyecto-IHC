@@ -67,6 +67,15 @@ public static class PruebaRecursosDeOperador
         p.Reiniciar();
         Comprobar("tras reiniciar no está vivo", !p.EstaVivo(10.5f));
 
+        Comprobar("con operador vivo, Freddy va 0,4 veces el intervalo (más rápido)",
+            Math.Abs(RecursosDeOperador.FactorDeAgresividad("freddy", true) - 0.4f) < 0.001f);
+        Comprobar("con operador vivo, Vixy va 0,7",
+            Math.Abs(RecursosDeOperador.FactorDeAgresividad("vixy", true) - 0.7f) < 0.001f);
+        Comprobar("Puppet no cambia", Math.Abs(RecursosDeOperador.FactorDeAgresividad("puppet", true) - 1f) < 0.001f);
+        Comprobar("sin operador, Freddy es normal", Math.Abs(RecursosDeOperador.FactorDeAgresividad("freddy", false) - 1f) < 0.001f);
+        Comprobar("el nombre en mayúsculas también vale", Math.Abs(RecursosDeOperador.FactorDeAgresividad("FREDDY", true) - 0.4f) < 0.001f);
+        Comprobar("un nombre desconocido es normal", Math.Abs(RecursosDeOperador.FactorDeAgresividad("otro", true) - 1f) < 0.001f);
+
         Console.WriteLine(fallos == 0 ? "\nTodas las pruebas pasaron." : "\n" + fallos + " prueba(s) fallaron.");
         return fallos == 0 ? 0 : 1;
     }

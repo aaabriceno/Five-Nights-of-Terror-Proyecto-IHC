@@ -373,8 +373,12 @@ public class UnityGameSessionController : MonoBehaviour
         // resultado o la X de la tablet) no debe sonar, sea cual sea el camino.
         if (!partidaActiva && gestorSonido != null) gestorSonido.DetenerEstatica();
         if (!partidaActiva) return;
+        bool operadorVivo = presencia.EstaVivo(Time.time);
         foreach (AnimatronicUnityBrain brain in brains)
+        {
             brain.FijarFactorDeVelocidad(freno.FactorDeVelocidad(brain.nombreAnimatronico, Time.time));
+            brain.FijarFactorDeAgresividad(RecursosDeOperador.FactorDeAgresividad(brain.nombreAnimatronico, operadorVivo));
+        }
         PublicarAlJugador2EnCadaCuadro();
         tickClock += Time.deltaTime;
         while (tickClock >= TickSeconds)

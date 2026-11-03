@@ -21,6 +21,26 @@ public class RecursosDeOperador
     /// rechaza para que la página no pueda fingir la mini-tarea.
     public const float MinimoSegundosMiniTarea = 3f;
 
+    /// Con un segundo jugador que ayuda, los animatrónicos son más agresivos:
+    /// el intervalo entre avances se multiplica por este factor (menor = más
+    /// rápido). Freddy pasa de unos 22 s a unos 9 s en la noche 1. Valores
+    /// iniciales para ajustar con el profesor; Puppet no cambia.
+    public const float AgresividadDeFreddy = 0.4f;
+    public const float AgresividadDeVixy = 0.7f;
+
+    /// Factor del intervalo de avance de un animatrónico según haya o no un
+    /// operador conectado. 1 = sin cambio.
+    public static float FactorDeAgresividad(string animatronico, bool operadorVivo)
+    {
+        if (!operadorVivo || animatronico == null) return 1f;
+        switch (animatronico.ToLowerInvariant())
+        {
+            case "freddy": return AgresividadDeFreddy;
+            case "vixy": return AgresividadDeVixy;
+            default: return 1f;
+        }
+    }
+
     private readonly HashSet<string> trampas = new HashSet<string>();
     private float inicioDeMiniTarea = -1f;
 

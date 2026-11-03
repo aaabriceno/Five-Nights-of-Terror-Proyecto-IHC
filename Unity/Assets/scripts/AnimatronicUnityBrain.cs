@@ -48,6 +48,9 @@ public class AnimatronicUnityBrain : MonoBehaviour
     // lento (1 = normal). Lo fija UnityGameSessionController cada cuadro.
     private float factorDeVelocidad = 1f;
     private float velocidadBaseDelAgente;
+    // Con un jugador 2 conectado los intervalos entre avances se acortan
+    // (1 = normal, menor = más agresivo). Lo fija UnityGameSessionController.
+    private float factorDeAgresividad = 1f;
     private readonly Dictionary<string, float> segundosTareaPendiente = new Dictionary<string, float>();
     private readonly HashSet<int> puntosVisitados = new HashSet<int>();
     private readonly Dictionary<int, Vector3> posicionesDeRutaNavMesh = new Dictionary<int, Vector3>();
@@ -99,9 +102,9 @@ public class AnimatronicUnityBrain : MonoBehaviour
     private int TareasParaAtacar => TareasParaQueVixyAtaquePorNoche[IndiceDeNoche];
 
     /// Freddy escala con la noche; el resto conserva el valor del Inspector.
-    private float SegundosEntreAvances => detenerseCuandoMira
+    private float SegundosEntreAvances => Mathf.Max(0.1f, factorDeAgresividad * (detenerseCuandoMira
         ? SegundosDeFreddyPorNoche[IndiceDeNoche]
-        : Mathf.Max(0.1f, segundosEntreMovimientos);
+        : segundosEntreMovimientos));
 
     private void Awake()
     {
@@ -125,6 +128,11 @@ public class AnimatronicUnityBrain : MonoBehaviour
         factorDeVelocidad = Mathf.Clamp(factor, 0.05f, 1f);
         if (agent != null && velocidadBaseDelAgente > 0f)
             agent.speed = velocidadBaseDelAgente * factorDeVelocidad;
+    }
+
+    public void FijarFactorDeAgresividad(float factor)
+    {
+        factorDeAgresividad = Mathf.Clamp(factor, 0.2f, 1f);
     }
 
     private void Update()
@@ -182,7 +190,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
         if (!usarPatrullaExistente)
             TryMove(deltaTime, ataqueVixyPorTresTareas
-                ? SegundosEntreAvancesDeVixy
+                ? Mathf.Max(0.1f, SegundosEntreAvancesDeVixy * factorDeAgresividad)
                 : SegundosEntreAvances);
         UpdatePendingTaskThreat(deltaTime);
     }
