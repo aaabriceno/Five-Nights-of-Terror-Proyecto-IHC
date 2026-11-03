@@ -79,6 +79,17 @@ async def unity_falso(socket):
                       "progreso": 1, "necesario": 3, "habilidad_puppet": False,
                       "ventana_rescate_s": 0, "multa_factor": 1})
 
+    async def ventana_de_rescate(enviar):
+        # Puppet sale: primero J2 no tiene la habilidad, después sí.
+        await asyncio.sleep(5.5)
+        await enviar({"type": "estado_operador", "cargas": 0, "max_cargas": 3, "trampas": [],
+                      "progreso": 1, "necesario": 3, "habilidad_puppet": False,
+                      "ventana_rescate_s": 4.2, "multa_factor": 1})
+        await asyncio.sleep(2.5)
+        await enviar({"type": "estado_operador", "cargas": 0, "max_cargas": 3, "trampas": [],
+                      "progreso": 3, "necesario": 3, "habilidad_puppet": True,
+                      "ventana_rescate_s": 4.2, "multa_factor": 1})
+
     async def posiciones():
         i = 0
         # Antes del mapa: la página no debe fallar con esto.
@@ -112,6 +123,7 @@ async def unity_falso(socket):
                               "progreso": 0, "necesario": 3, "habilidad_puppet": False,
                               "ventana_rescate_s": 0, "multa_factor": 1})
                 envios.append(asyncio.ensure_future(sin_cargas_despues(enviar)))
+                envios.append(asyncio.ensure_future(ventana_de_rescate(enviar)))
             elif mensaje.get("type") == "ping_operador":
                 await enviar({"type": "pong_operador", "t": mensaje["t"]})
     finally:
@@ -221,6 +233,22 @@ async def principal(captura):
                   await esperar(lambda: navegador.ejecutar(
                       "var b=document.getElementById('boton-trampa');return !!b && b.disabled;"), 8.0))
         comprobar("#cargas muestra 0 / 3", (navegador.texto("cargas") or "") == "0 / 3")
+
+        # --- rescate de Puppet (Tarea 9) ---
+        comprobar("al salir Puppet aparece #alerta-puppet",
+                  await esperar(lambda: navegador.ejecutar(
+                      "var a=document.getElementById('alerta-puppet');return !!a && !a.hidden;"), 10.0))
+        comprobar("sin la habilidad, #boton-rescate está deshabilitado",
+                  navegador.ejecutar("var b=document.getElementById('boton-rescate');return !!b && b.disabled;"))
+        comprobar("con la habilidad y la ventana abierta, #boton-rescate se habilita",
+                  await esperar(lambda: navegador.ejecutar(
+                      "var b=document.getElementById('boton-rescate');return !!b && !b.disabled;"), 8.0))
+        navegador.ejecutar("var b=document.getElementById('boton-rescate');if(b)b.click();")
+        comprobar("Unity recibe accion_operador al rescatar",
+                  await esperar(lambda: RECIBIDOS_POR_UNITY.count("accion_operador") >= 1, 3.0))
+        comprobar("al cerrarse la ventana la alerta desaparece",
+                  await esperar(lambda: navegador.ejecutar(
+                      "var a=document.getElementById('alerta-puppet');return !!a && a.hidden;"), 8.0))
 
         css = urllib.request.urlopen(f"http://127.0.0.1:{PUERTO_WEB}/operador.css").read().decode()
         comprobar("el CSS respeta prefers-reduced-motion", "prefers-reduced-motion" in css)

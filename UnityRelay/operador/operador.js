@@ -49,6 +49,7 @@
   let estadoJugador = null;
   let estadoOperador = null;
   let siguienteId = 1;
+  let ventanaDeRescateHasta = 0;      // hora local (performance.now) en que se cierra la ventana
   let secuencia = [];
   let entrada = [];
   let temporizadoresDeSecuencia = [];
@@ -134,6 +135,7 @@
         break;
       case "estado_operador":
         estadoOperador = m;
+        ventanaDeRescateHasta = m.ventana_rescate_s > 0 ? performance.now() + m.ventana_rescate_s * 1000 : 0;
         pintarRecursos();
         break;
       case "pong_operador":
@@ -187,6 +189,26 @@
     $("boton-trampa").disabled = !socket || !e || e.cargas <= 0;
     $("boton-minitarea").disabled = !socket;
   }
+
+  // Cuando Puppet sale de la caja hay unos segundos para rescatarlo (si ya
+  // ganaste la habilidad). La cuenta atrás corre aquí, sin esperar a Unity.
+  function pintarRescate(ahora) {
+    const restante = Math.max(0, (ventanaDeRescateHasta - ahora) / 1000);
+    const alerta = $("alerta-puppet");
+    const abierta = restante > 0;
+    if (alerta.hidden === abierta) alerta.hidden = !abierta;
+    const e = estadoOperador;
+    if (abierta) {
+      const texto = e && e.habilidad_puppet
+        ? `Pulsa «Rescatar a Puppet»: te quedan ${restante.toFixed(1)} s`
+        : `Aún no ganaste el rescate (${e ? e.progreso : 0} / ${e ? e.necesario : 3} recargas)`;
+      if ($("alerta-puppet-detalle").textContent !== texto) $("alerta-puppet-detalle").textContent = texto;
+    }
+    $("boton-rescate").disabled = !socket || !abierta || !(e && e.habilidad_puppet);
+  }
+
+  $("boton-rescate").onclick = () =>
+    enviar({ type: "accion_operador", accion: "rescatar_puppet", id: siguienteId++ });
 
   function entrarAlModoTrampa() {
     lienzo.dataset.modo = "trampa";
@@ -453,6 +475,7 @@
   function cuadro(ahora) {
     dibujar(ahora);
     pintarAmenazas(ahora);
+    pintarRescate(ahora);
     if (avisoHasta && ahora > avisoHasta) { $("aviso").classList.remove("visible"); avisoHasta = 0; }
     requestAnimationFrame(cuadro);
   }
