@@ -12,7 +12,18 @@
     sin_partida: "No hay una partida en curso.",
     enfriamiento: "Aún se está enfriando.",
     desconocido: "Animatrónico no válido.",
+    sin_cargas: "No te quedan cargas: recarga con la mini-tarea.",
+    punto_ocupado: "Ya hay una trampa en ese punto.",
+    punto_invalido: "Ese punto no existe en el mapa.",
+    sin_habilidad: "Todavía no ganaste el rescate de Puppet.",
+    sin_ventana: "No hay nada que rescatar ahora.",
+    mini_tarea_muy_rapida: "Fue demasiado rápido: inténtalo de nuevo.",
+    mini_tarea_sin_inicio: "La recarga no se había iniciado.",
   };
+  const SIMBOLOS = ["▲", "●", "■", "◆"];
+  const LARGO_SECUENCIA = 4;
+  const MILISEGUNDOS_POR_SIMBOLO = 700;
+  const MILISEGUNDOS_ANTES_DE_EMPEZAR = 500;
   // Distancias (metros de la escena) a las que la señal del animatrónico falla.
   const SENAL_INESTABLE_M = 4;
   const SENAL_PERDIDA_M = 2;
@@ -36,6 +47,13 @@
   const muestras = {};                // nombre -> [{t, x, z}], t = hora local de llegada
   let estadoMapa = { animatronicos: [], recibidoEn: 0 };
   let estadoJugador = null;
+  let estadoOperador = null;
+  let siguienteId = 1;
+  let secuencia = [];
+  let entrada = [];
+  let temporizadoresDeSecuencia = [];
+  const lienzo = $("mapa");
+  const g = lienzo.getContext("2d");
   let avisoHasta = 0;
 
   // ------------------------------------------------------------- conexión
@@ -48,6 +66,7 @@
       socket.send(JSON.stringify({ type: "operador_connect" }));
       ponerEstado("Conectado", "ok");
       $("conectar").textContent = "Desconectar";
+      actualizarBotones();
       enviarLatido();
       latido = setInterval(enviarLatido, SEGUNDOS_ENTRE_LATIDOS * 1000);
     };
@@ -57,6 +76,9 @@
       clearInterval(latido);
       ponerEstado("Desconectado", "mal");
       $("conectar").textContent = "Conectar";
+      actualizarBotones();
+      cerrarMiniTarea();
+      salirDelModoTrampa();
       // El juego puede abrirse después: se reintenta solo.
       if (quiereConexion) reintento = setTimeout(conectar, 3000);
     };
@@ -110,6 +132,10 @@
         estadoJugador = m;
         pintarJugador1();
         break;
+      case "estado_operador":
+        estadoOperador = m;
+        pintarRecursos();
+        break;
       case "pong_operador":
         medidor.registrar(Math.max(0, Date.now() - m.t));
         pintarLatencia();
@@ -144,6 +170,113 @@
     $("j1-caja-barra").style.transform = `scaleX(${Math.max(0, Math.min(1, e.caja_pct / 100))})`;
     document.querySelector(".barra-caja").classList.toggle("peligro", !!e.caja_en_peligro);
   }
+
+  // ------------------------------------------------------ recursos y trampas
+  function pintarRecursos() {
+    const e = estadoOperador;
+    if (!e) return;
+    $("cargas").textContent = `${e.cargas} / ${e.max_cargas}`;
+    $("habilidad").textContent = e.habilidad_puppet ? "Lista" : `${e.progreso} / ${e.necesario} recargas`;
+    $("habilidad").className = "valor " + (e.habilidad_puppet ? "alerta" : "");
+    actualizarBotones();
+    if (e.cargas <= 0) salirDelModoTrampa();
+  }
+
+  function actualizarBotones() {
+    const e = estadoOperador;
+    $("boton-trampa").disabled = !socket || !e || e.cargas <= 0;
+    $("boton-minitarea").disabled = !socket;
+  }
+
+  function entrarAlModoTrampa() {
+    lienzo.dataset.modo = "trampa";
+    $("boton-trampa").classList.add("activo");
+    $("boton-trampa").textContent = "Elige un punto del mapa (Esc para cancelar)";
+  }
+
+  function salirDelModoTrampa() {
+    delete lienzo.dataset.modo;
+    $("boton-trampa").classList.remove("activo");
+    $("boton-trampa").textContent = "Colocar trampa";
+  }
+
+  $("boton-trampa").onclick = () => {
+    if (lienzo.dataset.modo === "trampa") salirDelModoTrampa();
+    else entrarAlModoTrampa();
+  };
+
+  document.addEventListener("keydown", (evento) => {
+    if (evento.key !== "Escape") return;
+    salirDelModoTrampa();
+    cerrarMiniTarea();
+  });
+
+  // Un clic en el mapa en modo trampa elige el punto más cercano (a 28 px o menos).
+  lienzo.addEventListener("click", (evento) => {
+    if (lienzo.dataset.modo !== "trampa" || !limites) return;
+    const caja = lienzo.getBoundingClientRect();
+    const razon = lienzo.width / caja.width;
+    const cx = (evento.clientX - caja.left) * razon, cy = (evento.clientY - caja.top) * razon;
+    let mejor = null, mejorDistancia = 28 * razon;
+    for (const p of puntos) {
+      const [x, y] = proyectar(p);
+      const d = Math.hypot(x - cx, y - cy);
+      if (d < mejorDistancia) { mejor = p; mejorDistancia = d; }
+    }
+    if (!mejor) { avisar("Elige uno de los puntos del mapa."); return; }
+    enviar({ type: "accion_operador", accion: "trampa", punto: mejor.nombre, id: siguienteId++ });
+    salirDelModoTrampa();
+  });
+
+  // ------------------------------------------------- mini-tarea de recarga
+  function abrirMiniTarea() {
+    if (!socket) return;
+    cerrarMiniTarea();
+    secuencia = Logica.generarSecuencia(LARGO_SECUENCIA);
+    entrada = [];
+    enviar({ type: "mini_tarea_inicio" });
+    $("minitarea").hidden = false;
+    $("mt-mensaje").textContent = "Memoriza la secuencia…";
+    ponerTeclas(false);
+    // Los símbolos salen uno a uno; Unity exige un mínimo de tiempo, así que no se puede saltar.
+    secuencia.forEach((simbolo, i) => {
+      const inicio = MILISEGUNDOS_ANTES_DE_EMPEZAR + i * MILISEGUNDOS_POR_SIMBOLO;
+      temporizadoresDeSecuencia.push(setTimeout(() => { $("mt-simbolo").textContent = SIMBOLOS[simbolo]; }, inicio));
+      temporizadoresDeSecuencia.push(setTimeout(() => { $("mt-simbolo").textContent = "\u00a0"; }, inicio + MILISEGUNDOS_POR_SIMBOLO - 150));
+    });
+    temporizadoresDeSecuencia.push(setTimeout(() => {
+      $("mt-mensaje").textContent = "Ahora repítela con las teclas.";
+      ponerTeclas(true);
+    }, MILISEGUNDOS_ANTES_DE_EMPEZAR + LARGO_SECUENCIA * MILISEGUNDOS_POR_SIMBOLO));
+  }
+
+  function cerrarMiniTarea() {
+    temporizadoresDeSecuencia.forEach(clearTimeout);
+    temporizadoresDeSecuencia = [];
+    $("minitarea").hidden = true;
+  }
+
+  function ponerTeclas(activas) {
+    document.querySelectorAll("#mt-teclas button").forEach((b) => { b.disabled = !activas; });
+  }
+
+  document.querySelectorAll("#mt-teclas button").forEach((boton) => {
+    boton.onclick = () => {
+      entrada.push(Number(boton.dataset.simbolo));
+      const resultado = Logica.evaluarEntrada(secuencia, entrada);
+      if (resultado === "mal") {
+        $("mt-mensaje").textContent = "Esa no era. Vamos otra vez.";
+        abrirMiniTarea();
+      } else if (resultado === "completa") {
+        enviar({ type: "mini_tarea_fin" });
+        cerrarMiniTarea();
+        avisar("Recarga lista");
+      }
+    };
+  });
+
+  $("boton-minitarea").onclick = abrirMiniTarea;
+  $("mt-cerrar").onclick = cerrarMiniTarea;
 
   function pintarLatencia() {
     const r = medidor.resumen();
@@ -197,9 +330,6 @@
   }
 
   // ------------------------------------------------------------------ mapa
-  const lienzo = $("mapa");
-  const g = lienzo.getContext("2d");
-
   function ajustarLienzo() {
     const razon = window.devicePixelRatio || 1;
     const ancho = Math.round(lienzo.clientWidth * razon);
@@ -247,6 +377,23 @@
       const [x, y] = proyectar(p);
       g.fillStyle = "#1f4a2d"; g.fillRect(x - 3 * razon, y - 3 * razon, 6 * razon, 6 * razon);
       g.fillStyle = "#3d7a50"; g.fillText(p.nombre, x + 7 * razon, y + 4 * razon);
+    }
+    const trampas = (estadoOperador && estadoOperador.trampas) || [];
+    const enModoTrampa = lienzo.dataset.modo === "trampa";
+    for (const p of puntos) {
+      const [x, y] = proyectar(p);
+      if (enModoTrampa) {                              // todos los puntos se marcan como elegibles
+        g.strokeStyle = "#ffd24a"; g.lineWidth = 1.5 * razon;
+        g.beginPath(); g.arc(x, y, 12 * razon, 0, 7); g.stroke();
+      }
+      if (trampas.includes(p.nombre)) {                // trampa puesta: una cruz amarilla
+        g.strokeStyle = "#ffd24a"; g.lineWidth = 3 * razon;
+        g.beginPath();
+        g.moveTo(x - 9 * razon, y - 9 * razon); g.lineTo(x + 9 * razon, y + 9 * razon);
+        g.moveTo(x + 9 * razon, y - 9 * razon); g.lineTo(x - 9 * razon, y + 9 * razon);
+        g.stroke();
+        g.fillStyle = "#ffd24a"; g.fillText("TRAMPA", x + 12 * razon, y - 10 * razon);
+      }
     }
     if (jugador) {
       const [x, y, escala] = proyectar(jugador);

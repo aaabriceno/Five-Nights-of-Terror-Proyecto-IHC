@@ -33,5 +33,16 @@ for (let i = 0; i < 250; i++) medidor.registrar(5);
 comprobar("guarda como máximo 200 registros", medidor.resumen().n === 200);
 comprobar("medidor vacío no falla", Logica.crearMedidor().resumen().n === 0);
 
+console.log("mini-tarea (secuencia de símbolos)");
+let n = 0;
+const azar = () => [0.0, 0.3, 0.6, 0.99][n++ % 4];
+const secuencia = Logica.generarSecuencia(4, azar);
+comprobar("genera 4 símbolos del 0 al 3", secuencia.length === 4 && secuencia.every((v) => v >= 0 && v <= 3));
+comprobar("con ese azar sale 0, 1, 2, 3", secuencia.join() === "0,1,2,3");
+comprobar("una entrada parcial correcta sigue en curso", Logica.evaluarEntrada([0, 1, 2, 3], [0, 1]) === "en curso");
+comprobar("la entrada completa y correcta termina bien", Logica.evaluarEntrada([0, 1, 2, 3], [0, 1, 2, 3]) === "completa");
+comprobar("un símbolo equivocado falla", Logica.evaluarEntrada([0, 1, 2, 3], [0, 2]) === "mal");
+comprobar("una entrada vacía sigue en curso", Logica.evaluarEntrada([0, 1, 2, 3], []) === "en curso");
+
 console.log(fallos === 0 ? "\nTodas las pruebas pasaron." : `\n${fallos} prueba(s) fallaron.`);
 process.exit(fallos ? 1 : 0);

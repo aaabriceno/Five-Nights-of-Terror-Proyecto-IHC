@@ -62,6 +62,7 @@ def levantar_web():
 
 
 # ------------------------------------------------------------------ Unity falso
+RECIBIDOS_POR_UNITY = []     # tipos de mensaje que la página le mandó al Unity falso
 PUNTOS = [{"nombre": f"Punto{i}", "x": float(i * 3), "z": float((i % 2) * 4)} for i in range(5)]
 
 
@@ -71,6 +72,12 @@ async def unity_falso(socket):
 
     async def enviar(mensaje):
         await socket.send(json.dumps(mensaje))
+
+    async def sin_cargas_despues(enviar):
+        await asyncio.sleep(4.0)
+        await enviar({"type": "estado_operador", "cargas": 0, "max_cargas": 3, "trampas": ["Punto1"],
+                      "progreso": 1, "necesario": 3, "habilidad_puppet": False,
+                      "ventana_rescate_s": 0, "multa_factor": 1})
 
     async def posiciones():
         i = 0
@@ -87,6 +94,7 @@ async def unity_falso(socket):
     try:
         async for crudo in socket:
             mensaje = json.loads(crudo)
+            RECIBIDOS_POR_UNITY.append(mensaje.get("type"))
             if mensaje.get("type") == "operador_connect":
                 envios.append(asyncio.ensure_future(posiciones()))
                 await asyncio.sleep(0.3)           # el mapa llega DESPUÉS de las primeras posiciones
@@ -103,6 +111,7 @@ async def unity_falso(socket):
                 await enviar({"type": "estado_operador", "cargas": 1, "max_cargas": 3, "trampas": [],
                               "progreso": 0, "necesario": 3, "habilidad_puppet": False,
                               "ventana_rescate_s": 0, "multa_factor": 1})
+                envios.append(asyncio.ensure_future(sin_cargas_despues(enviar)))
             elif mensaje.get("type") == "ping_operador":
                 await enviar({"type": "pong_operador", "t": mensaje["t"]})
     finally:
@@ -194,6 +203,24 @@ async def principal(captura):
         comprobar("el mapa deja de mostrar la espera cuando llega mapa_puntos",
                   await esperar(lambda: navegador.ejecutar(
                       "var m=document.getElementById('mapa');return !!m && m.dataset.estado==='listo';")))
+
+        # --- trampas y mini-tarea (Tarea 8) ---
+        comprobar("#cargas muestra 1 / 3",
+                  await esperar(lambda: (navegador.texto("cargas") or "") == "1 / 3", 4.0))
+        comprobar("con carga, #boton-trampa está habilitado",
+                  navegador.ejecutar("var b=document.getElementById('boton-trampa');return !!b && !b.disabled;"))
+        navegador.ejecutar("var b=document.getElementById('boton-trampa');if(b)b.click();")
+        comprobar("al pulsar Colocar trampa, el mapa pasa a modo trampa",
+                  navegador.ejecutar("return document.getElementById('mapa').dataset.modo==='trampa';"))
+        navegador.ejecutar("var b=document.getElementById('boton-minitarea');if(b)b.click();")
+        comprobar("la mini-tarea se muestra al pulsar Recargar",
+                  await esperar(lambda: navegador.ejecutar(
+                      "var m=document.getElementById('minitarea');return !!m && !m.hidden;")))
+        comprobar("Unity recibe mini_tarea_inicio", "mini_tarea_inicio" in RECIBIDOS_POR_UNITY)
+        comprobar("sin cargas, #boton-trampa queda deshabilitado",
+                  await esperar(lambda: navegador.ejecutar(
+                      "var b=document.getElementById('boton-trampa');return !!b && b.disabled;"), 8.0))
+        comprobar("#cargas muestra 0 / 3", (navegador.texto("cargas") or "") == "0 / 3")
 
         css = urllib.request.urlopen(f"http://127.0.0.1:{PUERTO_WEB}/operador.css").read().decode()
         comprobar("el CSS respeta prefers-reduced-motion", "prefers-reduced-motion" in css)

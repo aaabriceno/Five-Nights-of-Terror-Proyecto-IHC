@@ -55,5 +55,20 @@
     };
   }
 
-  return { suavizar, crearMedidor };
+  // Mini-tarea de recarga: repetir una secuencia de símbolos (0 a 3).
+  function generarSecuencia(largo, aleatorio) {
+    if (!aleatorio) aleatorio = Math.random;
+    const secuencia = [];
+    for (let i = 0; i < largo; i++) secuencia.push(Math.min(3, Math.floor(aleatorio() * 4)));
+    return secuencia;
+  }
+
+  // "en curso" mientras lo tecleado coincida con el principio de la secuencia,
+  // "completa" si coincide entera, "mal" al primer símbolo equivocado.
+  function evaluarEntrada(secuencia, entrada) {
+    for (let i = 0; i < entrada.length; i++) if (entrada[i] !== secuencia[i]) return "mal";
+    return entrada.length === secuencia.length ? "completa" : "en curso";
+  }
+
+  return { suavizar, crearMedidor, generarSecuencia, evaluarEntrada };
 });

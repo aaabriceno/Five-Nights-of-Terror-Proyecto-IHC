@@ -34,6 +34,18 @@
       <div class="barrido" aria-hidden="true"></div>
       <div class="vineta" aria-hidden="true"></div>
       <div id="aviso" role="status" aria-live="polite"></div>
+      <div id="minitarea" hidden role="dialog" aria-labelledby="mt-titulo">
+        <h3 id="mt-titulo">Recarga: repite la secuencia</h3>
+        <div id="mt-simbolo" aria-live="polite">&nbsp;</div>
+        <div id="mt-teclas">
+          <button type="button" data-simbolo="0" aria-label="Triángulo">▲</button>
+          <button type="button" data-simbolo="1" aria-label="Círculo">●</button>
+          <button type="button" data-simbolo="2" aria-label="Cuadrado">■</button>
+          <button type="button" data-simbolo="3" aria-label="Rombo">◆</button>
+        </div>
+        <p id="mt-mensaje" class="nota"></p>
+        <button type="button" id="mt-cerrar">Cancelar</button>
+      </div>
       <div id="alerta-puppet" hidden>
         <strong>PUPPET SALIÓ DE LA CAJA</strong>
         <span id="alerta-puppet-detalle"></span>
@@ -63,6 +75,23 @@
         <h2 id="titulo-acciones">Amenazas</h2>
         <div id="lista-amenazas"></div>
         <p class="nota">Retrasar baja a la mitad la velocidad del animatrónico por unos segundos y luego tiene que enfriarse. Unity valida cada acción.</p>
+      </section>
+
+      <section class="panel" id="panel-recursos" aria-labelledby="titulo-recursos">
+        <h2 id="titulo-recursos">Recursos</h2>
+        <div class="fila">
+          <span class="etiqueta">Cargas de trampa</span>
+          <span id="cargas" class="valor grande">–</span>
+        </div>
+        <div class="fila">
+          <span class="etiqueta">Rescate de Puppet</span>
+          <span id="habilidad" class="valor">–</span>
+        </div>
+        <div class="botones">
+          <button type="button" id="boton-trampa" disabled>Colocar trampa</button>
+          <button type="button" id="boton-minitarea" disabled>Recargar</button>
+        </div>
+        <p class="nota" id="nota-recursos">Coloca una trampa en un punto del mapa por donde creas que pasará un animatrónico: se detiene unos segundos. Cuando se te acaben, recarga con la mini-tarea.</p>
       </section>
 
       <section class="panel conexion" aria-labelledby="titulo-conexion">

@@ -224,4 +224,31 @@ input {
   #aviso, #aviso.visible { transform: translate(-50%, 0); }
 }
 
-#alerta-puppet[hidden] { display: none; }
+#alerta-puppet[hidden], #minitarea[hidden] { display: none; }
+
+.botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.botones button { flex: 1 1 8rem; }
+#boton-trampa.activo { background: #3a2f08; border-color: var(--alerta); color: var(--alerta); }
+#mapa[data-modo="trampa"] { cursor: crosshair; }
+
+/* mini-tarea de recarga: ventana sobre el monitor */
+#minitarea {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 16px 22px;
+  min-width: 15rem;
+  border: 1px solid var(--alerta);
+  background: rgba(4, 10, 6, .94);
+  animation: entrada 200ms var(--entrada);
+}
+#minitarea h3 { margin: 0; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--alerta); }
+#mt-simbolo { font-size: 44px; line-height: 1; min-height: 52px; color: var(--texto); }
+#mt-teclas { display: flex; gap: 10px; }
+#mt-teclas button { font-size: 22px; min-width: 52px; min-height: 52px; }
+#mt-mensaje { min-height: 1.2em; text-align: center; margin: 0; }
+
+@keyframes entrada { from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); } }
+
+/* los avisos y la mini-tarea van por encima de las líneas de barrido */
+#aviso, #alerta-puppet, #minitarea { z-index: 2; }
