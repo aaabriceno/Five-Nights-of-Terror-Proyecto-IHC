@@ -132,6 +132,29 @@ async def caso_accion_del_operador_solo_a_unity():
         comprobar("el operador no recibe lo que manda la tablet", await recibir_o_nada(operador, 0.5) is None)
 
 
+async def caso_tipos_nuevos_solo_al_operador():
+    print("Caso 7: posiciones, estado del jugador, estado del operador y pong solo al operador")
+    tipos = ["posiciones", "estado_jugador", "estado_operador", "pong_operador"]
+    async with websockets.connect(URL) as unity, websockets.connect(URL) as tablet, \
+            websockets.connect(URL) as operador:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await tablet.send(CONNECT_TUTORIAL)
+        await operador.send(OPERADOR_CONNECT)
+        await asyncio.sleep(0.3)
+        while await recibir_o_nada(tablet, 0.2) is not None:
+            pass
+        while await recibir_o_nada(operador, 0.2) is not None:
+            pass
+        for tipo in tipos:
+            await unity.send(json.dumps({"type": tipo}))
+        recibidos = []
+        for _ in tipos:
+            crudo = await recibir_o_nada(operador)
+            recibidos.append(json.loads(crudo)["type"] if crudo else None)
+        comprobar("el operador recibe los 4 tipos nuevos", recibidos == tipos)
+        comprobar("la tablet no recibe ninguno", await recibir_o_nada(tablet, 0.5) is None)
+
+
 async def principal():
     relay = subprocess.Popen(
         [sys.executable, "-u", str(RAIZ / "UnityRelay" / "relay.py")],
@@ -148,6 +171,7 @@ async def principal():
         await caso_operador_se_anuncia_a_unity()
         await caso_estado_del_mapa_solo_al_operador()
         await caso_accion_del_operador_solo_a_unity()
+        await caso_tipos_nuevos_solo_al_operador()
     finally:
         relay.terminate()
         relay.wait()

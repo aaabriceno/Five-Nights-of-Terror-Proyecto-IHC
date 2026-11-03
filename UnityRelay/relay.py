@@ -16,9 +16,13 @@ unity_clients = set()
 operadores = set()
 last_connect_message = None
 
-# El minimapa y los rechazos son solo para el jugador 2 (operador): la tablet
-# no los usa, así que no se le reenvían.
-SOLO_PARA_OPERADORES = {"estado_mapa", "mapa_puntos", "accion_rechazada"}
+# El minimapa, las posiciones, el estado de los jugadores y los rechazos son
+# solo para el jugador 2 (operador): la tablet no los usa, así que no se le
+# reenvían.
+SOLO_PARA_OPERADORES = {
+    "estado_mapa", "mapa_puntos", "accion_rechazada",
+    "posiciones", "estado_jugador", "estado_operador", "pong_operador",
+}
 
 
 async def send_to(clients, payload):
