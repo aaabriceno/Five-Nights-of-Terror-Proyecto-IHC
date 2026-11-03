@@ -1,0 +1,227 @@
+/* Sala de control del jugador 2: monitor de vigilancia, tono sombrío.
+   Reglas de movimiento: solo transform y opacity; UI < 300 ms; la salida es
+   más rápida que la entrada; todo se apaga con prefers-reduced-motion. */
+
+:root {
+  color-scheme: dark;
+  --fondo: #050807;
+  --panel: #0a110d;
+  --linea: #1b3a26;
+  --texto: #b7f0c4;
+  --suave: #5f8f6d;
+  --alerta: #ffd24a;
+  --peligro: #ff4d4d;
+  --freddy: #6fcf6f;
+  --vixy: #ff5a5a;
+  --puppet: #d9a066;
+  --entrada: cubic-bezier(.2, .8, .2, 1);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+}
+
+.pantalla {
+  min-height: 100vh;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------------------------------------------------------------- barra */
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--linea);
+}
+.barra h1 { margin: 0; font-size: 15px; letter-spacing: .3em; font-weight: 600; }
+.reloj { letter-spacing: .12em; }
+.hud { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.medida { color: var(--suave); }
+.medida b { color: var(--texto); font-weight: 600; }
+.rec { display: flex; align-items: center; gap: 8px; color: var(--peligro); letter-spacing: .2em; font-weight: 700; }
+.punto-rec { width: 10px; height: 10px; border-radius: 50%; background: var(--peligro); animation: rec 1.4s steps(2, jump-none) infinite; }
+.estado { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.estado.ok { color: #7dff9a; }
+.estado.mal { color: var(--peligro); }
+
+/* ------------------------------------------------------------- cuadrícula */
+.cuadricula {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  gap: 12px;
+}
+@media (max-width: 880px) { .cuadricula { grid-template-columns: 1fr; } }
+
+/* --------------------------------------------------------------- monitor */
+.monitor {
+  position: relative;
+  min-height: 22rem;
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--linea);
+  border-radius: 6px;
+  background: #060b08;
+  overflow: hidden;
+  animation: parpadeo 7s linear infinite;
+}
+#mapa { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.rotulo { position: absolute; left: 12px; top: 10px; color: var(--suave); letter-spacing: .18em; font-size: 12px; }
+
+.ruido, .barrido, .vineta { position: absolute; inset: 0; pointer-events: none; }
+.ruido {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: .07;
+  mix-blend-mode: screen;
+  animation: ruido .5s steps(4, jump-none) infinite;
+}
+/* líneas de barrido fijas + una barra clara que baja despacio */
+.monitor::after {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .28) 0 1px, transparent 1px 3px);
+}
+.barrido {
+  height: 30%;
+  inset: auto 0 auto 0;
+  top: -30%;
+  background: linear-gradient(180deg, transparent, rgba(125, 255, 154, .06), transparent);
+  animation: barrido 8s linear infinite;
+}
+.vineta { background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, .65) 100%); }
+
+/* ----------------------------------------------------------------- avisos */
+#aviso {
+  position: absolute; left: 50%; top: 14%;
+  transform: translate(-50%, -8px);
+  max-width: 90%;
+  padding: 8px 18px;
+  border: 1px solid var(--alerta);
+  background: rgba(20, 16, 2, .85);
+  color: var(--alerta);
+  letter-spacing: .08em;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out, transform 120ms ease-out;   /* salida rápida */
+}
+#aviso.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition: opacity 200ms var(--entrada), transform 200ms var(--entrada);   /* entrada */
+}
+
+#alerta-puppet {
+  position: absolute; left: 50%; bottom: 8%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 4px; align-items: center;
+  padding: 10px 22px;
+  border: 1px solid var(--peligro);
+  background: rgba(30, 4, 4, .88);
+  color: var(--peligro);
+  letter-spacing: .1em;
+  animation: alerta 1s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------- paneles */
+.lateral { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel {
+  border: 1px solid var(--linea);
+  border-radius: 6px;
+  background: var(--panel);
+  padding: 10px 12px;
+}
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--suave);
+  font-weight: 600;
+}
+.fila { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 3px 0; }
+.etiqueta { color: var(--suave); }
+.valor { font-weight: 600; text-align: right; }
+.valor.grande { font-size: 22px; line-height: 1; }
+.valor.alerta { color: var(--alerta); }
+.valor.peligro { color: var(--peligro); }
+.barra-caja { height: 6px; margin-top: 6px; background: #0e1a12; border: 1px solid var(--linea); overflow: hidden; }
+.barra-caja i {
+  display: block; height: 100%; width: 100%;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: var(--puppet);
+  transition: transform 250ms var(--entrada);
+}
+.barra-caja.peligro i { background: var(--peligro); }
+.nota { margin: 8px 0 0; color: var(--suave); font-size: 12px; line-height: 1.4; }
+
+.amenaza {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--linea);
+}
+.amenaza:first-child { border-top: 0; padding-top: 0; }
+.amenaza .nombre { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .06em; }
+.amenaza .punto { width: 10px; height: 10px; border-radius: 50%; }
+.amenaza .detalle { grid-column: 1; color: var(--suave); font-size: 12px; }
+.amenaza button { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.amenaza.sin-senal .nombre::after { content: "SEÑAL PERDIDA"; color: var(--peligro); font-size: 10px; letter-spacing: .12em; animation: rec 1s steps(2, jump-none) infinite; }
+
+button {
+  font: inherit;
+  color: var(--texto);
+  background: #0f1d15;
+  border: 1px solid var(--linea);
+  border-radius: 4px;
+  padding: 8px 14px;
+  cursor: pointer;
+  min-height: 40px;
+  transition: transform 120ms ease-out, background-color 120ms ease-out;
+}
+button:active:not(:disabled) { transform: scale(.97); }
+button:disabled { opacity: .4; cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) {
+  button:hover:not(:disabled) { background: #163021; }
+}
+button:focus-visible, input:focus-visible { outline: 2px solid var(--alerta); outline-offset: 2px; }
+
+.conexion .campos { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; }
+.conexion label { display: flex; flex-direction: column; gap: 4px; color: var(--suave); font-size: 12px; }
+input {
+  font: inherit; color: var(--texto); background: #08110c;
+  border: 1px solid var(--linea); border-radius: 4px; padding: 7px 8px; min-width: 0;
+}
+
+/* ------------------------------------------------------------- movimiento */
+@keyframes rec { 50% { opacity: .15; } }
+@keyframes parpadeo {
+  0%, 100% { opacity: 1; }
+  46% { opacity: 1; } 47% { opacity: .93; } 48% { opacity: 1; }
+  81% { opacity: 1; } 82% { opacity: .95; } 83% { opacity: 1; }
+}
+@keyframes ruido {
+  0% { transform: translate(0, 0); } 25% { transform: translate(-12px, 8px); }
+  50% { transform: translate(9px, -14px); } 75% { transform: translate(-6px, -4px); }
+}
+@keyframes barrido { to { transform: translateY(440%); } }
+@keyframes alerta { 50% { opacity: .55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-duration: 1ms !important; }
+  #aviso, #aviso.visible { transform: translate(-50%, 0); }
+}
+
+#alerta-puppet[hidden] { display: none; }
