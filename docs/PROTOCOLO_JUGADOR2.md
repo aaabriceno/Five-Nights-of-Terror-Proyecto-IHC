@@ -44,6 +44,10 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 | `ping_operador` | J2 → Unity | Cada 2 s | `t` |
 | `pong_operador` | Unity → J2 | Al recibir un ping | `t` (el mismo) |
 | `game_over` | Unity → J2 (y tablet) | Al terminar la partida (`loss`, `win` o `final_victory`) | `result`, `night`, `final_stats` (duración, tareas). La página muestra el fin con «Esperar otra partida» y «Salir», y vuelve sola a esperar cuando llega el siguiente `mapa_puntos` |
+| `jugador1_salio` | Relay → J2 | La tablet mandó `disconnect` (`motivo: "salio"`) o se cayó (`"conexion_perdida"`) | `motivo`. La página muestra «el jugador 1 se fue de la partida» |
+| `juego_cerrado` | Relay → J2 | Se cerró el Unity | La página muestra «el juego se cerró» |
+| `operador_salir` | J2 → Relay | J2 pulsa «Salir» o «Desconectar» | Salir a propósito no cuenta como caída |
+| `operador_rechazado` | Relay → J2 | J2 intenta volver pasados 15 s de su caída | `motivo: "tiempo_agotado"`; el relay cierra la conexión |
 | `accion_operador` | J2 → Unity | Nuevas acciones | `accion: "trampa"` + `punto`, o `accion: "rescatar_puppet"`; todas con `id` |
 | `mini_tarea_inicio` / `mini_tarea_fin` | J2 → Unity | Empieza y termina la mini-tarea de recarga | — |
 
@@ -120,3 +124,9 @@ python3 -m http.server 8081 --directory UnityRelay/operador &
 5. El jugador 2 pulsa **Retrasar**: el jugador 1 ve el aviso arriba en la pantalla de Unity.
 
 Si la otra computadora no abre la página: misma red, firewall (puertos 8000 y 8081) y la IP correcta (ver `pruebas/red/LEEME.md`).
+
+## Si alguien se va
+- **Jugador 1 se va** (menú de la tablet, tablet caída o juego cerrado): la partida no puede seguir; J2 ve una pantalla que lo explica con «Esperar otra partida» y «Salir».
+- **Jugador 2 se cae**: el juego sigue sin cambios (Unity ya baja la agresividad cuando no hay latidos, 6 s). La página reintenta 3 veces, una cada 5 s, dentro de 15 s (`VENTANA_PARA_VOLVER_MS`, `MS_ENTRE_INTENTOS`, `MAX_INTENTOS` en `operador.js`) y muestra «SIN SEÑAL · RECONECTANDO · INTENTO n DE 3 · QUEDAN x s».
+- El **relay** lo hace cumplir: pasados 15 s de la caída (`VENTANA_OPERADOR_S`, por defecto 15) rechaza `operador_connect` con `operador_rechazado` hasta que la tablet mande un `connect` (partida nueva) o Unity mande `game_over`. Salir con `operador_salir` no abre la ventana.
+- La página ofrece «Reconectar» tras rendirse; si el relay lo rechaza, lo explica y no insiste.

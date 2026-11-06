@@ -224,7 +224,7 @@ input {
   #aviso, #aviso.visible { transform: translate(-50%, 0); }
 }
 
-#alerta-puppet[hidden], #minitarea[hidden], #fin-partida[hidden] { display: none; }
+#alerta-puppet[hidden], #minitarea[hidden], #fin-partida[hidden], #reconectando[hidden] { display: none; }
 
 .botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .botones button { flex: 1 1 8rem; }
@@ -249,6 +249,17 @@ input {
 #mt-mensaje { min-height: 1.2em; text-align: center; margin: 0; }
 
 @keyframes entrada { from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); } }
+
+/* conexión perdida: franja fija arriba, no tapa el mapa */
+#reconectando {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 3;
+  padding: 8px 12px;
+  text-align: center; letter-spacing: .12em; font-weight: 700; font-size: 13px;
+  color: var(--peligro);
+  background: rgba(40, 6, 6, .92);
+  border-bottom: 1px solid var(--peligro);
+  animation: alerta 1s steps(2, jump-none) infinite;
+}
 
 /* fin de la partida: tapa el monitor y deja las dos salidas a mano */
 #fin-partida {

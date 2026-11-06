@@ -94,7 +94,12 @@ async def unity_falso(socket):
     async def ordenes_del_test():
         while True:
             orden = await ORDENES.get()
-            if orden[0] == "fin":
+            if orden[0] == "raw":
+                await enviar(orden[1])
+            elif orden[0] == "rechazar":
+                await enviar({"type": "operador_rechazado", "motivo": "tiempo_agotado"})
+                await socket.close()
+            elif orden[0] == "fin":
                 await enviar({"type": "game_over", "result": orden[1], "night": 2,
                               "final_stats": {"duration": 125, "tasks_completed": 7, "tasks_failed": 1,
                                               "total_damage": 100, "score": 700},
@@ -304,6 +309,55 @@ async def principal(captura):
                   "Desconectado" in (navegador.texto("estado-conexion") or ""))
         errores = navegador.ejecutar("return (window.__errores || []).length;")
         comprobar(f"sin errores de JavaScript tras el fin de la partida (errores: {errores})", errores == 0)
+
+        # --- J1 se va / J2 se cae: avisos, 3 intentos en 15 s y rechazo ---
+        navegador.ejecutar("document.getElementById('conectar').click();")
+        comprobar("«Conectar» vuelve a conectar tras Salir",
+                  await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or ""), 8.0))
+        ORDENES.put_nowait(("raw", {"type": "jugador1_salio", "motivo": "salio"}))
+        comprobar("si el jugador 1 se va, la página lo avisa",
+                  await esperar(lambda: js(visible) and "SE FUE" in (navegador.texto("fin-titulo") or "").upper(), 5.0))
+        navegador.ejecutar("document.getElementById('fin-esperar').click();")
+        ORDENES.put_nowait(("raw", {"type": "juego_cerrado"}))
+        comprobar("si el juego se cierra, la página lo avisa",
+                  await esperar(lambda: js(visible) and "JUEGO SE CERR" in (navegador.texto("fin-titulo") or "").upper(), 5.0))
+        navegador.ejecutar("document.getElementById('fin-esperar').click();")
+
+        banner = "var r=document.getElementById('reconectando');return !!r && !r.hidden;"
+        unity.close()
+        await unity.wait_closed()
+        comprobar("al caerse la conexión aparece el aviso de reconexión con los intentos",
+                  await esperar(lambda: js(banner) and "INTENTO" in (navegador.texto("reconectando") or ""), 5.0))
+        unity = await websockets.serve(unity_falso, "127.0.0.1", PUERTO_UNITY)
+        comprobar("si el juego vuelve antes de 15 s, la página se reconecta sola",
+                  await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or "")
+                                and not js(banner), 12.0))
+
+        unity.close()
+        await unity.wait_closed()
+        comprobar("de nuevo sin juego: reconectando",
+                  await esperar(lambda: js(banner), 5.0))
+        comprobar("a los 15 s sin volver aparece «Sin conexión con el juego»",
+                  await esperar(lambda: js(visible) and "SIN CONEXI" in (navegador.texto("fin-titulo") or "").upper(), 17.0))
+        comprobar("y el aviso de reconexión desaparece", not js(banner))
+        comprobar("la página dejó de intentar (sigue Desconectado)",
+                  "Desconectado" in (navegador.texto("estado-conexion") or ""))
+        unity = await websockets.serve(unity_falso, "127.0.0.1", PUERTO_UNITY)
+        await asyncio.sleep(6.0)
+        comprobar("pasada la ventana no se reconecta sola aunque el juego vuelva",
+                  "Desconectado" in (navegador.texto("estado-conexion") or ""))
+        navegador.ejecutar("document.getElementById('fin-esperar').click();")      # Reconectar
+        comprobar("«Reconectar» entra de nuevo si el relay lo acepta",
+                  await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or "")
+                                and not js(visible), 8.0))
+        ORDENES.put_nowait(("rechazar",))
+        comprobar("si el relay lo rechaza (tiempo agotado) la página lo explica y no insiste",
+                  await esperar(lambda: js(visible) and "NO PUEDES" in (navegador.texto("fin-titulo") or "").upper(), 5.0))
+        await asyncio.sleep(3.5)
+        comprobar("tras el rechazo sigue Desconectado y sin aviso de reconexión",
+                  "Desconectado" in (navegador.texto("estado-conexion") or "") and not js(banner))
+        errores = navegador.ejecutar("return (window.__errores || []).length;")
+        comprobar(f"sin errores de JavaScript en las reconexiones (errores: {errores})", errores == 0)
 
         css = urllib.request.urlopen(f"http://127.0.0.1:{PUERTO_WEB}/operador.css").read().decode()
         comprobar("el CSS respeta prefers-reduced-motion", "prefers-reduced-motion" in css)

@@ -5,6 +5,7 @@ Uso: UnityRelay/.venv/bin/python pruebas/probar_relay.py
 """
 import asyncio
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -155,11 +156,84 @@ async def caso_tipos_nuevos_solo_al_operador():
         comprobar("la tablet no recibe ninguno", await recibir_o_nada(tablet, 0.5) is None)
 
 
+async def tipo_recibido(socket, espera=1.0):
+    crudo = await recibir_o_nada(socket, espera)
+    return json.loads(crudo).get("type") if crudo else None
+
+
+async def caso_avisos_de_que_el_jugador_1_se_fue():
+    print("Caso 8: el operador se entera de que el jugador 1 o el juego se fueron")
+    async with websockets.connect(URL) as operador:
+        await operador.send(OPERADOR_CONNECT)
+        async with websockets.connect(URL) as unity:
+            await unity.send(json.dumps({"type": "unity_connect"}))
+            await asyncio.sleep(0.2)
+            await tipo_recibido(unity, 0.3)               # el operador_connect no llega (Unity entró después)
+            async with websockets.connect(URL) as tablet:
+                await tablet.send(CONNECT_TUTORIAL)
+                await asyncio.sleep(0.2)
+                await tablet.send(json.dumps({"type": "disconnect"}))
+                recibido = await recibir_o_nada(operador, 1.0)
+                aviso = json.loads(recibido) if recibido else {}
+                comprobar("tablet con disconnect: el operador recibe jugador1_salio (salio)",
+                          aviso.get("type") == "jugador1_salio" and aviso.get("motivo") == "salio")
+            async with websockets.connect(URL) as tablet:
+                await tablet.send(CONNECT_TUTORIAL)
+                await asyncio.sleep(0.2)
+            recibido = await recibir_o_nada(operador, 1.0)
+            aviso = json.loads(recibido) if recibido else {}
+            comprobar("tablet que se cae sin despedirse: jugador1_salio (conexion_perdida)",
+                      aviso.get("type") == "jugador1_salio" and aviso.get("motivo") == "conexion_perdida")
+        comprobar("al cerrarse Unity el operador recibe juego_cerrado",
+                  await tipo_recibido(operador, 1.0) == "juego_cerrado")
+
+
+async def caso_operador_vuelve_dentro_del_tiempo():
+    print("Caso 9: el operador se cae y tiene una ventana para volver")
+    async with websockets.connect(URL) as unity:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+        await asyncio.sleep(0.4)
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+            await asyncio.sleep(0.3)
+            comprobar("vuelve antes de que se agote la ventana: no lo rechazan",
+                      await tipo_recibido(operador, 0.3) != "operador_rechazado")
+        await asyncio.sleep(2.0)                          # se agota la ventana (1,5 s en esta prueba)
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+            comprobar("vuelve tarde: recibe operador_rechazado",
+                      await tipo_recibido(operador, 1.0) == "operador_rechazado")
+            try:
+                await asyncio.wait_for(operador.wait_closed(), 1.0)
+            except asyncio.TimeoutError:
+                pass
+            comprobar("y el relay le cierra la conexión", operador.close_code is not None)
+        async with websockets.connect(URL) as tablet:
+            await tablet.send(CONNECT_TUTORIAL)           # empieza otra partida
+            await asyncio.sleep(0.3)
+            async with websockets.connect(URL) as operador:
+                await operador.send(OPERADOR_CONNECT)
+                comprobar("con una partida nueva puede entrar otra vez",
+                          await tipo_recibido(operador, 0.5) != "operador_rechazado")
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+            await operador.send(json.dumps({"type": "operador_salir"}))
+            await asyncio.sleep(0.2)
+        await asyncio.sleep(2.0)
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+            comprobar("salir a propósito no cuenta como caída: puede volver",
+                      await tipo_recibido(operador, 0.5) != "operador_rechazado")
+
+
 async def principal():
     relay = subprocess.Popen(
         [sys.executable, "-u", str(RAIZ / "UnityRelay" / "relay.py")],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env={**os.environ, "VENTANA_OPERADOR_S": "1.5"},
     )
     try:
         if not await esperar_relay():
@@ -172,6 +246,8 @@ async def principal():
         await caso_estado_del_mapa_solo_al_operador()
         await caso_accion_del_operador_solo_a_unity()
         await caso_tipos_nuevos_solo_al_operador()
+        await caso_avisos_de_que_el_jugador_1_se_fue()
+        await caso_operador_vuelve_dentro_del_tiempo()
     finally:
         relay.terminate()
         relay.wait()

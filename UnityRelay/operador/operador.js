@@ -29,6 +29,11 @@
   const SENAL_PERDIDA_M = 2;
   const MUESTRAS_POR_ANIMATRONICO = 8;
   const SEGUNDOS_ENTRE_LATIDOS = 2;
+  // Si se cae la conexión a mitad de la partida: 3 intentos, uno cada 5 s, en 15 s.
+  // Pasado ese tiempo el relay tampoco lo deja entrar hasta que empiece otra partida.
+  const VENTANA_PARA_VOLVER_MS = 15000;
+  const MS_ENTRE_INTENTOS = 5000;
+  const MAX_INTENTOS = 3;
 
   const parametros = new URLSearchParams(location.search);
   $("host").value = parametros.get("host") ||
@@ -57,23 +62,45 @@
   const g = lienzo.getContext("2d");
   let avisoHasta = 0;
   let finDePartida = false;           // Unity mandó game_over: no hay nada más que hacer en esta partida
+  let accionPrimaria = "esperar";     // qué hace el botón grande de la pantalla de cierre
+  let estuvoConectado = false;        // ya hubo una conexión buena: una caída abre la ventana para volver
+  let caidaEn = 0;                    // performance.now() de la caída; 0 si no hay una abierta
+  let intentos = 0;
+  let temporizadorDeVuelta = null;
+  let temporizadorDeIntento = null;
 
   // ------------------------------------------------------------- conexión
   function conectar() {
     clearTimeout(reintento);
+    clearTimeout(temporizadorDeIntento);
+    if (socket) { const viejo = socket; socket = null; viejo.close(); }
     const direccion = `ws://${$("host").value}:${$("puerto").value}`;
-    ponerEstado("Conectando…", "");
-    socket = new WebSocket(direccion);
-    socket.onopen = () => {
-      socket.send(JSON.stringify({ type: "operador_connect" }));
+    ponerEstado(caidaEn ? "Reconectando…" : "Conectando…", "");
+    const esteSocket = new WebSocket(direccion);
+    socket = esteSocket;
+    // Un intento que no abre en 5 s se da por fallido.
+    temporizadorDeIntento = setTimeout(() => {
+      if (esteSocket.readyState !== WebSocket.OPEN) esteSocket.close();
+    }, MS_ENTRE_INTENTOS);
+    esteSocket.onopen = () => {
+      if (socket !== esteSocket) { esteSocket.close(); return; }
+      clearTimeout(temporizadorDeIntento);
+      clearTimeout(temporizadorDeVuelta);
+      const volvio = caidaEn > 0;
+      caidaEn = 0; intentos = 0; estuvoConectado = true;
+      $("reconectando").hidden = true;
+      esteSocket.send(JSON.stringify({ type: "operador_connect" }));
       ponerEstado("Conectado", "ok");
       $("conectar").textContent = "Desconectar";
       actualizarBotones();
       enviarLatido();
       latido = setInterval(enviarLatido, SEGUNDOS_ENTRE_LATIDOS * 1000);
+      if (volvio) avisar("Volviste a la partida");
     };
-    socket.onmessage = (evento) => recibir(evento.data);
-    socket.onclose = () => {
+    esteSocket.onmessage = (evento) => { if (socket === esteSocket) recibir(evento.data); };
+    esteSocket.onclose = () => {
+      clearTimeout(temporizadorDeIntento);
+      if (socket !== esteSocket) return;          // un intento viejo que ya se reemplazó
       socket = null;
       clearInterval(latido);
       ponerEstado("Desconectado", "mal");
@@ -81,9 +108,53 @@
       actualizarBotones();
       cerrarMiniTarea();
       salirDelModoTrampa();
-      // El juego puede abrirse después: se reintenta solo.
-      if (quiereConexion) reintento = setTimeout(conectar, 3000);
+      if (!quiereConexion) return;
+      if (estuvoConectado) {
+        // Se cayó a mitad de la partida: ventana de 15 s para volver.
+        if (!caidaEn) { caidaEn = performance.now(); intentos = 0; }
+        $("conectar").textContent = "Cancelar";
+        siguientePasoDeVuelta();
+      } else {
+        // El juego puede abrirse después: se reintenta solo.
+        reintento = setTimeout(conectar, 3000);
+      }
     };
+  }
+
+  // Intento 1 al caerse, el 2 a los 5 s, el 3 a los 10 s; a los 15 s se rinde.
+  function siguientePasoDeVuelta() {
+    clearTimeout(temporizadorDeVuelta);
+    if (!quiereConexion || !caidaEn) return;
+    const transcurrido = performance.now() - caidaEn;
+    if (transcurrido >= VENTANA_PARA_VOLVER_MS) { rendirse(); return; }
+    if (intentos < MAX_INTENTOS && transcurrido >= intentos * MS_ENTRE_INTENTOS) {
+      intentos++;
+      conectar();
+    }
+    const proximo = intentos < MAX_INTENTOS ? intentos * MS_ENTRE_INTENTOS : VENTANA_PARA_VOLVER_MS;
+    temporizadorDeVuelta = setTimeout(siguientePasoDeVuelta, Math.max(0, proximo - (performance.now() - caidaEn)));
+  }
+
+  function rendirse() {
+    clearTimeout(temporizadorDeVuelta);
+    clearTimeout(temporizadorDeIntento);
+    caidaEn = 0; quiereConexion = false; estuvoConectado = false;
+    if (socket) { const viejo = socket; socket = null; viejo.close(); }
+    $("reconectando").hidden = true;
+    $("conectar").textContent = "Conectar";
+    ponerEstado("Desconectado", "mal");
+    actualizarBotones();
+    mostrarCierre("SIN CONEXIÓN CON EL JUEGO",
+      "Pasaron 15 s sin poder volver. La partida siguió sin ti.", "", false, "reconectar");
+  }
+
+  // El jugador 2 se va a propósito: el relay no lo toma como una caída.
+  function desconectarAPropósito() {
+    quiereConexion = false; estuvoConectado = false; caidaEn = 0;
+    clearTimeout(reintento); clearTimeout(temporizadorDeVuelta); clearTimeout(temporizadorDeIntento);
+    $("reconectando").hidden = true;
+    if (socket) { enviar({ type: "operador_salir" }); socket.close(); }
+    else { $("conectar").textContent = "Conectar"; ponerEstado("Desconectado", "mal"); }
   }
 
   function ponerEstado(texto, clase) {
@@ -99,7 +170,7 @@
   function enviarLatido() { enviar({ type: "ping_operador", t: Date.now() }); }
 
   $("conectar").onclick = () => {
-    if (socket) { quiereConexion = false; socket.close(); }
+    if (socket || caidaEn) desconectarAPropósito();      // «Desconectar» o «Cancelar» la reconexión
     else { quiereConexion = true; conectar(); }
   };
 
@@ -113,6 +184,19 @@
     switch (m.type) {
       case "game_over":
         mostrarFin(m);
+        break;
+      case "jugador1_salio":
+        mostrarCierre("EL JUGADOR 1 SE FUE DE LA PARTIDA",
+          m.motivo === "salio" ? "Salió al menú." : "Perdió la conexión.",
+          "Sin él la partida no continúa.", false, "esperar");
+        break;
+      case "juego_cerrado":
+        mostrarCierre("EL JUEGO SE CERRÓ", "Unity ya no está conectado.", "Sin juego no hay partida.", false, "esperar");
+        break;
+      case "operador_rechazado":
+        quiereConexion = false; estuvoConectado = false;
+        mostrarCierre("NO PUEDES UNIRTE AHORA",
+          "Pasó el tiempo para volver a esta partida.", "Podrás entrar cuando empiece la siguiente noche.", false, "reconectar");
         break;
       case "mapa_puntos":
         if (finDePartida) reiniciarVista();          // empezó otra noche
@@ -167,17 +251,28 @@
   };
 
   function mostrarFin(m) {
-    finDePartida = true;
-    ventanaDeRescateHasta = 0;
-    cerrarMiniTarea();
-    salirDelModoTrampa();
     const [texto, gano] = TITULOS_FIN[m.result] || ["LA PARTIDA TERMINÓ", false];
     const s = m.final_stats || {};
     const minutos = Math.floor((s.duration || 0) / 60), segundos = (s.duration || 0) % 60;
+    mostrarCierre("FIN DE LA PARTIDA",
+      `${texto}${m.night ? ` · NOCHE ${m.night}` : ""}`,
+      `Duración ${minutos}:${String(segundos).padStart(2, "0")} · tareas hechas ${s.tasks_completed || 0} · falladas ${s.tasks_failed || 0}`,
+      gano, "esperar");
+  }
+
+  // Pantalla que tapa el monitor cuando ya no hay partida que ayudar: fin de la
+  // noche, el jugador 1 o el juego se fueron, o la conexión se perdió.
+  function mostrarCierre(titulo, detalle, estadisticas, gano, accion) {
+    finDePartida = true;
+    accionPrimaria = accion;
+    ventanaDeRescateHasta = 0;
+    cerrarMiniTarea();
+    salirDelModoTrampa();
     $("fin-partida").classList.toggle("gano", gano);
-    $("fin-detalle").textContent = `${texto}${m.night ? ` · NOCHE ${m.night}` : ""}`;
-    $("fin-estadisticas").textContent =
-      `Duración ${minutos}:${String(segundos).padStart(2, "0")} · tareas hechas ${s.tasks_completed || 0} · falladas ${s.tasks_failed || 0}`;
+    $("fin-titulo").textContent = titulo;
+    $("fin-detalle").textContent = detalle;
+    $("fin-estadisticas").textContent = estadisticas;
+    $("fin-esperar").textContent = accion === "reconectar" ? "Reconectar" : "Esperar otra partida";
     $("fin-partida").hidden = false;
     $("alerta-puppet").hidden = true;
     $("aviso").classList.remove("visible");
@@ -205,12 +300,14 @@
     actualizarBotones();
   }
 
-  $("fin-esperar").onclick = reiniciarVista;
+  $("fin-esperar").onclick = () => {
+    const volver = accionPrimaria === "reconectar";
+    reiniciarVista();
+    if (volver) { quiereConexion = true; estuvoConectado = false; caidaEn = 0; conectar(); }
+  };
   $("fin-salir").onclick = () => {
     reiniciarVista();
-    quiereConexion = false;
-    clearTimeout(reintento);
-    if (socket) socket.close();
+    desconectarAPropósito();
   };
 
   function avisar(texto) {
@@ -538,6 +635,12 @@
     dibujar(ahora);
     pintarAmenazas(ahora);
     pintarRescate(ahora);
+    if (caidaEn) {
+      const quedan = Math.max(0, Math.ceil((VENTANA_PARA_VOLVER_MS - (performance.now() - caidaEn)) / 1000));
+      const texto = `SIN SEÑAL · RECONECTANDO · INTENTO ${Math.min(Math.max(intentos, 1), MAX_INTENTOS)} DE ${MAX_INTENTOS} · QUEDAN ${quedan} s`;
+      if ($("reconectando").hidden) $("reconectando").hidden = false;
+      if ($("reconectando").textContent !== texto) $("reconectando").textContent = texto;
+    }
     if (avisoHasta && ahora > avisoHasta) { $("aviso").classList.remove("visible"); avisoHasta = 0; }
     requestAnimationFrame(cuadro);
   }

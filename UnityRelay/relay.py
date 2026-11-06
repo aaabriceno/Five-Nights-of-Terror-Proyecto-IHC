@@ -6,6 +6,8 @@ does not import or change the original backend.
 
 import asyncio
 import json
+import os
+import time
 import websockets
 
 HOST = "0.0.0.0"
@@ -15,6 +17,11 @@ tablets = set()
 unity_clients = set()
 operadores = set()
 last_connect_message = None
+
+# Si el jugador 2 se cae a mitad de la partida, tiene este tiempo para volver.
+# Pasado ese tiempo el relay no lo deja entrar hasta que empiece otra partida.
+SEGUNDOS_PARA_VOLVER = float(os.environ.get("VENTANA_OPERADOR_S", "15"))
+operador_perdido_en = None      # time.monotonic() de la caída del jugador 2, o None
 
 # El minimapa, las posiciones, el estado de los jugadores y los rechazos son
 # solo para el jugador 2 (operador): la tablet no los usa, así que no se le
@@ -49,8 +56,12 @@ def olvidar_connect_si_no_hay_tablets():
         last_connect_message = None
 
 
+def aviso(tipo, **campos):
+    return json.dumps({"type": tipo, **campos})
+
+
 async def handle_connection(socket):
-    global last_connect_message
+    global last_connect_message, operador_perdido_en
     role = None
     try:
         async for raw in socket:
@@ -72,21 +83,38 @@ async def handle_connection(socket):
                 # Jugador 2: ve el mapa y manda acciones a Unity. No es una
                 # tablet: su anuncio no debe guardarse como `connect`, porque
                 # reiniciaría la partida de un Unity que se abre después.
+                if (operador_perdido_en is not None
+                        and time.monotonic() - operador_perdido_en > SEGUNDOS_PARA_VOLVER):
+                    await socket.send(aviso("operador_rechazado", motivo="tiempo_agotado"))
+                    await socket.close()
+                    print("Operador rechazado: pasó el tiempo para volver")
+                    return
+                operador_perdido_en = None
                 role = "operador"
                 operadores.add(socket)
                 await send_to(unity_clients, raw)
                 print("Operador conectado")
                 continue
 
+            if message_type == "operador_salir":
+                # El jugador 2 se va a propósito: no cuenta como caída.
+                operadores.discard(socket)
+                operador_perdido_en = None
+                role = None
+                continue
+
             if message_type == "connect":
                 role = "tablet"
                 tablets.add(socket)
+                operador_perdido_en = None      # partida nueva: el jugador 2 puede entrar de nuevo
                 last_connect_message = raw
                 await send_to(unity_clients, raw)
                 print("Flutter conectado; inicio de partida enviado a Unity")
                 continue
 
             if role == "unity":
+                if message_type == "game_over":
+                    operador_perdido_en = None  # entre partidas nadie queda fuera
                 if message_type not in SOLO_PARA_OPERADORES:
                     await send_to(tablets, raw)
                 await send_to(operadores, raw)
@@ -94,16 +122,28 @@ async def handle_connection(socket):
                 await send_to(unity_clients, raw)
 
             if message_type == "disconnect":
+                era_tablet = socket in tablets
                 tablets.discard(socket)
                 olvidar_connect_si_no_hay_tablets()
                 role = None
+                if era_tablet:
+                    await send_to(operadores, aviso("jugador1_salio", motivo="salio"))
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
+        era_tablet = socket in tablets
+        era_unity = socket in unity_clients
+        era_operador = socket in operadores
         tablets.discard(socket)
         unity_clients.discard(socket)
         operadores.discard(socket)
         olvidar_connect_si_no_hay_tablets()
+        if era_operador:
+            operador_perdido_en = time.monotonic()
+        if era_tablet:
+            await send_to(operadores, aviso("jugador1_salio", motivo="conexion_perdida"))
+        if era_unity:
+            await send_to(operadores, aviso("juego_cerrado"))
         print("Cliente desconectado")
 
 
