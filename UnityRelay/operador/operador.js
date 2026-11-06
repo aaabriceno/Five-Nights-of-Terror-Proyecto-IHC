@@ -56,6 +56,7 @@
   const lienzo = $("mapa");
   const g = lienzo.getContext("2d");
   let avisoHasta = 0;
+  let finDePartida = false;           // Unity mandó game_over: no hay nada más que hacer en esta partida
 
   // ------------------------------------------------------------- conexión
   function conectar() {
@@ -106,8 +107,15 @@
   function recibir(crudo) {
     let m;
     try { m = JSON.parse(crudo); } catch (e) { return; }
+    // Terminada la partida solo importa lo que empieza una nueva (mapa_puntos),
+    // el eco de la latencia y un segundo game_over; el resto llega tarde.
+    if (finDePartida && m.type !== "mapa_puntos" && m.type !== "pong_operador" && m.type !== "game_over") return;
     switch (m.type) {
+      case "game_over":
+        mostrarFin(m);
+        break;
       case "mapa_puntos":
+        if (finDePartida) reiniciarVista();          // empezó otra noche
         puntos = m.puntos || [];
         jugador = m.jugador || null;
         limites = null;
@@ -151,6 +159,60 @@
     }
   }
 
+  // ------------------------------------------------------- fin de la partida
+  const TITULOS_FIN = {
+    loss: ["EL JUGADOR 1 FUE ATRAPADO", false],
+    win: ["EL JUGADOR 1 SOBREVIVIÓ LA NOCHE", true],
+    final_victory: ["EL JUGADOR 1 SOBREVIVIÓ TODAS LAS NOCHES", true],
+  };
+
+  function mostrarFin(m) {
+    finDePartida = true;
+    ventanaDeRescateHasta = 0;
+    cerrarMiniTarea();
+    salirDelModoTrampa();
+    const [texto, gano] = TITULOS_FIN[m.result] || ["LA PARTIDA TERMINÓ", false];
+    const s = m.final_stats || {};
+    const minutos = Math.floor((s.duration || 0) / 60), segundos = (s.duration || 0) % 60;
+    $("fin-partida").classList.toggle("gano", gano);
+    $("fin-detalle").textContent = `${texto}${m.night ? ` · NOCHE ${m.night}` : ""}`;
+    $("fin-estadisticas").textContent =
+      `Duración ${minutos}:${String(segundos).padStart(2, "0")} · tareas hechas ${s.tasks_completed || 0} · falladas ${s.tasks_failed || 0}`;
+    $("fin-partida").hidden = false;
+    $("alerta-puppet").hidden = true;
+    $("aviso").classList.remove("visible");
+    actualizarBotones();
+    pintarAmenazas(performance.now());       // sin esperar al siguiente cuadro
+    pintarRescate(performance.now());
+    $("fin-esperar").focus();
+  }
+
+  // Vuelve al estado de "esperando señal", como al abrir la página.
+  function reiniciarVista() {
+    finDePartida = false;
+    $("fin-partida").hidden = true;
+    for (const nombre in muestras) delete muestras[nombre];
+    puntos = []; jugador = null; limites = null;
+    estadoMapa = { animatronicos: [], recibidoEn: 0 };
+    estadoJugador = null; estadoOperador = null;
+    ventanaDeRescateHasta = 0;
+    $("mapa").dataset.estado = "esperando";
+    $("noche").textContent = "–"; $("hora").textContent = "–";
+    for (const id of ["j1-mirada", "j1-tareas", "j1-caja", "cargas", "habilidad"]) $(id).textContent = "–";
+    for (const id of ["j1-mirada", "j1-tareas", "j1-caja", "habilidad"]) $(id).className = "valor";
+    $("j1-caja-barra").style.transform = "scaleX(0)";
+    $("lista-amenazas").textContent = "";
+    actualizarBotones();
+  }
+
+  $("fin-esperar").onclick = reiniciarVista;
+  $("fin-salir").onclick = () => {
+    reiniciarVista();
+    quiereConexion = false;
+    clearTimeout(reintento);
+    if (socket) socket.close();
+  };
+
   function avisar(texto) {
     const aviso = $("aviso");
     aviso.textContent = texto;
@@ -186,8 +248,8 @@
 
   function actualizarBotones() {
     const e = estadoOperador;
-    $("boton-trampa").disabled = !socket || !e || e.cargas <= 0;
-    $("boton-minitarea").disabled = !socket;
+    $("boton-trampa").disabled = !socket || finDePartida || !e || e.cargas <= 0;
+    $("boton-minitarea").disabled = !socket || finDePartida;
   }
 
   // Cuando Puppet sale de la caja hay unos segundos para rescatarlo (si ya
@@ -204,7 +266,7 @@
         : `Aún no ganaste el rescate (${e ? e.progreso : 0} / ${e ? e.necesario : 3} recargas)`;
       if ($("alerta-puppet-detalle").textContent !== texto) $("alerta-puppet-detalle").textContent = texto;
     }
-    $("boton-rescate").disabled = !socket || !abierta || !(e && e.habilidad_puppet);
+    $("boton-rescate").disabled = !socket || finDePartida || !abierta || !(e && e.habilidad_puppet);
   }
 
   $("boton-rescate").onclick = () =>
@@ -346,7 +408,7 @@
         (retraso > 0 ? `retrasado ${retraso.toFixed(0)} s` : espera > 0 ? `disponible en ${espera.toFixed(0)} s` : "listo");
       const detalle = $("detalle-" + a.nombre);
       if (detalle.textContent !== texto) detalle.textContent = texto;
-      $("boton-" + a.nombre).disabled = !socket || espera > 0 || retraso > 0;
+      $("boton-" + a.nombre).disabled = !socket || finDePartida || espera > 0 || retraso > 0;
       fila.classList.toggle("sin-senal", d !== null && d < SENAL_PERDIDA_M);
     }
   }

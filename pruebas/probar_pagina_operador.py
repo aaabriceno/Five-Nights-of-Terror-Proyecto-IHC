@@ -63,6 +63,7 @@ def levantar_web():
 
 # ------------------------------------------------------------------ Unity falso
 RECIBIDOS_POR_UNITY = []     # tipos de mensaje que la página le mandó al Unity falso
+ORDENES = None               # cola de órdenes del test al Unity falso: ("fin", resultado) o ("nueva",)
 PUNTOS = [{"nombre": f"Punto{i}", "x": float(i * 3), "z": float((i % 2) * 4)} for i in range(5)]
 
 
@@ -89,6 +90,21 @@ async def unity_falso(socket):
         await enviar({"type": "estado_operador", "cargas": 0, "max_cargas": 3, "trampas": [],
                       "progreso": 3, "necesario": 3, "habilidad_puppet": True,
                       "ventana_rescate_s": 4.2, "multa_factor": 1})
+
+    async def ordenes_del_test():
+        while True:
+            orden = await ORDENES.get()
+            if orden[0] == "fin":
+                await enviar({"type": "game_over", "result": orden[1], "night": 2,
+                              "final_stats": {"duration": 125, "tasks_completed": 7, "tasks_failed": 1,
+                                              "total_damage": 100, "score": 700},
+                              "timestamp": int(time.time() * 1000)})
+            else:
+                await enviar({"type": "mapa_puntos", "puntos": PUNTOS,
+                              "jugador": {"nombre": "jugador", "x": 12.0, "z": 2.0}})
+                await enviar({"type": "estado_mapa", "partida_activa": True, "noche": 3, "hora": "12:00 AM",
+                              "animatronicos": [{"nombre": "freddy", "x": 1.0, "z": 1.0, "retraso_s": 0, "espera_s": 0}],
+                              "timestamp": int(time.time() * 1000)})
 
     async def posiciones():
         i = 0
@@ -122,6 +138,7 @@ async def unity_falso(socket):
                 await enviar({"type": "estado_operador", "cargas": 1, "max_cargas": 3, "trampas": [],
                               "progreso": 0, "necesario": 3, "habilidad_puppet": False,
                               "ventana_rescate_s": 0, "multa_factor": 1})
+                envios.append(asyncio.ensure_future(ordenes_del_test()))
                 envios.append(asyncio.ensure_future(sin_cargas_despues(enviar)))
                 envios.append(asyncio.ensure_future(ventana_de_rescate(enviar)))
             elif mensaje.get("type") == "ping_operador":
@@ -189,6 +206,8 @@ class Navegador:
 
 
 async def principal(captura):
+    global ORDENES
+    ORDENES = asyncio.Queue()
     web = levantar_web()
     unity = await websockets.serve(unity_falso, "127.0.0.1", PUERTO_UNITY)
     navegador = None
@@ -249,6 +268,42 @@ async def principal(captura):
         comprobar("al cerrarse la ventana la alerta desaparece",
                   await esperar(lambda: navegador.ejecutar(
                       "var a=document.getElementById('alerta-puppet');return !!a && a.hidden;"), 8.0))
+
+        # --- fin de la partida: el jugador 2 no se queda con la pantalla congelada ---
+        js = lambda codigo: navegador.ejecutar(codigo)
+        visible = "var f=document.getElementById('fin-partida');return !!f && !f.hidden;"
+        ORDENES.put_nowait(("fin", "loss"))
+        comprobar("al morir el jugador 1 aparece #fin-partida",
+                  await esperar(lambda: js(visible), 5.0))
+        comprobar("el fin dice que el jugador 1 fue atrapado",
+                  "ATRAPADO" in (navegador.texto("fin-detalle") or "").upper())
+        comprobar("el fin muestra la duración 2:05 y las tareas",
+                  "2:05" in (navegador.texto("fin-estadisticas") or "") and "7" in (navegador.texto("fin-estadisticas") or ""))
+        comprobar("terminada la partida, Recargar y Colocar trampa quedan deshabilitados",
+                  js("return document.getElementById('boton-minitarea').disabled && document.getElementById('boton-trampa').disabled;"))
+        comprobar("terminada la partida, los botones Retrasar quedan deshabilitados",
+                  js("var b=document.querySelectorAll('#lista-amenazas button');"
+                     "return b.length>0 && Array.from(b).every(function(x){return x.disabled;});"))
+        navegador.ejecutar("document.getElementById('fin-esperar').click();")
+        comprobar("«Esperar otra partida» oculta el fin y vuelve a esperar señal",
+                  not js(visible) and js("return document.getElementById('mapa').dataset.estado==='esperando';")
+                  and (navegador.texto("noche") or "") == "–")
+        ORDENES.put_nowait(("nueva",))
+        comprobar("al empezar otra noche el mapa vuelve a estar listo y #noche muestra 3",
+                  await esperar(lambda: js("return document.getElementById('mapa').dataset.estado==='listo';")
+                                and (navegador.texto("noche") or "") == "3", 5.0))
+        ORDENES.put_nowait(("fin", "win"))
+        comprobar("si el jugador 1 gana, el fin dice que sobrevivió",
+                  await esperar(lambda: js(visible) and "SOBREVIVI" in (navegador.texto("fin-detalle") or "").upper(), 5.0))
+        navegador.ejecutar("document.getElementById('fin-salir').click();")
+        comprobar("«Salir» desconecta y oculta el fin",
+                  await esperar(lambda: "Desconectado" in (navegador.texto("estado-conexion") or "")
+                                and not js(visible), 5.0))
+        await asyncio.sleep(3.5)
+        comprobar("tras «Salir» la página no se reconecta sola",
+                  "Desconectado" in (navegador.texto("estado-conexion") or ""))
+        errores = navegador.ejecutar("return (window.__errores || []).length;")
+        comprobar(f"sin errores de JavaScript tras el fin de la partida (errores: {errores})", errores == 0)
 
         css = urllib.request.urlopen(f"http://127.0.0.1:{PUERTO_WEB}/operador.css").read().decode()
         comprobar("el CSS respeta prefers-reduced-motion", "prefers-reduced-motion" in css)

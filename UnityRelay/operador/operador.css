@@ -224,7 +224,7 @@ input {
   #aviso, #aviso.visible { transform: translate(-50%, 0); }
 }
 
-#alerta-puppet[hidden], #minitarea[hidden] { display: none; }
+#alerta-puppet[hidden], #minitarea[hidden], #fin-partida[hidden] { display: none; }
 
 .botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .botones button { flex: 1 1 8rem; }
@@ -249,6 +249,23 @@ input {
 #mt-mensaje { min-height: 1.2em; text-align: center; margin: 0; }
 
 @keyframes entrada { from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); } }
+
+/* fin de la partida: tapa el monitor y deja las dos salidas a mano */
+#fin-partida {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 16px;
+  text-align: center;
+  background: rgba(3, 6, 4, .88);
+  animation: aparecer 200ms var(--entrada);
+}
+#fin-partida h3 { margin: 0; font-size: 22px; letter-spacing: .2em; color: var(--peligro); }
+#fin-partida.gano h3 { color: var(--freddy); }
+#fin-detalle { margin: 0; font-size: 15px; }
+#fin-estadisticas { margin: 0; }
+#fin-partida .botones { justify-content: center; }
+#fin-partida .botones button { flex: 0 1 12rem; min-height: 44px; }
+@keyframes aparecer { from { opacity: 0; } }
 
 /* los avisos y la mini-tarea van por encima de las líneas de barrido */
 #aviso, #alerta-puppet, #minitarea { z-index: 2; }

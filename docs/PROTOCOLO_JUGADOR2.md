@@ -43,6 +43,7 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 | `estado_operador` | Unity → J2 | Cada tick y al cambiar | `cargas`, `max_cargas`, `trampas[]`, `progreso`, `necesario`, `habilidad_puppet`, `ventana_rescate_s`, `multa_factor` |
 | `ping_operador` | J2 → Unity | Cada 2 s | `t` |
 | `pong_operador` | Unity → J2 | Al recibir un ping | `t` (el mismo) |
+| `game_over` | Unity → J2 (y tablet) | Al terminar la partida (`loss`, `win` o `final_victory`) | `result`, `night`, `final_stats` (duración, tareas). La página muestra el fin con «Esperar otra partida» y «Salir», y vuelve sola a esperar cuando llega el siguiente `mapa_puntos` |
 | `accion_operador` | J2 → Unity | Nuevas acciones | `accion: "trampa"` + `punto`, o `accion: "rescatar_puppet"`; todas con `id` |
 | `mini_tarea_inicio` / `mini_tarea_fin` | J2 → Unity | Empieza y termina la mini-tarea de recarga | — |
 
