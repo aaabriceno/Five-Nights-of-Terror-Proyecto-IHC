@@ -3,7 +3,7 @@
 Hace de operador: manda `n` pings (`ping_operador`) y mide cuánto tarda cada
 `pong_operador` (ida y vuelta: operador → relay → Unity → relay → operador).
 Si hay partida en curso, mide también cada cuánto llegan las `posiciones`
-(deben ser unas 20 por segundo, cada ~50 ms).
+(deben ser unas 30 por segundo, cada ~33 ms).
 
 Meta: percentil 95 del ping menor a 50 ms en red local. Sale con código 1 si
 no se cumple, 2 si no llegó ningún pong.
