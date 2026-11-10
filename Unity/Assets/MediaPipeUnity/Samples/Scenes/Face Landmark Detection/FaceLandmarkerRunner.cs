@@ -40,8 +40,33 @@ namespace Mediapipe.Unity.Sample.FaceLandmarkDetection
 
       yield return AssetLoader.PrepareAssetAsync(config.ModelPath);
 
-      var options = config.GetFaceLandmarkerOptions(config.RunningMode == Tasks.Vision.Core.RunningMode.LIVE_STREAM ? OnFaceLandmarkDetectionOutput : null);
-      taskApi = FaceLandmarker.CreateFromOptions(options, GpuManager.GpuResources);
+      // La GPU es lo normal, pero no siempre sirve: en una PC sin tarjeta (render por
+      // software) la CPU es más rápida, y con la tarjeta NVIDIA de una laptop híbrida
+      // MediaPipe no consigue su contexto EGL ("kGpuService ... eglMakeCurrent()
+      // returned error") y sin cara detectada Freddy nunca se congela. Por eso se
+      // pasa a la CPU, que funciona en cualquier PC, en vez de dejar al juego ciego.
+      if (config.Delegate == Tasks.Core.BaseOptions.Delegate.GPU &&
+          PerfilDeVideo.MediaPipeDebeUsarLaCpu(SystemInfo.graphicsDeviceName, System.Environment.GetCommandLineArgs()))
+      {
+        Debug.Log($"MediaPipe: se usa la CPU (tarjeta: {SystemInfo.graphicsDeviceName}).");
+        config.Delegate = Tasks.Core.BaseOptions.Delegate.CPU;
+      }
+
+      FaceLandmarkerOptions options;
+      var resultCallback = config.RunningMode == Tasks.Vision.Core.RunningMode.LIVE_STREAM ? (FaceLandmarkerOptions.ResultCallback)OnFaceLandmarkDetectionOutput : null;
+      try
+      {
+        options = config.GetFaceLandmarkerOptions(resultCallback);
+        taskApi = FaceLandmarker.CreateFromOptions(options, config.Delegate == Tasks.Core.BaseOptions.Delegate.GPU ? GpuManager.GpuResources : null);
+      }
+      catch (System.Exception error) when (config.Delegate == Tasks.Core.BaseOptions.Delegate.GPU)
+      {
+        Debug.LogWarning($"MediaPipe no pudo usar la GPU ({error.GetType().Name}); se reintenta con la CPU.");
+        config.Delegate = Tasks.Core.BaseOptions.Delegate.CPU;
+        options = config.GetFaceLandmarkerOptions(resultCallback);
+        taskApi = FaceLandmarker.CreateFromOptions(options, null);
+        Debug.Log("MediaPipe: la detección de la cara corre en la CPU.");
+      }
       var imageSource = ImageSourceProvider.ImageSource;
 
       yield return imageSource.Play();
