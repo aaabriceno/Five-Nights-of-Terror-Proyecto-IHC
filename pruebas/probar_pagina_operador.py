@@ -327,6 +327,15 @@ async def principal(captura):
         comprobar("el panel del jugador 1 dice hacia dónde mira su cámara",
                   await esperar(lambda: (navegador.texto("j1-camara") or "") == "Izquierda 45°", 4.0))
 
+        # --- el jugador 1 pierde el Wi-Fi un momento: no es el fin de la partida ---
+        sin_j1 = "var r=document.getElementById('j1-sin-conexion');return !!r && !r.hidden;"
+        ORDENES.put_nowait(("raw", {"type": "jugador1_salio", "motivo": "conexion_perdida"}))
+        comprobar("si el jugador 1 pierde la conexión, la página lo avisa sin dar la partida por terminada",
+                  await esperar(lambda: js(sin_j1) and not js(visible)
+                                and "SIN CONEXI" in (navegador.texto("j1-sin-conexion") or "").upper(), 4.0))
+        ORDENES.put_nowait(("raw", {"type": "jugador1_volvio"}))
+        comprobar("cuando el jugador 1 vuelve, el aviso desaparece", await esperar(lambda: not js(sin_j1), 4.0))
+
         # --- la guía: la ruta de cada animatrónico ---
         comprobar("el panel muestra la ruta de Freddy como guía",
                   await esperar(lambda: (navegador.texto("ruta-freddy") or "") == "Ruta: Punto0 → Punto1 → Punto2", 4.0))
