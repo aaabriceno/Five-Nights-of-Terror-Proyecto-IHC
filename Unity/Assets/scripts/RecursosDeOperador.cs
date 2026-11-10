@@ -104,11 +104,30 @@ public class PresenciaDeOperador
 {
     public const float SegundosParaDarloPorCaido = 6f;
 
+    /// Qué le pasó al compañero desde la última vez que se preguntó. Sirve para
+    /// avisar al jugador 1 una sola vez por cada entrada o caída.
+    public enum Cambio { SinCambio, Conectado, Perdido }
+
     private float ultimoLatido = float.NegativeInfinity;
+    private bool estabaVivo;
 
     public void Latir(float ahora) { ultimoLatido = ahora; }
 
     public bool EstaVivo(float ahora) { return ahora - ultimoLatido <= SegundosParaDarloPorCaido; }
 
-    public void Reiniciar() { ultimoLatido = float.NegativeInfinity; }
+    public void Reiniciar() { ultimoLatido = float.NegativeInfinity; estabaVivo = false; }
+
+    /// Pregúntalo cada cuadro: devuelve Conectado o Perdido solo en el cuadro
+    /// en que cambia el estado, y SinCambio el resto del tiempo.
+    public Cambio RevisarCambio(float ahora)
+    {
+        bool vivo = EstaVivo(ahora);
+        if (vivo == estabaVivo) return Cambio.SinCambio;
+        estabaVivo = vivo;
+        return vivo ? Cambio.Conectado : Cambio.Perdido;
+    }
+
+    /// Al empezar una partida: lo que ya había (un compañero conectado de
+    /// antes) se vuelve a anunciar, para que la tablet de esa partida lo sepa.
+    public void OlvidarCambio() { estabaVivo = false; }
 }
