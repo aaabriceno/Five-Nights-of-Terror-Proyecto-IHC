@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import websockets
@@ -228,12 +229,135 @@ async def caso_operador_vuelve_dentro_del_tiempo():
                       await tipo_recibido(operador, 0.5) != "operador_rechazado")
 
 
+async def caso_la_tablet_vuelve_sin_reiniciar_la_noche():
+    print("Caso 10: la tablet se cae y vuelve con reconnect (no reinicia la noche)")
+    async with websockets.connect(URL) as unity:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+            await tipo_recibido(unity, 0.5)                       # el operador_connect que le pasa el relay
+            tablet = await websockets.connect(URL)
+            await tablet.send(CONNECT_TUTORIAL)
+            comprobar("Unity recibe el connect de la tablet", await tipo_recibido(unity, 1.0) == "connect")
+            await tablet.close()                                  # se cae sin despedirse
+            comprobar("al caerse la tablet sin despedirse, Unity recibe tablet_caida",
+                      await tipo_recibido(unity, 1.0) == "tablet_caida")
+            await tipo_recibido(operador, 0.5)                    # jugador1_salio (conexion_perdida)
+
+            async with websockets.connect(URL) as tablet2:
+                await tablet2.send(json.dumps({"type": "reconnect", "device": "tablet", "modo": "continuar"}))
+                recibido = await recibir_o_nada(unity, 1.0)
+                comprobar("Unity recibe reconnect (y no un connect, que reiniciaría la noche)",
+                          recibido is not None and json.loads(recibido).get("type") == "reconnect")
+                comprobar("el operador se entera de que el jugador 1 volvió (jugador1_volvio)",
+                          await tipo_recibido(operador, 1.0) == "jugador1_volvio")
+
+        # El reconnect no pisa el connect guardado para un Unity que se abra después.
+        async with websockets.connect(URL) as tablet_a:
+            await tablet_a.send(json.dumps({"type": "connect", "device": "tablet", "modo": "tutorial", "marca": "original"}))
+            await asyncio.sleep(0.2)
+            async with websockets.connect(URL) as tablet_b:
+                await tablet_b.send(json.dumps({"type": "reconnect", "device": "tablet", "modo": "continuar"}))
+                await asyncio.sleep(0.2)
+                async with websockets.connect(URL) as unity_nuevo:
+                    await unity_nuevo.send(json.dumps({"type": "unity_connect"}))
+                    recibido = await recibir_o_nada(unity_nuevo, 1.0)
+                    guardado = json.loads(recibido) if recibido else {}
+                    comprobar("un Unity que se abre después recibe el connect original, no el reconnect",
+                              guardado.get("type") == "connect" and guardado.get("marca") == "original")
+
+    print("Caso 11: despedirse a propósito no cuenta como caída")
+    async with websockets.connect(URL) as unity:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        async with websockets.connect(URL) as tablet:
+            await tablet.send(CONNECT_TUTORIAL)
+            await tipo_recibido(unity, 0.5)
+            await tablet.send(json.dumps({"type": "disconnect"}))
+            comprobar("con disconnect, Unity recibe disconnect", await tipo_recibido(unity, 1.0) == "disconnect")
+        comprobar("y no recibe tablet_caida", await tipo_recibido(unity, 0.6) is None)
+
+
+async def caso_una_tablet_muda_se_detecta_pronto():
+    print("Caso 12: una tablet que se queda sin Wi-Fi (no contesta los ping) se detecta pronto")
+    import importlib.util
+    especificacion = importlib.util.spec_from_file_location("relay_para_leer", RAIZ / "UnityRelay" / "relay.py")
+    relay_modulo = importlib.util.module_from_spec(especificacion)
+    especificacion.loader.exec_module(relay_modulo)
+    peor_caso = relay_modulo.PING_INTERVALO_S + relay_modulo.PING_TIMEOUT_S + relay_modulo.CIERRE_TIMEOUT_S
+    comprobar(f"por defecto el relay tarda como mucho 12 s en darla por perdida ({relay_modulo.PING_INTERVALO_S:g} + {relay_modulo.PING_TIMEOUT_S:g} + {relay_modulo.CIERRE_TIMEOUT_S:g} s = {peor_caso:g} s)",
+              peor_caso <= 12)
+    async with websockets.connect(URL) as unity:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        async with websockets.connect(URL, ping_interval=None) as tablet:
+            await tablet.send(CONNECT_TUTORIAL)
+            await tipo_recibido(unity, 0.5)
+            tablet.transport.pause_reading()                      # deja de leer: no contesta los ping del relay
+            comprobar("sin contestar los ping, el relay avisa a Unity (tablet_caida) en pocos segundos",
+                      await tipo_recibido(unity, 4.0) == "tablet_caida")
+
+
+async def caso_un_cliente_lento_no_frena_a_los_demas():
+    print("Caso 13: una tablet que no lee no frena a los demás")
+    async with websockets.connect(URL) as unity:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+            await tipo_recibido(unity, 0.5)
+            tablet = await websockets.connect(URL, ping_interval=None, max_queue=1)
+            await tablet.send(CONNECT_TUTORIAL)
+            await tipo_recibido(unity, 0.5)
+            tablet.transport.pause_reading()                  # se queda sin leer (Wi-Fi caído, app congelada)
+
+            llegadas = []
+
+            async def leer():
+                async for crudo in operador:
+                    if json.loads(crudo).get("type") == "estado_puppet":
+                        llegadas.append(time.perf_counter())
+
+            lector = asyncio.ensure_future(leer())
+            # Unity manda 20 mensajes por segundo (de los que también reciben las tablets).
+            relleno = "x" * 2000
+            unity_cerrada = False
+            try:
+                for i in range(120):
+                    await unity.send(json.dumps({"type": "estado_puppet", "n": i, "relleno": relleno}))
+                    await asyncio.sleep(0.05)
+            except websockets.exceptions.ConnectionClosed:
+                unity_cerrada = True
+            await asyncio.sleep(0.3)
+            lector.cancel()
+            huecos = [b - a for a, b in zip(llegadas, llegadas[1:])] or [99.0]
+            print(f"  llegaron {len(llegadas)} de 120 al operador; el mayor hueco entre dos fue de {max(huecos) * 1000:.0f} ms")
+            comprobar("el relay no le cierra la conexión a Unity (antes, con la tablet atascada, dejaba de leerla y la daba por perdida)",
+                      not unity_cerrada)
+            comprobar("al operador le llegan todos los mensajes de Unity", len(llegadas) == 120)
+            comprobar("y ninguno se atrasa más de 0,5 s por culpa de la tablet que no lee (antes se quedaba esperando a que la cerraran)",
+                      max(huecos) < 0.5)
+            tablet.transport.resume_reading()
+            await tablet.close()
+
+
+async def con_relay(entorno, caso):
+    """Corre `caso` con un relay propio (otras esperas de keepalive que el de las demás pruebas)."""
+    relay = subprocess.Popen([sys.executable, "-u", str(RAIZ / "UnityRelay" / "relay.py")],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, **entorno})
+    try:
+        if not await esperar_relay():
+            print("El relay no arrancó (¿puerto 8000 ocupado?).")
+            return
+        await caso()
+    finally:
+        relay.terminate()
+        relay.wait()
+
+
 async def principal():
     relay = subprocess.Popen(
         [sys.executable, "-u", str(RAIZ / "UnityRelay" / "relay.py")],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        env={**os.environ, "VENTANA_OPERADOR_S": "1.5"},
+        env={**os.environ, "VENTANA_OPERADOR_S": "1.5", "PING_INTERVALO_S": "0.4", "PING_TIMEOUT_S": "0.4", "CIERRE_TIMEOUT_S": "0.4"},
     )
     try:
         if not await esperar_relay():
@@ -248,9 +372,15 @@ async def principal():
         await caso_tipos_nuevos_solo_al_operador()
         await caso_avisos_de_que_el_jugador_1_se_fue()
         await caso_operador_vuelve_dentro_del_tiempo()
+        await caso_la_tablet_vuelve_sin_reiniciar_la_noche()
+        await caso_una_tablet_muda_se_detecta_pronto()
     finally:
         relay.terminate()
         relay.wait()
+    await asyncio.sleep(0.5)
+    # Con el cierre de 2 s se nota si cerrar a un cliente que no contesta frena a los demás.
+    await con_relay({"PING_INTERVALO_S": "0.5", "PING_TIMEOUT_S": "0.5", "CIERRE_TIMEOUT_S": "2"},
+                    caso_un_cliente_lento_no_frena_a_los_demas)
     print()
     print("Todas las pruebas pasaron." if fallos == 0 else f"{fallos} prueba(s) fallaron.")
     return 1 if fallos else 0
