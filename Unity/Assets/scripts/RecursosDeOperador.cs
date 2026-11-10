@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 
 /// <summary>
-/// Lo que el jugador 2 (operador) tiene y gasta: cargas de trampa, el progreso
-/// hacia la habilidad de rescatar a Puppet y las trampas puestas en el mapa.
+/// Lo que el jugador 2 (operador) tiene y gasta: cargas de trampa, la
+/// habilidad de rescatar a Puppet y las trampas puestas en el mapa. Las gana
+/// resolviendo las tareas de la terminal (ver TareasDeOperador): un cálculo da
+/// 1 carga y un circuito lógico desbloquea el rescate.
 /// Vive aparte, sin UnityEngine, para probarla fuera del editor; el tiempo lo
 /// pone quien la llama (p. ej. `Time.time`).
 ///
@@ -11,17 +13,14 @@ using System.Collections.Generic;
 public class RecursosDeOperador
 {
     public enum ResultadoTrampa { Colocada, SinCargas, PuntoOcupado, PuntoInvalido }
-    public enum ResultadoMiniTarea { Aceptada, MuyRapida, SinInicio }
 
     /// Cuánto se queda quieto un animatrónico al pisar una trampa.
     public const float SegundosDeTrampa = 6f;
     public const int CargasIniciales = 1;
     public const int MaxCargas = 3;
-    /// Mini-tareas que hacen falta para desbloquear el rescate de Puppet.
-    public const int MiniTareasParaHabilidad = 3;
-    /// Menos que esto desde el inicio es imposible de hacer a mano: Unity lo
-    /// rechaza para que la página no pueda fingir la mini-tarea.
-    public const float MinimoSegundosMiniTarea = 3f;
+    /// Circuitos lógicos que hacen falta para desbloquear el rescate de Puppet
+    /// (antes eran 3 mini-tareas iguales de memoria).
+    public const int CircuitosParaHabilidad = 1;
 
     /// Con un segundo jugador que ayuda, los animatrónicos son más agresivos:
     /// el intervalo entre avances se multiplica por este factor (menor = más
@@ -44,11 +43,12 @@ public class RecursosDeOperador
     }
 
     private readonly HashSet<string> trampas = new HashSet<string>();
-    private float inicioDeMiniTarea = -1f;
 
     public int Cargas { get; private set; }
+    /// Circuitos resueltos hacia el rescate de Puppet (0 hasta CircuitosParaHabilidad).
     public int Progreso { get; private set; }
-    public bool HabilidadPuppet { get { return Progreso >= MiniTareasParaHabilidad; } }
+    public bool CargasLlenas { get { return Cargas >= MaxCargas; } }
+    public bool HabilidadPuppet { get { return Progreso >= CircuitosParaHabilidad; } }
     public IReadOnlyCollection<string> Trampas { get { return trampas; } }
 
     public RecursosDeOperador() { Reiniciar(); }
@@ -58,7 +58,6 @@ public class RecursosDeOperador
         Cargas = CargasIniciales;
         Progreso = 0;
         trampas.Clear();
-        inicioDeMiniTarea = -1f;
     }
 
     public ResultadoTrampa ColocarTrampa(string punto, bool puntoValido)
@@ -74,17 +73,11 @@ public class RecursosDeOperador
     /// Quita la trampa si existe. Devuelve true si había una.
     public bool DispararTrampa(string punto) { return trampas.Remove(punto); }
 
-    public void IniciarMiniTarea(float ahora) { inicioDeMiniTarea = ahora; }
+    /// Un cálculo bien resuelto: 1 carga de trampa (sin pasar del máximo).
+    public void GanarCargaPorCalculo() { if (Cargas < MaxCargas) Cargas++; }
 
-    public ResultadoMiniTarea CompletarMiniTarea(float ahora)
-    {
-        if (inicioDeMiniTarea < 0f) return ResultadoMiniTarea.SinInicio;
-        if (ahora - inicioDeMiniTarea < MinimoSegundosMiniTarea) return ResultadoMiniTarea.MuyRapida;
-        inicioDeMiniTarea = -1f;
-        if (Cargas < MaxCargas) Cargas++;
-        Progreso++;
-        return ResultadoMiniTarea.Aceptada;
-    }
+    /// Un circuito bien resuelto: acerca (o da) el rescate de Puppet.
+    public void GanarHabilidadPorCircuito() { if (Progreso < CircuitosParaHabilidad) Progreso++; }
 
     /// Usa la habilidad de rescatar a Puppet: hay que volver a ganarla.
     public bool GastarHabilidadPuppet()
