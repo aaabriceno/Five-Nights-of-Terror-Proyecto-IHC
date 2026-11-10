@@ -83,6 +83,33 @@ public class UnityGameSessionController : MonoBehaviour
     // Jugador 2 (operador): ver docs/PROTOCOLO_JUGADOR2.md
     [Serializable] private class AccionOperadorMessage { public string type; public string accion; public string objetivo; public string punto; public int id; }
 
+    // Las tareas de la terminal del jugador 2 (ver TareasDeOperador).
+    [Serializable] private class TareaPedirMessage { public string type; public string tipo; }
+    [Serializable] private class TareaRespuestaMessage { public string type; public int id; public int valor; public int[] interruptores; }
+    [Serializable] private class PuertaMessage { public string id; public string op; public string a; public string b; }
+    [Serializable] private class TareaMessage
+    {
+        public string type = "tarea";
+        public int id;
+        public string tipo;          // "calculo" o "circuito"
+        public int noche;
+        public string clase;
+        public string enunciado;
+        public string[] datos;
+        public string[] entradas;
+        public PuertaMessage[] puertas;
+        public string salida;
+        public bool objetivo;
+    }
+    [Serializable] private class TareaResultadoMessage
+    {
+        public string type = "tarea_resultado";
+        public int id;
+        public string tipo;
+        public bool correcto;
+        public float bloqueo_s;
+    }
+
     [Serializable] private class PuntoDeMapa { public string nombre; public float x; public float z; }
 
     /// El camino fijo de un animatrónico, punto por punto: la guía del jugador 2.
@@ -175,6 +202,7 @@ public class UnityGameSessionController : MonoBehaviour
         public int progreso;
         public int necesario;
         public bool habilidad_puppet;
+        public float bloqueo_s;      // lo que falta para que la terminal vuelva a entregar tareas tras un error
         public float ventana_rescate_s;
         public float multa_factor;
         public float segundos_caja = 30f;
@@ -347,6 +375,7 @@ public class UnityGameSessionController : MonoBehaviour
     // Jugador 2 (operador)
     private readonly FrenoDeOperador freno = new FrenoDeOperador();
     private readonly RecursosDeOperador recursos = new RecursosDeOperador();
+    private readonly TareasDeOperador tareas = new TareasDeOperador(new System.Random());
     private readonly PresenciaDeOperador presencia = new PresenciaDeOperador();
     private readonly RescateDePuppet rescate = new RescateDePuppet();
     // Cámara del jugador 1: la mueve desde la tablet (botones izquierda/derecha).
@@ -620,11 +649,11 @@ public class UnityGameSessionController : MonoBehaviour
                 case "camara":
                     if (partidaActiva) camara.Ordenar(JsonUtility.FromJson<CamaraMessage>(json).direccion, Time.time);
                     break;
-                case "mini_tarea_inicio":
-                    recursos.IniciarMiniTarea(Time.time);
+                case "tarea_pedir":
+                    AtenderPedidoDeTarea(JsonUtility.FromJson<TareaPedirMessage>(json));
                     break;
-                case "mini_tarea_fin":
-                    AtenderFinDeMiniTarea();
+                case "tarea_respuesta":
+                    AtenderRespuestaDeTarea(JsonUtility.FromJson<TareaRespuestaMessage>(json));
                     break;
                 case "ping_operador":
                     presencia.Latir(Time.time);
@@ -755,6 +784,7 @@ public class UnityGameSessionController : MonoBehaviour
 
         freno.Reiniciar();
         recursos.Reiniciar();
+        tareas.Reiniciar();
         CentrarCamara();
         QuitarTodasLasTrampas();
         rescate.Reiniciar();
@@ -1269,8 +1299,9 @@ public class UnityGameSessionController : MonoBehaviour
             max_cargas = RecursosDeOperador.MaxCargas,
             trampas = new List<string>(recursos.Trampas).ToArray(),
             progreso = recursos.Progreso,
-            necesario = RecursosDeOperador.MiniTareasParaHabilidad,
+            necesario = RecursosDeOperador.CircuitosParaHabilidad,
             habilidad_puppet = recursos.HabilidadPuppet,
+            bloqueo_s = tareas.SegundosDeBloqueo(Time.time),
             ventana_rescate_s = rescate.SegundosRestantes(Time.time),
             multa_factor = rescate.FactorDeDescarga,
             segundos_caja = rescate.SegundosParaVaciarLaCaja
@@ -1488,20 +1519,71 @@ public class UnityGameSessionController : MonoBehaviour
         }
     }
 
-    private void AtenderFinDeMiniTarea()
+    private void RechazarTarea(string motivo, float espera = 0f)
     {
-        if (!partidaActiva)
+        Send(new AccionRechazadaMessage { objetivo = "tarea", motivo = motivo, espera_s = espera });
+    }
+
+    /// El jugador 2 abre una tarea de la terminal. Unity la inventa según la
+    /// noche; si ya tenía una abierta del mismo tipo, es la misma.
+    private void AtenderPedidoDeTarea(TareaPedirMessage pedido)
+    {
+        if (!partidaActiva) { RechazarTarea("sin_partida"); return; }
+        TareasDeOperador.Tipo tipo;
+        if (pedido == null || pedido.tipo == "calculo") tipo = TareasDeOperador.Tipo.Calculo;
+        else if (pedido.tipo == "circuito") tipo = TareasDeOperador.Tipo.Circuito;
+        else { RechazarTarea("tarea_desconocida"); return; }
+
+        // No tiene sentido ganar lo que ya está lleno o ganado.
+        if (tipo == TareasDeOperador.Tipo.Calculo && recursos.CargasLlenas) { RechazarTarea("cargas_llenas"); return; }
+        if (tipo == TareasDeOperador.Tipo.Circuito && recursos.HabilidadPuppet) { RechazarTarea("habilidad_lista"); return; }
+
+        TareasDeOperador.Tarea tarea = tareas.Pedir(tipo, noche, Time.time);
+        if (tarea == null) { RechazarTarea("bloqueado", tareas.SegundosDeBloqueo(Time.time)); return; }
+
+        var mensaje = new TareaMessage
         {
-            Send(new AccionRechazadaMessage { objetivo = "mini_tarea", motivo = "sin_partida" });
-            return;
+            id = tarea.id,
+            tipo = tipo == TareasDeOperador.Tipo.Calculo ? "calculo" : "circuito",
+            noche = tarea.noche,
+            clase = tarea.clase,
+            enunciado = tarea.enunciado,
+            datos = tarea.datos,
+            entradas = tarea.entradas,
+            salida = tarea.salida,
+            objetivo = tarea.objetivo
+        };
+        if (tarea.puertas != null)
+        {
+            mensaje.puertas = new PuertaMessage[tarea.puertas.Length];
+            for (int i = 0; i < tarea.puertas.Length; i++)
+                mensaje.puertas[i] = new PuertaMessage { id = tarea.puertas[i].id, op = tarea.puertas[i].op, a = tarea.puertas[i].a, b = tarea.puertas[i].b };
         }
-        RecursosDeOperador.ResultadoMiniTarea resultado = recursos.CompletarMiniTarea(Time.time);
-        if (resultado == RecursosDeOperador.ResultadoMiniTarea.Aceptada) { PublicarEstadoOperador(); return; }
-        Send(new AccionRechazadaMessage
+        Send(mensaje);
+    }
+
+    /// Unity comprueba la respuesta. Acertar da la carga (cálculo) o el rescate
+    /// (circuito); fallar bloquea la terminal unos segundos.
+    private void AtenderRespuestaDeTarea(TareaRespuestaMessage respuesta)
+    {
+        if (!partidaActiva) { RechazarTarea("sin_partida"); return; }
+        if (respuesta == null) { RechazarTarea("tarea_sin_pedir"); return; }
+
+        TareasDeOperador.Tarea tarea = tareas.Pendiente;
+        string tipo = tarea != null && tarea.tipo == TareasDeOperador.Tipo.Circuito ? "circuito" : "calculo";
+        switch (tareas.Responder(respuesta.id, respuesta.valor, respuesta.interruptores, Time.time))
         {
-            objetivo = "mini_tarea",
-            motivo = resultado == RecursosDeOperador.ResultadoMiniTarea.MuyRapida ? "mini_tarea_muy_rapida" : "mini_tarea_sin_inicio"
-        });
+            case TareasDeOperador.ResultadoRespuesta.SinTarea: RechazarTarea("tarea_sin_pedir"); return;
+            case TareasDeOperador.ResultadoRespuesta.MuyRapida: RechazarTarea("tarea_muy_rapida"); return;
+            case TareasDeOperador.ResultadoRespuesta.Correcta:
+                if (tipo == "calculo") recursos.GanarCargaPorCalculo(); else recursos.GanarHabilidadPorCircuito();
+                Send(new TareaResultadoMessage { id = respuesta.id, tipo = tipo, correcto = true });
+                break;
+            default:
+                Send(new TareaResultadoMessage { id = respuesta.id, tipo = tipo, correcto = false, bloqueo_s = tareas.SegundosDeBloqueo(Time.time) });
+                break;
+        }
+        PublicarEstadoOperador();
     }
 
     /// Cuando Puppet sale de su caja se abre la ventana de rescate y se queda
