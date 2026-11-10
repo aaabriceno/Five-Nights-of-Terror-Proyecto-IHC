@@ -7,7 +7,7 @@
 
   // Posición mostrada de un animatrónico. Se dibuja un poco "en el pasado"
   // (retrasoMs) para tener siempre dos muestras entre las que interpolar:
-  // el movimiento sale continuo aunque lleguen 20 mensajes por segundo.
+  // el movimiento sale continuo aunque lleguen 30 mensajes por segundo.
   // muestras: [{t, x, z}] ordenadas por t (milisegundos).
   function suavizar(muestras, ahoraMs, retrasoMs) {
     if (retrasoMs === undefined) retrasoMs = 60;
