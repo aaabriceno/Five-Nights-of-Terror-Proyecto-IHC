@@ -113,6 +113,15 @@ if [ -f "$RAIZ/UnityRelay/operador/operador.html" ] && [ -x "$PYTHON_RELAY" ]; t
   fi
 fi
 
+# En laptops con dos tarjetas gráficas (integrada + NVIDIA) Linux abre el juego
+# en la integrada por defecto. Con esta escena y la pantalla a 2560x1600 iba a
+# ~20 cuadros por segundo, y como Unity atiende la red una vez por cuadro, el
+# ping del jugador 2 era de ~40 ms; en la NVIDIA baja a ~8 ms. Se pide que el
+# juego use la NVIDIA solo si hay una (SIN_TARJETA_NVIDIA=1 lo desactiva).
+if [ -z "${SIN_TARJETA_NVIDIA:-}" ] && command -v nvidia-smi >/dev/null && nvidia-smi -L >/dev/null 2>&1; then
+  export __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only
+fi
+
 # En segundo plano + wait: así una señal interrumpe la espera y el trap corre
 # enseguida, en vez de esperar a que el juego termine por su cuenta.
 "$JUEGO" 9>&- &
