@@ -183,12 +183,12 @@ async def principal():
             comprobar("estado_mapa marca a Vixy como retrasada y en espera",
                       vixy is not None and vixy["retraso_s"] > 0 and vixy["espera_s"] > 0)
 
-            # --- J1 -> J2: posiciones a 20 Hz, estado del jugador, estado del operador, pong ---
+            # --- J1 -> J2: posiciones a 30 Hz, estado del jugador, estado del operador, pong ---
             await operador.send(json.dumps({"type": "ping_operador", "t": 123}))
             recibidos = await recolectar(operador, 2.0)
             tipos = [m.get("type") for m in recibidos]
-            comprobar(f"llegan al menos 30 mensajes posiciones en 2 s (llegaron {tipos.count('posiciones')})",
-                      tipos.count("posiciones") >= 30)
+            comprobar(f"llegan al menos 50 mensajes posiciones en 2 s: a 30 Hz son ~60 (llegaron {tipos.count('posiciones')})",
+                      tipos.count("posiciones") >= 50)
             jugador_estado = next((m for m in recibidos if m.get("type") == "estado_jugador"), None)
             comprobar("llega estado_jugador con sus 4 datos",
                       jugador_estado is not None and all(
