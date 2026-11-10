@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../config/player_identity.dart';
 import '../models/attack.dart';
+import '../models/aviso_de_companero.dart';
 import '../models/game_session.dart';
 import '../models/task.dart';
 import '../services/mock_server_service.dart';
@@ -30,6 +31,10 @@ class GameProvider extends ChangeNotifier {
   /// notificar nada desde el cliente.
   MockServerService? mockServidor;
 
+  /// Asignado por GameScreen para vibrar cuando el compañero hace algo. Se
+  /// llama una vez por cada `efecto` que se entiende.
+  void Function(AvisoDeCompanero)? alAvisoDeCompanero;
+
   void handleMessage(Map<String, dynamic> message) {
     final String type = message['type'] as String;
     switch (type) {
@@ -58,6 +63,14 @@ class GameProvider extends ChangeNotifier {
         session.puppetEnPeligro = message['en_peligro'] as bool;
         session.puppetValorCajaPorcentaje =
             (message['valor_caja_porcentaje'] as int).clamp(0, 100);
+        // Un Unity sin multa no manda el campo: la caja va a su ritmo.
+        session.multaDeCaja =
+            (((message['multa_factor'] as num?) ?? 1).toDouble()).clamp(1.0, 1000.0);
+        final double segundosCaja = ((message['segundos_caja'] as num?) ?? 0).toDouble();
+        session.segundosDeCaja = segundosCaja > 0 ? segundosCaja : null;
+        break;
+      case 'efecto':
+        _recibirEfecto(message);
         break;
       case 'game_over':
         ultimaNocheDeGameOver = (message['night'] as int?) ?? session.nocheActual;
@@ -74,6 +87,28 @@ class GameProvider extends ChangeNotifier {
         appLogger.w('Unhandled message type: $type');
     }
     notifyListeners();
+  }
+
+  /// Lo que hace el jugador 2 (retrasar, trampa, rescate) o su presencia
+  /// (entra, se cae): Unity lo manda como `efecto` y aquí se vuelve un aviso
+  /// para el jugador 1. El que no se entiende ni trae texto se ignora.
+  void _recibirEfecto(Map<String, dynamic> message) {
+    final AvisoDeCompanero? aviso = AvisoDeCompanero.deEfecto(message);
+    if (aviso == null) {
+      appLogger.w('Efecto sin tipo conocido ni texto: $message');
+      return;
+    }
+    session.avisoDeCompanero = aviso;
+    switch (aviso.tipo) {
+      case 'operador_conectado':
+        session.companeroConectado = true;
+      case 'operador_perdido':
+        session.companeroConectado = false;
+      case 'puppet_rescatado':
+        if (aviso.multaDeCaja > 1) session.multaDeCaja = aviso.multaDeCaja;
+        if (aviso.segundosDeCaja > 0) session.segundosDeCaja = aviso.segundosDeCaja;
+    }
+    alAvisoDeCompanero?.call(aviso);
   }
 
   /// Se llama cuando el jugador toca una tarjeta del menú de tareas para
@@ -105,6 +140,13 @@ class GameProvider extends ChangeNotifier {
   /// El jugador soltó el control de la caja de música de Puppet.
   void detenerDarCuerdaPuppet() {
     sendToServer?.call({'type': 'dar_cuerda_fin'});
+  }
+
+  /// El jugador mantiene apretado un botón de la cámara (-1 izquierda, 1
+  /// derecha) o lo suelta (0). Unity gira la cámara del juego mientras lleguen
+  /// órdenes; no hay nada que guardar aquí, la tablet solo avisa.
+  void mirarHacia(int direccion) {
+    sendToServer?.call({'type': 'camara', 'direccion': direccion});
   }
 
   void reportTaskCompleted({
