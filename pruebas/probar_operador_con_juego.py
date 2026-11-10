@@ -9,11 +9,16 @@ Uso: UnityRelay/.venv/bin/python pruebas/probar_operador_con_juego.py [ruta/al/F
 """
 import asyncio
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import websockets
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import solucionador_de_tareas as solucion  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent.parent
 URL = "ws://127.0.0.1:8000"
@@ -117,9 +122,19 @@ async def principal():
     relay = subprocess.Popen([sys.executable, "-u", str(RAIZ / "UnityRelay/relay.py")],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     juego = None
+    pantalla = None
+    entorno = dict(os.environ)
     try:
+        # En una pantalla virtual (Xvfb) y en ventana chica: la prueba no te tapa el escritorio. Xvfb dibuja
+        # por software y las posiciones salen una por cuadro, así que la ventana es chica para que lleguen a 30 por segundo.
+        if shutil.which("Xvfb"):
+            pantalla = subprocess.Popen(["Xvfb", ":97", "-screen", "0", "1280x720x24"],
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            entorno["DISPLAY"] = ":97"
+            await asyncio.sleep(1.5)
         await asyncio.sleep(1.0)
-        juego = subprocess.Popen([str(JUEGO)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        juego = subprocess.Popen([str(JUEGO), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"],
+                                 env=entorno, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         await asyncio.sleep(12.0)   # el juego tarda en abrir y conectarse al relay
 
         async with websockets.connect(URL, ping_interval=None, max_queue=None) as tablet, \
@@ -227,7 +242,7 @@ async def principal():
                 comprobar("un operador que reconecta recibe mapa, estado del mapa, del jugador y del operador",
                           {"mapa_puntos", "estado_mapa", "estado_jugador", "estado_operador"} <= inicial)
 
-            # --- trampas, mini-tarea de recarga y rescate de Puppet ---
+            # --- trampas, tareas de la terminal y rescate de Puppet ---
             # Los últimos puntos están lejos de donde nacen los animatrónicos: una trampa en
             # el punto de salida (P01, P02, P13) se dispara al instante y deja de estar ocupada.
             punto_a, punto_b = puntos["puntos"][-1]["nombre"], puntos["puntos"][-2]["nombre"]
@@ -248,21 +263,73 @@ async def principal():
             r = await esperar_respuesta(operador, 2)
             comprobar("sin cargas se rechaza (sin_cargas)", r is not None and r.get("motivo") == "sin_cargas")
 
-            await operador.send(json.dumps({"type": "mini_tarea_fin"}))
-            r = await esperar_tipo(operador, "accion_rechazada")
-            comprobar("terminar una mini-tarea sin iniciarla se rechaza",
-                      r is not None and r.get("motivo") == "mini_tarea_sin_inicio")
+            # --- terminal: un cálculo da 1 carga y un circuito lógico desbloquea el rescate ---
+            # Unity inventa el problema y comprueba la respuesta; aquí lo resuelve solucionador_de_tareas.
+            def pedir(tipo):
+                return operador.send(json.dumps({"type": "tarea_pedir", "tipo": tipo}))
 
-            await operador.send(json.dumps({"type": "mini_tarea_inicio"}))
-            await operador.send(json.dumps({"type": "mini_tarea_fin"}))
+            await operador.send(json.dumps({"type": "tarea_respuesta", "id": 999, "valor": 1}))
             r = await esperar_tipo(operador, "accion_rechazada")
-            comprobar("terminarla al instante se rechaza por muy rápida",
-                      r is not None and r.get("motivo") == "mini_tarea_muy_rapida")
+            comprobar("responder sin haber pedido una tarea se rechaza (tarea_sin_pedir)",
+                      r is not None and r.get("objetivo") == "tarea" and r.get("motivo") == "tarea_sin_pedir")
+            await pedir("raro")
+            r = await esperar_tipo(operador, "accion_rechazada")
+            comprobar("un tipo de tarea que no existe se rechaza (tarea_desconocida)",
+                      r is not None and r.get("motivo") == "tarea_desconocida")
 
+            await pedir("calculo")
+            calculo = await esperar_tipo(operador, "tarea")
+            comprobar("Unity entrega un cálculo con enunciado, clase y datos de la noche 1",
+                      calculo is not None and calculo["tipo"] == "calculo" and calculo["noche"] == 1
+                      and calculo["enunciado"] and calculo["clase"] in ("binario", "aritmetica") and calculo["datos"])
+            await pedir("calculo")
+            repetido = await esperar_tipo(operador, "tarea")
+            comprobar("pedirlo otra vez da el mismo problema (cerrar y abrir no sirve para buscar uno fácil)",
+                      repetido is not None and repetido["id"] == calculo["id"] and repetido["enunciado"] == calculo["enunciado"])
+            await operador.send(json.dumps(solucion.respuesta_para(calculo)))
+            r = await esperar_tipo(operador, "accion_rechazada")
+            comprobar("responderlo al instante se rechaza por muy rápido (tarea_muy_rapida)",
+                      r is not None and r.get("motivo") == "tarea_muy_rapida")
+            await asyncio.sleep(1.6)
+            equivocada = solucion.respuesta_para(calculo)
+            equivocada["valor"] += 1
+            await operador.send(json.dumps(equivocada))
+            resultado = await esperar_tipo(operador, "tarea_resultado")
+            comprobar("una respuesta equivocada es incorrecta y bloquea la terminal ~3 s",
+                      resultado is not None and resultado["correcto"] is False and 2.0 <= resultado["bloqueo_s"] <= 3.1)
+            await pedir("calculo")
+            r = await esperar_tipo(operador, "accion_rechazada")
+            comprobar("durante el bloqueo no se entrega otra tarea (bloqueado, con los segundos que faltan)",
+                      r is not None and r.get("motivo") == "bloqueado" and r.get("espera_s", 0) > 0)
             await asyncio.sleep(3.3)
-            await operador.send(json.dumps({"type": "mini_tarea_fin"}))
-            e = await esperar_estado_operador(operador, lambda m: m["cargas"] == 1 and m["progreso"] == 1)
-            comprobar("tras 3 s la mini-tarea se acepta: 1 carga y 1 de progreso", e is not None)
+            await pedir("calculo")
+            calculo = await esperar_tipo(operador, "tarea")
+            comprobar("pasado el bloqueo se entrega un problema nuevo", calculo is not None and calculo["id"] != repetido["id"])
+            await asyncio.sleep(1.6)
+            await operador.send(json.dumps(solucion.respuesta_para(calculo)))
+            resultado = await esperar_tipo(operador, "tarea_resultado")
+            comprobar("la respuesta correcta se acepta", resultado is not None and resultado["correcto"] is True)
+            e = await esperar_estado_operador(operador, lambda m: m["cargas"] == 1 and not m["habilidad_puppet"])
+            comprobar("y da 1 carga de trampa, sin desbloquear el rescate", e is not None)
+
+            await pedir("circuito")
+            circuito = await esperar_tipo(operador, "tarea")
+            comprobar("Unity entrega un circuito de la noche 1 (3 entradas y puertas encadenadas)",
+                      circuito is not None and circuito["tipo"] == "circuito" and len(circuito["entradas"]) == 3
+                      and len(circuito["puertas"]) >= 2 and circuito["salida"] == circuito["puertas"][-1]["id"])
+            comprobar("el circuito tiene solución", solucion.resolver_circuito(circuito) is not None)
+            await asyncio.sleep(3.3)
+            await operador.send(json.dumps(solucion.respuesta_para(circuito)))
+            resultado = await esperar_tipo(operador, "tarea_resultado")
+            comprobar("resolver el circuito se acepta", resultado is not None and resultado["correcto"] is True)
+            e = await esperar_estado_operador(operador, lambda m: m["habilidad_puppet"] and m["progreso"] == m["necesario"] == 1)
+            comprobar("y desbloquea el rescate de Puppet (1 circuito)", e is not None)
+            await pedir("circuito")
+            r = await esperar_tipo(operador, "accion_rechazada")
+            comprobar("con el rescate ya desbloqueado no se pide otro circuito (habilidad_lista)",
+                      r is not None and r.get("motivo") == "habilidad_lista")
+            comprobar("las tareas no llegan a la tablet (son solo del jugador 2)",
+                      all(m.get("type") not in ("tarea", "tarea_resultado") for m in await recolectar(tablet, 0.5)))
 
             await operador.send(accion(3, accion="trampa", punto="PuntoQueNoExiste"))
             r = await esperar_respuesta(operador, 3)
@@ -290,6 +357,9 @@ async def principal():
             juego.wait()
         relay.terminate()
         relay.wait()
+        if pantalla:
+            pantalla.terminate()
+            pantalla.wait()
     print()
     print("Todas las pruebas pasaron." if fallos == 0 else f"{fallos} prueba(s) fallaron.")
     return 1 if fallos else 0
