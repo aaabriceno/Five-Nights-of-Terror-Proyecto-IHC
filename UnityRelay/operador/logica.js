@@ -70,5 +70,53 @@
     return entrada.length === secuencia.length ? "completa" : "en curso";
   }
 
-  return { suavizar, crearMedidor, generarSecuencia, evaluarEntrada };
+  // "×2", "×4", "×1,5": el factor de la multa sin decimales sobrantes.
+  function formatearMulta(factor) {
+    const n = Number(factor);
+    return "×" + (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ","));
+  }
+
+  // "15", "7,5", "3,75": los segundos sin ceros de más.
+  function formatearSegundos(segundos) {
+    return String(Math.round(Number(segundos) * 100) / 100).replace(".", ",");
+  }
+
+  // Lo que el jugador 2 lee de un `efecto` de Unity, en segunda persona (el
+  // mismo mensaje lo lee el jugador 1 en su tablet como "tu compañero..."). Las
+  // palabras se arman aquí, con el tipo y los datos, no con el `message` de
+  // Unity, que está escrito para el jugador 1. "" = no hay nada que decirle.
+  function textoDeEfecto(m, nombres) {
+    const nombre = (nombres && nombres[m.animatronic]) || "un animatrónico";
+    switch (m.tipo || "ralentizado") {
+      case "ralentizado":
+        return "Retrasaste a " + nombre + (m.segundos > 0 ? " por " + Math.round(m.segundos) + " s" : "");
+      case "trampa_colocada":
+        return "Trampa puesta";
+      case "trampa_disparada":
+        return "Trampa: " + nombre + " atrapado";
+      case "puppet_rescatado":
+        if (m.segundos_caja > 0)
+          return "Rescataste a Puppet · la caja del jugador 1 ahora dura " + formatearSegundos(m.segundos_caja) + " s";
+        return "Rescataste a Puppet" + (m.multa_factor > 1
+          ? " · la caja del jugador 1 se descarga " + formatearMulta(m.multa_factor) + " más rápido" : "");
+      case "operador_conectado":
+      case "operador_perdido":
+        return "";
+    }
+    return m.message || "";
+  }
+
+  // La ruta de un animatrónico como texto: "P01 → P03 → P07".
+  function textoDeRuta(puntos) {
+    return Array.isArray(puntos) ? puntos.join(" → ") : "";
+  }
+
+  // Hacia dónde mira la cámara del jugador 1: 0 = al frente, negativo = izquierda.
+  function textoDeCamara(yaw) {
+    if (typeof yaw !== "number" || !isFinite(yaw)) return "–";
+    if (Math.abs(yaw) < 5) return "Al frente";
+    return (yaw < 0 ? "Izquierda " : "Derecha ") + Math.round(Math.abs(yaw)) + "°";
+  }
+
+  return { suavizar, crearMedidor, generarSecuencia, evaluarEntrada, textoDeEfecto, formatearMulta, textoDeRuta, textoDeCamara, formatearSegundos };
 });
