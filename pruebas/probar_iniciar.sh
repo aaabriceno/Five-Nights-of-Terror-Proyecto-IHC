@@ -116,6 +116,26 @@ comprobar "el segundo avisa que ya se está abriendo" grep -sq "ya se está abri
 wait "$PID_PRIMERO" 2>/dev/null
 comprobar "el puerto queda libre al cerrar el primero" esperar_puerto_libre
 
+echo "Caso 8: laptop con dos tarjetas gráficas (el juego debe abrirse en la NVIDIA)"
+# Un juego y un nvidia-smi falsos: el juego anota con qué variables lo abrió el script.
+cat > "$TEMP/juego_entorno.sh" <<'FIN'
+#!/usr/bin/env bash
+echo "${__NV_PRIME_RENDER_OFFLOAD:-no}/${__GLX_VENDOR_LIBRARY_NAME:-no}" > "$MARCA"
+FIN
+chmod +x "$TEMP/juego_entorno.sh"
+mkdir -p "$TEMP/bin_nvidia"
+printf '#!/usr/bin/env bash\necho "GPU 0: NVIDIA falsa"\n' > "$TEMP/bin_nvidia/nvidia-smi"
+chmod +x "$TEMP/bin_nvidia/nvidia-smi"
+PATH="$TEMP/bin_nvidia:$PATH" MARCA="$TEMP/marca8a" EJECUTABLE_JUEGO="$TEMP/juego_entorno.sh" \
+  REGISTRO_RELAY="$TEMP/relay8a.log" "$RAIZ/iniciar.sh" >/dev/null 2>&1
+comprobar "con una NVIDIA presente, el juego se abre con el render offload (sin esto usa la integrada y va a ~20 cuadros/s)" \
+  grep -sqx "1/nvidia" "$TEMP/marca8a"
+esperar_puerto_libre
+PATH="$TEMP/bin_nvidia:$PATH" SIN_TARJETA_NVIDIA=1 MARCA="$TEMP/marca8b" EJECUTABLE_JUEGO="$TEMP/juego_entorno.sh" \
+  REGISTRO_RELAY="$TEMP/relay8b.log" "$RAIZ/iniciar.sh" >/dev/null 2>&1
+comprobar "con SIN_TARJETA_NVIDIA=1 no se toca nada" grep -sqx "no/no" "$TEMP/marca8b"
+esperar_puerto_libre
+
 echo
 if [ "$FALLOS" -eq 0 ]; then
   echo "Todas las pruebas pasaron."
