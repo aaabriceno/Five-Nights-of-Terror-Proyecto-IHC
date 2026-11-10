@@ -135,8 +135,8 @@ async def caso_accion_del_operador_solo_a_unity():
 
 
 async def caso_tipos_nuevos_solo_al_operador():
-    print("Caso 7: posiciones, estado del jugador, estado del operador y pong solo al operador")
-    tipos = ["posiciones", "estado_jugador", "estado_operador", "pong_operador"]
+    print("Caso 7: posiciones, estado del jugador, estado del operador, pong y tareas solo al operador")
+    tipos = ["posiciones", "estado_jugador", "estado_operador", "pong_operador", "tarea", "tarea_resultado"]
     async with websockets.connect(URL) as unity, websockets.connect(URL) as tablet, \
             websockets.connect(URL) as operador:
         await unity.send(json.dumps({"type": "unity_connect"}))
