@@ -47,7 +47,9 @@
   let latido = null;
 
   let puntos = [];
+  let rutas = [];                     // [{animatronico, puntos: [nombres]}]: la guía de cada animatrónico
   let jugador = null;
+  let camaraYaw = null;               // hacia dónde mira el jugador 1 (grados; 0 = al frente); null = no se sabe
   let limites = null;
   const muestras = {};                // nombre -> [{t, x, z}], t = hora local de llegada
   let estadoMapa = { animatronicos: [], recibidoEn: 0 };
@@ -201,8 +203,10 @@
       case "mapa_puntos":
         if (finDePartida) reiniciarVista();          // empezó otra noche
         puntos = m.puntos || [];
+        rutas = m.rutas || [];
         jugador = m.jugador || null;
         limites = null;
+        pintarRutas();
         $("mapa").dataset.estado = "listo";
         break;
       case "posiciones": {
@@ -213,6 +217,11 @@
           if (lista.length > MUESTRAS_POR_ANIMATRONICO) lista.shift();
         }
         if (m.jugador) jugador = m.jugador;
+        if (typeof m.camara_yaw === "number") {
+          camaraYaw = m.camara_yaw;
+          const texto = Logica.textoDeCamara(camaraYaw);
+          if ($("j1-camara").textContent !== texto) $("j1-camara").textContent = texto;
+        }
         break;
       }
       case "estado_mapa":
@@ -227,6 +236,7 @@
         break;
       case "estado_operador":
         estadoOperador = m;
+        pintarJugador1();      // la multa de la caja vive en este mensaje
         ventanaDeRescateHasta = m.ventana_rescate_s > 0 ? performance.now() + m.ventana_rescate_s * 1000 : 0;
         pintarRecursos();
         break;
@@ -234,9 +244,13 @@
         medidor.registrar(Math.max(0, Date.now() - m.t));
         pintarLatencia();
         break;
-      case "efecto":
-        avisar(`${m.message || (NOMBRES[m.animatronic] || "Un animatrónico") + " se ralentizó"}`);
+      case "efecto": {
+        // El texto se arma aquí, para el jugador 2 ("Retrasaste a Freddy"); el
+        // `message` de Unity está escrito para el jugador 1.
+        const texto = Logica.textoDeEfecto(m, NOMBRES);
+        if (texto) avisar(texto);
         break;
+      }
       case "accion_rechazada":
         avisar(`${MOTIVOS[m.motivo] || "Acción rechazada."}${m.espera_s > 0 ? ` Faltan ${Math.ceil(m.espera_s)} s.` : ""}`);
         break;
@@ -287,14 +301,14 @@
     finDePartida = false;
     $("fin-partida").hidden = true;
     for (const nombre in muestras) delete muestras[nombre];
-    puntos = []; jugador = null; limites = null;
+    puntos = []; rutas = []; jugador = null; camaraYaw = null; limites = null;
     estadoMapa = { animatronicos: [], recibidoEn: 0 };
     estadoJugador = null; estadoOperador = null;
     ventanaDeRescateHasta = 0;
     $("mapa").dataset.estado = "esperando";
     $("noche").textContent = "–"; $("hora").textContent = "–";
-    for (const id of ["j1-mirada", "j1-tareas", "j1-caja", "cargas", "habilidad"]) $(id).textContent = "–";
-    for (const id of ["j1-mirada", "j1-tareas", "j1-caja", "habilidad"]) $(id).className = "valor";
+    for (const id of ["j1-mirada", "j1-camara", "j1-tareas", "j1-caja", "cargas", "habilidad"]) $(id).textContent = "–";
+    for (const id of ["j1-mirada", "j1-camara", "j1-tareas", "j1-caja", "habilidad"]) $(id).className = "valor";
     $("j1-caja-barra").style.transform = "scaleX(0)";
     $("lista-amenazas").textContent = "";
     actualizarBotones();
@@ -326,7 +340,11 @@
     mirada.className = "valor " + (e.mirando_pantalla ? "" : "alerta");
     $("j1-tareas").textContent = String(e.tareas_pendientes);
     $("j1-tareas").className = "valor grande " + (e.tareas_pendientes >= 3 ? "peligro" : e.tareas_pendientes > 0 ? "alerta" : "");
-    $("j1-caja").textContent = `${e.caja_pct} %${e.caja_en_peligro ? " · en peligro" : ""}`;
+    const multa = estadoOperador && estadoOperador.multa_factor > 1
+      ? (estadoOperador.segundos_caja > 0
+        ? ` · dura ${Logica.formatearSegundos(estadoOperador.segundos_caja)} s`
+        : ` · se descarga ${Logica.formatearMulta(estadoOperador.multa_factor)} más rápido`) : "";
+    $("j1-caja").textContent = `${e.caja_pct} %${e.caja_en_peligro ? " · en peligro" : ""}${multa}`;
     $("j1-caja").className = "valor " + (e.caja_en_peligro ? "peligro" : "");
     $("j1-caja-barra").style.transform = `scaleX(${Math.max(0, Math.min(1, e.caja_pct / 100))})`;
     document.querySelector(".barra-caja").classList.toggle("peligro", !!e.caja_en_peligro);
@@ -476,11 +494,54 @@
       fila.innerHTML =
         `<span class="nombre"><span class="punto" style="background:${COLORES[a.nombre] || "#ccc"}"></span>${NOMBRES[a.nombre] || a.nombre}</span>` +
         `<button type="button" id="boton-${a.nombre}">Retrasar</button>` +
-        `<span class="detalle" id="detalle-${a.nombre}">–</span>`;
+        `<span class="detalle" id="detalle-${a.nombre}">–</span>` +
+        `<span class="ruta" id="ruta-${a.nombre}"></span>`;
       contenedor.appendChild(fila);
       $("boton-" + a.nombre).onclick = () =>
         enviar({ type: "accion_operador", accion: "retrasar", objetivo: a.nombre });
     }
+    pintarRutas();
+  }
+
+  // La guía: por dónde va cada animatrónico. El jugador 1 no la tiene; el
+  // jugador 2 la usa para decidir dónde poner trampas y a quién retrasar. Los
+  // desvíos ocasionales no salen aquí: son la sorpresa.
+  function pintarRutas() {
+    for (const r of rutas) {
+      const fila = $("ruta-" + r.animatronico);
+      if (fila) fila.textContent = "Ruta: " + Logica.textoDeRuta(r.puntos);
+    }
+  }
+
+  function dibujarRutas(razon) {
+    const porNombre = {};
+    for (const p of puntos) porNombre[p.nombre] = p;
+    g.save();
+    g.lineWidth = 2 * razon; g.lineCap = "round";
+    for (const r of rutas) {
+      const color = COLORES[r.animatronico] || "#ccc";
+      const camino = (r.puntos || []).map((n) => porNombre[n]).filter(Boolean);
+      if (camino.length < 2) continue;
+      g.strokeStyle = color; g.fillStyle = color; g.globalAlpha = 0.5;
+      g.setLineDash([9 * razon, 6 * razon]);
+      g.beginPath();
+      camino.forEach((p, i) => { const [x, y] = proyectar(p); if (i === 0) g.moveTo(x, y); else g.lineTo(x, y); });
+      g.stroke();
+      g.setLineDash([]);
+      for (let i = 1; i < camino.length; i++) {          // una flecha en medio de cada tramo
+        const [x0, y0] = proyectar(camino[i - 1]), [x1, y1] = proyectar(camino[i]);
+        const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, ang = Math.atan2(y1 - y0, x1 - x0), t = 6 * razon;
+        g.beginPath();
+        g.moveTo(mx + Math.cos(ang) * t, my + Math.sin(ang) * t);
+        g.lineTo(mx + Math.cos(ang + 2.5) * t, my + Math.sin(ang + 2.5) * t);
+        g.lineTo(mx + Math.cos(ang - 2.5) * t, my + Math.sin(ang - 2.5) * t);
+        g.closePath(); g.fill();
+      }
+      const [ex, ey] = proyectar(camino[camino.length - 1]);   // el penúltimo punto: por donde entra a atacar
+      g.globalAlpha = 0.9; g.lineWidth = 2 * razon;
+      g.beginPath(); g.arc(ex, ey, 11 * razon, 0, 7); g.stroke();
+    }
+    g.restore();
   }
 
   function posicionActual(nombre, ahora) {
@@ -552,6 +613,7 @@
       g.fillText("ESPERANDO SEÑAL DEL JUEGO…", lienzo.width / 2, lienzo.height / 2);
       return;
     }
+    dibujarRutas(razon);
     g.font = `${11 * razon}px ui-monospace, monospace`;
     g.textAlign = "left";
     for (const p of puntos) {
@@ -578,6 +640,7 @@
     }
     if (jugador) {
       const [x, y, escala] = proyectar(jugador);
+      dibujarMirada(x, y, escala, razon);
       g.strokeStyle = "rgba(125,255,154,.25)"; g.lineWidth = razon; g.setLineDash([4 * razon, 6 * razon]);
       for (const radio of [SENAL_PERDIDA_M, SENAL_INESTABLE_M]) {
         g.beginPath(); g.arc(x, y, radio * escala, 0, 7); g.stroke();
@@ -593,6 +656,24 @@
       if (!p) continue;
       dibujarAnimatronico(a, p, ahora, razon);
     }
+  }
+
+  // Lo que ve el jugador 1: un cono desde su posición hacia donde apunta la
+  // cámara (norte = arriba; el giro a la derecha va en sentido horario).
+  const MEDIO_CAMPO_DE_VISION = 54 * Math.PI / 180;
+  const ALCANCE_DE_LA_MIRADA_M = 9;
+  function dibujarMirada(x, y, escala, razon) {
+    if (camaraYaw === null) return;
+    const centro = (camaraYaw - 90) * Math.PI / 180;     // el lienzo mide los ángulos desde el este, en horario
+    const radio = ALCANCE_DE_LA_MIRADA_M * escala;
+    g.save();
+    g.beginPath();
+    g.moveTo(x, y);
+    g.arc(x, y, radio, centro - MEDIO_CAMPO_DE_VISION, centro + MEDIO_CAMPO_DE_VISION);
+    g.closePath();
+    g.fillStyle = "rgba(125,255,154,.09)"; g.fill();
+    g.strokeStyle = "rgba(125,255,154,.45)"; g.lineWidth = razon; g.setLineDash([5 * razon, 5 * razon]); g.stroke();
+    g.restore();
   }
 
   function dibujarCuadricula(razon) {
