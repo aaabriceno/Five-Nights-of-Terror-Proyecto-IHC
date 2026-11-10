@@ -39,6 +39,7 @@ CIERRE_TIMEOUT_S = float(os.environ.get("CIERRE_TIMEOUT_S", "2"))
 SOLO_PARA_OPERADORES = {
     "estado_mapa", "mapa_puntos", "accion_rechazada",
     "posiciones", "estado_jugador", "estado_operador", "pong_operador",
+    "tarea", "tarea_resultado",
 }
 
 
