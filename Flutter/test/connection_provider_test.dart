@@ -103,6 +103,37 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('tras una caída vuelve con reconnect (retoma la noche), no con connect (la reiniciaría)', (tester) async {
+    conexion.connect(modo: 'continuar');
+    ws.llega(respuestaDeUnity);
+    await tester.pump();
+    expect(ws.enviados.last['type'], 'connect', reason: 'la primera vez sí es un connect');
+    ws.seCierra();
+    await tester.pump();
+    await tester.pump(AppConstants.reconnectDelay + const Duration(milliseconds: 100));
+    expect(ws.conexiones, 2);
+    expect(ws.enviados.last['type'], 'reconnect');
+    expect(ws.enviados.last['modo'], 'continuar', reason: 'por si Unity no tiene partida: sigue donde se quedó');
+    expect(ws.enviados.last['player_id'], isNotNull);
+    conexion.disconnect();
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('conectarse a propósito después de una reconexión vuelve a ser un connect', (tester) async {
+    conexion.connect();
+    ws.llega(respuestaDeUnity);
+    await tester.pump();
+    ws.seCierra();
+    await tester.pump();
+    await tester.pump(AppConstants.reconnectDelay + const Duration(milliseconds: 100));
+    expect(ws.enviados.last['type'], 'reconnect');
+    conexion.disconnect();
+    conexion.connect();
+    expect(ws.enviados.last['type'], 'connect');
+    conexion.disconnect();
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('disconnect() cancela la espera: no pasa a error después', (tester) async {
     conexion.connect();
     conexion.disconnect();
