@@ -245,9 +245,20 @@ input {
   animation: entrada 200ms var(--entrada);
 }
 #minitarea h3 { margin: 0; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--alerta); }
-#mt-simbolo { font-size: 44px; line-height: 1; min-height: 52px; color: var(--texto); }
-#mt-teclas { display: flex; gap: 10px; }
-#mt-teclas button { font-size: 22px; min-width: 52px; min-height: 52px; }
+#mt-enunciado { margin: 0; max-width: 24rem; text-align: center; font-size: 18px; line-height: 1.35; color: var(--texto); }
+#mt-calculo { display: flex; gap: 8px; }
+#mt-respuesta { width: 8rem; font: inherit; font-size: 20px; text-align: center; padding: 6px 8px; color: var(--texto); background: var(--fondo); border: 1px solid var(--linea); }
+#mt-calculo[hidden], #mt-circuito[hidden] { display: none; }
+#mt-circuito { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+#mt-puertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 15px; }
+#mt-puertas li { display: flex; align-items: center; gap: 8px; padding: 2px 8px; border-left: 3px solid var(--linea); color: var(--suave); }
+#mt-puertas li.encendida { color: var(--texto); border-left-color: var(--freddy); }
+#mt-puertas li .valor-puerta { margin-left: auto; min-width: 1.2em; text-align: right; }
+#mt-interruptores { display: flex; gap: 8px; }
+#mt-interruptores button { min-width: 56px; min-height: 48px; font-size: 16px; }
+#mt-interruptores button[aria-checked="true"] { background: #11331b; border-color: var(--freddy); color: var(--freddy); }
+#mt-foco { font-size: 14px; letter-spacing: .08em; color: var(--suave); }
+#mt-foco.resuelto { color: var(--freddy); }
 #mt-mensaje { min-height: 1.2em; text-align: center; margin: 0; }
 
 @keyframes entrada { from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); } }
