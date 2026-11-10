@@ -4,6 +4,8 @@ Tres escenarios, cada uno con su propio arranque del juego:
   vixy     Vixy recorre su ruta fija (con tareas cada 1 s para que se mueva, y sin Freddy).
   rescate  La caja dura 30 s; cada rescate del jugador 2 la deja en la mitad (15 s, 7,5 s).
   puppet   Puppet sale de la caja y recorre su ruta fija hasta el jugador 1.
+  tablet   La tablet se cae con la cuerda de la caja y la cámara apretadas: Unity las suelta;
+           al volver con `reconnect` la noche sigue (no se reinicia).
 
 El juego se abre en una pantalla virtual (Xvfb) para no tocar tu escritorio. Usa las
 opciones de prueba del juego (-prueba-sin-freddy, -prueba-tareas-cada): sin ellas el
@@ -54,6 +56,9 @@ class Partida:
         self.estado_operador = []       # (t, mensaje)
         self.efectos = []               # (t, mensaje)
         self.fin = None                 # (t, mensaje) de game_over
+        self.estado_jugador = []        # (t, mensaje)
+        self.yaw = []                   # (t, camara_yaw)
+        self.avisos = []                # (t, tipo) de jugador1_salio / jugador1_volvio
         self.visitas = {"freddy": [], "vixy": [], "puppet": []}
 
     def t(self):
@@ -98,6 +103,8 @@ class Partida:
                 m = json.loads(crudo)
                 tipo, t = m.get("type"), self.t()
                 if tipo == "posiciones":
+                    if "camara_yaw" in m:
+                        self.yaw.append((t, m["camara_yaw"]))
                     actuales = {a["nombre"]: (a["x"], a["z"]) for a in m["animatronicos"]}
                     self.posiciones.append((t, actuales))
                     for nombre, (x, z) in actuales.items():
@@ -107,6 +114,10 @@ class Partida:
                                 self.visitas[nombre].append((nodo, t))
                 elif tipo == "estado_operador":
                     self.estado_operador.append((t, m))
+                elif tipo == "estado_jugador":
+                    self.estado_jugador.append((t, m))
+                elif tipo in ("jugador1_salio", "jugador1_volvio"):
+                    self.avisos.append((t, tipo))
                 elif tipo == "efecto":
                     self.efectos.append((t, m))
                 elif tipo == "game_over":
@@ -289,7 +300,66 @@ async def escenario_puppet():
         await p.cerrar()
 
 
-ESCENARIOS = {"vixy": escenario_vixy, "rescate": escenario_rescate, "puppet": escenario_puppet}
+async def escenario_tablet():
+    print("== La tablet se cae y vuelve: la cuerda y la cámara se sueltan y la noche sigue ==")
+    p = Partida(["-prueba-sin-freddy"])
+    try:
+        await p.abrir()
+        caja = lambda: p.estado_jugador[-1][1]["caja_pct"] if p.estado_jugador else None
+        await p.esperar(lambda: p.t() >= 10, 20)
+        comprobar(f"sin darle cuerda la caja baja (a los 10 s va en {caja()} %)", caja() is not None and caja() < 80)
+        # El jugador 1 aprieta la cuerda y la cámara, y se queda sin Wi-Fi sin soltarlas.
+        await p.tablet.send(json.dumps({"type": "dar_cuerda_inicio"}))
+
+        async def mantener_la_camara():              # como el dedo apoyado: repite la orden hasta que se cae
+            while True:
+                await p.tablet.send(json.dumps({"type": "camara", "direccion": -1}))
+                await asyncio.sleep(0.15)
+
+        camara = asyncio.ensure_future(mantener_la_camara())
+        await p.esperar(lambda: (caja() or 0) >= 85, 12)
+        comprobar(f"dándole cuerda la caja sube (va en {caja()} %)", (caja() or 0) >= 85)
+        yaw = p.yaw[-1][1] if p.yaw else 0
+        comprobar(f"la cámara está girada a la izquierda (va en {yaw}°)", yaw < -30)
+        caja_al_caer = caja()
+        t_caida = p.t()
+        camara.cancel()
+        await p.tablet.close()                       # se cae sin soltar nada
+        await p.esperar(lambda: any(t > t_caida and y == 0 for t, y in p.yaw), 4)
+        comprobar("Unity centra la cámara al caerse la tablet", any(t > t_caida and y == 0 for t, y in p.yaw))
+        await asyncio.sleep(4)
+        comprobar(f"y suelta la cuerda: la caja ya no se queda llena (de {caja_al_caer} % a {caja()} %)",
+                  caja() is not None and caja() <= caja_al_caer - 8)
+        comprobar("el jugador 2 se entera (jugador1_salio)", any(a == "jugador1_salio" for _, a in p.avisos))
+        # Pasa un rato con la tablet caída: la noche sigue corriendo.
+        await p.esperar(lambda: (caja() or 100) <= 55, 20)
+        caja_antes = caja()
+        # La tablet vuelve: lo que manda la app tras una caída es `reconnect`.
+        tablet = await websockets.connect(URL, ping_interval=None, max_queue=None)
+        await tablet.send(json.dumps({"type": "reconnect", "device": "tablet", "player_id": "prueba_vp", "modo": "nuevo"}))
+        recibidos = {}
+        fin = time.time() + 3
+        while time.time() < fin:
+            try:
+                m = json.loads(await asyncio.wait_for(tablet.recv(), 0.5))
+            except asyncio.TimeoutError:
+                continue
+            recibidos.setdefault(m.get("type"), m)
+        await tablet.close()
+        comprobar("al volver, Unity le manda a la tablet el estado: night_status, task_list y estado_puppet",
+                  all(t in recibidos for t in ("night_status", "task_list", "estado_puppet")))
+        hora = recibidos.get("night_status", {}).get("in_game_time", "")
+        comprobar(f"la noche sigue donde iba (son las {hora}, no las 12:00 AM de una noche nueva)", hora and not hora.startswith("12:0"))
+        pct = recibidos.get("estado_puppet", {}).get("valor_caja_porcentaje", 100)
+        comprobar(f"la caja de Puppet sigue donde iba ({pct} % y no el 100 % de una noche nueva; antes de volver: {caja_antes} %)",
+                  pct <= (caja_antes or 100) + 3)
+        await asyncio.sleep(0.5)
+        comprobar("el jugador 2 se entera de que volvió (jugador1_volvio)", any(a == "jugador1_volvio" for _, a in p.avisos))
+    finally:
+        await p.cerrar()
+
+
+ESCENARIOS = {"vixy": escenario_vixy, "rescate": escenario_rescate, "puppet": escenario_puppet, "tablet": escenario_tablet}
 
 
 async def principal(nombres):
