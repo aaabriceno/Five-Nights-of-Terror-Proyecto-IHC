@@ -1,6 +1,6 @@
 // Página del jugador 2 (sala de control). Habla con Unity por el relay:
 // manda operador_connect, ping_operador y accion_operador; recibe el mapa, las
-// posiciones (20 por segundo), el estado del jugador 1 y los avisos.
+// posiciones (30 por segundo), el estado del jugador 1 y los avisos.
 // La lógica pura (suavizado, medidor) está en logica.js.
 (function () {
   "use strict";
