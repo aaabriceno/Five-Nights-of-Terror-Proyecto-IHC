@@ -42,6 +42,21 @@ Qué se encontró (y se arregló):
 
 No se tocó la red entre dos máquinas: sigue pendiente repetir la medición desde la computadora del jugador 2 y con la tablet física.
 
+## 2026-11-10 · perfil de video: 1920×1080, 60 FPS, 30 posiciones por segundo
+
+Decisiones del equipo (ver `PerfilDeVideo.cs` y la sección «Perfil de video y de hardware» de `docs/PROTOCOLO_JUGADOR2.md`). Misma laptop (AMD Radeon 610M integrada + RTX 5060), `Player.log` del juego exportado.
+
+| Configuración | Resolución de render | FPS medios | Tarjeta |
+|---|---|---|---|
+| Antes (pantalla nativa) | 2560×1600 | ~20 | integrada |
+| Integrada, perfil nuevo | 1920×1080 | 37 | integrada |
+| NVIDIA, perfil nuevo | 1280×720 en ventana (prueba) y 1920×1080 en pantalla completa | 60 (el tope) | RTX 5060 |
+
+- **Posiciones:** 29,9 a 30,0 por segundo (intervalo medio 33,3 ms, máximo 48-63 ms). La prueba `probar_operador_con_juego.py` ahora exige 50 en 2 s (llegaron 60).
+- **Pantalla completa a 1920×1080:** el log dice `pantalla 1920x1080 (ExclusiveFullScreen), dibuja a 1920x1080, escritorio 2560x1600`. Unity no cambia el modo del escritorio: dibuja a 1920×1080 en un viewport reducido y la imagen se escala para llenar la pantalla. Al cerrar el juego el escritorio sigue en 2560×1600.
+- **MediaPipe con la NVIDIA no puede usar la GPU.** Se probaron el vendor EGL de Mesa (`__EGL_VENDOR_LIBRARY_FILENAMES`) y `EGL_PLATFORM=surfaceless`: con la RTX 5060 dibujando el juego, MediaPipe sigue sin conseguir su contexto (`kGpuService … eglMakeCurrent() returned error`; con surfaceless ni siquiera hay configuración EGL). Por eso el runner reintenta con la CPU (`MediaPipe no pudo usar la GPU (BadStatusException); se reintenta con la CPU`) y la cara se detecta (`[Cara] detectada`). Costo: el proceso del juego usó 60-66 % de **un** núcleo en total con la NVIDIA (juego + detección en CPU).
+- **Sin cámara no se puede comprobar la detección sola:** `mirando_pantalla` sigue siendo `False` si no hay una cara frente a la cámara; por eso se agregó el `[Cara]` al log.
+
 ## Pendiente
 
 - Repetir desde la computadora del jugador 2 (otra máquina, misma red): `--host <IP de la laptop> --iniciar-partida` con el juego abierto.
