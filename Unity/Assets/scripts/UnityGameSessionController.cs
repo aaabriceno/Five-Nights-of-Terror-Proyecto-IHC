@@ -73,6 +73,10 @@ public class UnityGameSessionController : MonoBehaviour
         public string type = "estado_puppet";
         public bool en_peligro;
         public int valor_caja_porcentaje;
+        /// 1 = la caja se descarga a su ritmo; 2 = al doble (un rescate), 4...
+        public float multa_factor = 1f;
+        /// Lo que dura ahora la caja llena, en segundos (30 sin rescates, luego 15, 7,5...).
+        public float segundos_caja = 30f;
         public long timestamp;
     }
 
@@ -81,11 +85,16 @@ public class UnityGameSessionController : MonoBehaviour
 
     [Serializable] private class PuntoDeMapa { public string nombre; public float x; public float z; }
 
+    /// El camino fijo de un animatrónico, punto por punto: la guía del jugador 2.
+    /// Los desvíos ocasionales no van aquí: son la sorpresa.
+    [Serializable] private class RutaDeAnimatronico { public string animatronico; public string[] puntos; }
+
     [Serializable] private class MapaPuntosMessage
     {
         public string type = "mapa_puntos";
         public PuntoDeMapa[] puntos;
         public PuntoDeMapa jugador;
+        public RutaDeAnimatronico[] rutas;
     }
 
     [Serializable] private class AnimatronicoEnMapa
@@ -115,9 +124,17 @@ public class UnityGameSessionController : MonoBehaviour
         public float segundos;
         public string message;
         public int id;
+        /// Solo en `puppet_rescatado`: cuántas veces más rápido se descarga la
+        /// caja desde ahora. 0 en los demás efectos.
+        public float multa_factor;
+        /// Solo en `puppet_rescatado`: lo que dura ahora la caja llena (15, 7,5...). 0 en los demás efectos.
+        public float segundos_caja;
     }
 
     [Serializable] private class PingOperadorMessage { public string type; public long t; }
+
+    /// De la tablet del jugador 1: -1 mantiene apretado «izquierda», 1 «derecha», 0 soltó.
+    [Serializable] private class CamaraMessage { public string type; public int direccion; }
 
     [Serializable] private class PongOperadorMessage
     {
@@ -135,6 +152,8 @@ public class UnityGameSessionController : MonoBehaviour
         public long t;
         public PosicionDeAnimatronico[] animatronicos;
         public PuntoDeMapa jugador;
+        /// Hacia dónde mira la cámara del jugador 1, en grados: 0 al frente, negativo a la izquierda.
+        public float camara_yaw;
     }
 
     /// Lo que hace el jugador 1, reflejado en la pantalla del jugador 2.
@@ -158,6 +177,7 @@ public class UnityGameSessionController : MonoBehaviour
         public bool habilidad_puppet;
         public float ventana_rescate_s;
         public float multa_factor;
+        public float segundos_caja = 30f;
     }
 
     [Serializable] private class AccionRechazadaMessage
@@ -259,6 +279,23 @@ public class UnityGameSessionController : MonoBehaviour
     private static readonly float[] SegundosRealesPorNoche = { 120f, 135f, 150f, 150f, 165f, 165f };
     private const float MaxMusicBox = 2000f;
     private const float SegundosEntreTareas = 30f;
+
+    // Opciones solo para las pruebas automáticas (pruebas/probar_vixy_y_puppet_con_juego.py).
+    // Sin ellas en la línea de comandos el juego es el de siempre:
+    //   -prueba-sin-freddy        Freddy no aparece (para ver a Vixy y a Puppet sin que él termine la partida)
+    //   -prueba-tareas-cada <s>   una tarea nueva cada <s> segundos en vez de cada 30
+    private static readonly bool PruebaSinFreddy = Array.IndexOf(Environment.GetCommandLineArgs(), "-prueba-sin-freddy") >= 0;
+    private static readonly float PruebaTareasCada = ValorDeOpcion("-prueba-tareas-cada");
+    private static float SegundosEntreTareasActual => PruebaTareasCada > 0f ? PruebaTareasCada : SegundosEntreTareas;
+
+    private static float ValorDeOpcion(string nombre)
+    {
+        string[] argumentos = Environment.GetCommandLineArgs();
+        int i = Array.IndexOf(argumentos, nombre);
+        float valor;
+        return i >= 0 && i + 1 < argumentos.Length && float.TryParse(argumentos[i + 1],
+            System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out valor) ? valor : 0f;
+    }
     private const float ProbabilidadDeWifi = 0.2f;
     private const int MaxNight = 6;
     private const string InitialTask = "cables";
@@ -284,11 +321,9 @@ public class UnityGameSessionController : MonoBehaviour
     private static readonly int[] FreddyNightLevels = { 0, 0, 1, 0, 3, 4 };
     private static readonly int[] VixyNightLevels = { 0, 1, 5, 4, 7, 12 };
     private static readonly int[] PuppetNightLevels = { 0, 3, 0, 2, 5, 10 };
-    // Ritmo de vaciado de la caja por noche. El drenaje se aplica por unidad
-    // de reloj de juego, así que al estirarse la noche (ver
-    // SegundosRealesPorNoche) la caja también dura proporcionalmente más en
-    // segundos reales; lo que sube de noche en noche es la presión relativa.
-    private static readonly int[] PuppetDrainRates = { 13, 15, 17, 19, 22, 27 };
+    // La caja de Puppet dura lo mismo todas las noches (RescateDePuppet.SegundosDeLaCaja,
+    // 30 s) y solo se acorta con los rescates del jugador 2; la presión de
+    // noche en noche viene del nivel con que Puppet intenta salir.
 
     private readonly List<TaskData> activeTasks = new List<TaskData>();
     private readonly List<AnimatronicUnityBrain> brains = new List<AnimatronicUnityBrain>();
@@ -314,6 +349,10 @@ public class UnityGameSessionController : MonoBehaviour
     private readonly RecursosDeOperador recursos = new RecursosDeOperador();
     private readonly PresenciaDeOperador presencia = new PresenciaDeOperador();
     private readonly RescateDePuppet rescate = new RescateDePuppet();
+    // Cámara del jugador 1: la mueve desde la tablet (botones izquierda/derecha).
+    private readonly ControlDeCamara camara = new ControlDeCamara();
+    private Transform camaraDeJuego;
+    private Quaternion rotacionBaseDeCamara;
     // Las posiciones salen cada 0,05 s (20 veces por segundo).
     private const float SegundosEntrePosiciones = 0.05f;
     private float relojDePosiciones;
@@ -321,6 +360,7 @@ public class UnityGameSessionController : MonoBehaviour
     private Dictionary<string, Vector3> puntosDeRuta;
     private bool puppetVentanaYaAbierta;
     private bool miradaPublicada;
+    private readonly Dictionary<string, GameObject> trampasVisibles = new Dictionary<string, GameObject>();
     private string avisoDeOperador = string.Empty;
     private float avisoDeOperadorHasta;
     private GUIStyle estiloDelAviso;
@@ -378,7 +418,9 @@ public class UnityGameSessionController : MonoBehaviour
         // resultado o la X de la tablet) no debe sonar, sea cual sea el camino.
         if (!partidaActiva && gestorSonido != null) gestorSonido.DetenerEstatica();
         if (!partidaActiva) return;
+        ActualizarCamara();
         bool operadorVivo = presencia.EstaVivo(Time.time);
+        AvisarSiCambiaElCompanero();
         foreach (AnimatronicUnityBrain brain in brains)
         {
             brain.FijarFactorDeVelocidad(freno.FactorDeVelocidad(brain.nombreAnimatronico, Time.time));
@@ -424,6 +466,11 @@ public class UnityGameSessionController : MonoBehaviour
     private void ConfigureSceneActors()
     {
         GameObject freddyObject = GameObject.Find(actorFreddy);
+        if (freddyObject != null && PruebaSinFreddy)
+        {
+            freddyObject.SetActive(false);
+            freddyObject = null;
+        }
         if (freddyObject != null)
         {
             PatrullaPorPuntos existingPatrol = freddyObject.GetComponent<PatrullaPorPuntos>();
@@ -432,19 +479,47 @@ public class UnityGameSessionController : MonoBehaviour
             {
                 existingPatrol.controladoPorIAExterna = true;
             }
-            AttachBrain(freddyObject, "Freddy", routeFreddy, true, true, false,
+            AnimatronicUnityBrain freddy = AttachBrain(freddyObject, "Freddy", routeFreddy, true, true, false,
                 probabilisticRoute: true, vixyTaskThreshold: false);
+            // Ruta fija; de vez en cuando se asoma a un lado del comedor.
+            if (freddy != null)
+                freddy.ConfigurarDesvios(Desvios((2, "P08"), (2, "P09")), ProbabilidadDeDesvio);
         }
 
         GameObject vixyObject = GameObject.Find(actorVixy);
         if (vixyObject != null)
-            AttachBrain(vixyObject, "Vixy", FindRoute(
-                "P02", "P10", "P11", "P12", "V01", "V02", "V03", "V04", "J1"),
+        {
+            // P10 queda como desvío y no como parte de la ruta: el escenario no
+            // tiene puerta al pasillo izquierdo, así que ir a P10 y volver a P11
+            // son 35 m de ida y vuelta. Con una puerta en el muro oeste del
+            // escenario se puede volver a poner en la ruta.
+            AnimatronicUnityBrain vixy = AttachBrain(vixyObject, "Vixy", FindRoute(
+                "P02", "P11", "P12", "V01", "V02", "V03", "V04", "J1"),
                 true, false, false, probabilisticRoute: true, vixyTaskThreshold: true);
+            if (vixy != null)
+                vixy.ConfigurarDesvios(Desvios((0, "P10")), ProbabilidadDeDesvio);
+        }
 
         GameObject puppetObject = GameObject.Find(actorPuppet);
         if (puppetObject != null)
             AttachBrain(puppetObject, "Puppet", FindRoute("P13", "P14", "P15", "P16", "V05", "V06", "V07", "V08", "J1"), false, false, true);
+    }
+
+    /// Probabilidad de hacer un desvío en cada tramo que lo tiene. Valor
+    /// inicial para ajustar con el profesor.
+    private const float ProbabilidadDeDesvio = 0.25f;
+
+    /// Desvíos por nombre de punto: (índice del punto de la ruta tras el que se hace, nombre del punto).
+    private static AnimatronicUnityBrain.DesvioDeRuta[] Desvios(params (int despuesDe, string punto)[] lista)
+    {
+        List<AnimatronicUnityBrain.DesvioDeRuta> desvios = new List<AnimatronicUnityBrain.DesvioDeRuta>();
+        foreach ((int despuesDe, string punto) in lista)
+        {
+            GameObject objeto = GameObject.Find(punto);
+            if (objeto != null)
+                desvios.Add(new AnimatronicUnityBrain.DesvioDeRuta { despuesDe = despuesDe, punto = objeto.transform });
+        }
+        return desvios.ToArray();
     }
 
     private AnimatronicUnityBrain AttachBrain(GameObject actor, string role, Transform[] route, bool gaze,
@@ -534,6 +609,9 @@ public class UnityGameSessionController : MonoBehaviour
                     PublicarEstadoDelMapa();
                     PublicarEstadoJugador();
                     PublicarEstadoOperador();
+                    break;
+                case "camara":
+                    if (partidaActiva) camara.Ordenar(JsonUtility.FromJson<CamaraMessage>(json).direccion, Time.time);
                     break;
                 case "mini_tarea_inicio":
                     recursos.IniciarMiniTarea(Time.time);
@@ -651,7 +729,10 @@ public class UnityGameSessionController : MonoBehaviour
 
         freno.Reiniciar();
         recursos.Reiniciar();
+        CentrarCamara();
+        QuitarTodasLasTrampas();
         rescate.Reiniciar();
+        presencia.OlvidarCambio();
         puppetVentanaYaAbierta = false;
         puntosDeRuta = null;
         miradaPublicada = false;
@@ -680,9 +761,10 @@ public class UnityGameSessionController : MonoBehaviour
         float gameDelta = TickSeconds * EscalaDeTiempoDeLaNoche;
         secondsIntoHour += gameDelta;
 
-        int drain = PuppetDrainRates[Mathf.Clamp(noche - 1, 0, PuppetDrainRates.Length - 1)];
-        float signedRate = windingPuppet ? drain * 2f : -drain * rescate.FactorDeDescarga;
-        valorCajaPuppet = Mathf.Clamp(valorCajaPuppet + signedRate * gameDelta, 0f, MaxMusicBox);
+        float cambioPorSegundo = windingPuppet
+            ? rescate.RecargaPorSegundo(MaxMusicBox)
+            : -rescate.DescargaPorSegundo(MaxMusicBox);
+        valorCajaPuppet = Mathf.Clamp(valorCajaPuppet + cambioPorSegundo * TickSeconds, 0f, MaxMusicBox);
 
         bool puppetEnPeligroAhora = valorCajaPuppet < MaxMusicBox * 0.2f;
         if (puppetEnPeligroAhora && !puppetEnPeligroPrevio && gestorSonido != null)
@@ -697,9 +779,9 @@ public class UnityGameSessionController : MonoBehaviour
         // Las tareas ya no dependen del cambio de hora: aparecen en su propio
         // ritmo para que el jugador tenga tiempo de resolverlas.
         segundosDesdeUltimaTarea += TickSeconds;
-        if (segundosDesdeUltimaTarea >= SegundosEntreTareas)
+        if (segundosDesdeUltimaTarea >= SegundosEntreTareasActual)
         {
-            segundosDesdeUltimaTarea -= SegundosEntreTareas;
+            segundosDesdeUltimaTarea -= SegundosEntreTareasActual;
             TryGenerateNightTasks();
         }
 
@@ -989,6 +1071,8 @@ public class UnityGameSessionController : MonoBehaviour
         if (!partidaActiva) return;
         partidaActiva = false;
         foreach (AnimatronicUnityBrain brain in brains) brain.Detener();
+        CentrarCamara();
+        QuitarTodasLasTrampas();
         rescate.Reiniciar();
         foreach (AnimatronicUnityBrain brain in brains) brain.MantenerQuieto(false);
 
@@ -1051,8 +1135,25 @@ public class UnityGameSessionController : MonoBehaviour
         {
             puntos = puntos.ToArray(),
             jugador = jugador == null ? null
-                : new PuntoDeMapa { nombre = "jugador", x = jugador.position.x, z = jugador.position.z }
+                : new PuntoDeMapa { nombre = "jugador", x = jugador.position.x, z = jugador.position.z },
+            rutas = RutasParaElJugador2()
         });
+    }
+
+    /// La ruta de cada animatrónico sin su último elemento (la posición del
+    /// jugador 1): termina en el punto penúltimo, por donde entra a atacar.
+    private RutaDeAnimatronico[] RutasParaElJugador2()
+    {
+        var rutas = new List<RutaDeAnimatronico>();
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            if (brain.ruta == null || brain.ruta.Length < 2) continue;
+            var nombres = new List<string>();
+            for (int i = 0; i < brain.ruta.Length - 1; i++)
+                if (brain.ruta[i] != null) nombres.Add(brain.ruta[i].name);
+            rutas.Add(new RutaDeAnimatronico { animatronico = brain.nombreAnimatronico.ToLowerInvariant(), puntos = nombres.ToArray() });
+        }
+        return rutas.ToArray();
     }
 
     private void PublicarEstadoDelMapa()
@@ -1116,7 +1217,8 @@ public class UnityGameSessionController : MonoBehaviour
             t = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
             animatronicos = animatronicos.ToArray(),
             jugador = jugador == null ? new PuntoDeMapa { nombre = "jugador" }
-                : new PuntoDeMapa { nombre = "jugador", x = jugador.position.x, z = jugador.position.z }
+                : new PuntoDeMapa { nombre = "jugador", x = jugador.position.x, z = jugador.position.z },
+            camara_yaw = Mathf.Round(camara.Yaw * 10f) / 10f
         });
     }
 
@@ -1144,7 +1246,8 @@ public class UnityGameSessionController : MonoBehaviour
             necesario = RecursosDeOperador.MiniTareasParaHabilidad,
             habilidad_puppet = recursos.HabilidadPuppet,
             ventana_rescate_s = rescate.SegundosRestantes(Time.time),
-            multa_factor = rescate.FactorDeDescarga
+            multa_factor = rescate.FactorDeDescarga,
+            segundos_caja = rescate.SegundosParaVaciarLaCaja
         });
     }
 
@@ -1208,6 +1311,27 @@ public class UnityGameSessionController : MonoBehaviour
         avisoDeOperadorHasta = Time.time + 3f;
     }
 
+    /// El jugador 1 debe saber si tiene compañero: con él, Freddy y Vixy
+    /// avanzan más rápido (ver RecursosDeOperador.FactorDeAgresividad). Se
+    /// avisa en el PC y en la tablet cada vez que entra o se cae.
+    private void AvisarSiCambiaElCompanero()
+    {
+        PresenciaDeOperador.Cambio cambio = presencia.RevisarCambio(Time.time);
+        if (cambio == PresenciaDeOperador.Cambio.SinCambio) return;
+        bool conectado = cambio == PresenciaDeOperador.Cambio.Conectado;
+        string aviso = conectado
+            ? "Tu compañero se conectó: los animatrónicos van más rápido"
+            : "Tu compañero se desconectó: los animatrónicos vuelven a su ritmo";
+        AvisarAlJugador1(aviso);
+        Send(new EfectoMessage
+        {
+            animatronic = string.Empty,
+            tipo = conectado ? "operador_conectado" : "operador_perdido",
+            segundos = 0f,
+            message = aviso
+        });
+    }
+
     /// Nombre y posición de cada punto de las rutas (los mismos que ve el
     /// jugador 2 en el mapa). Las rutas no cambian durante una partida.
     private Dictionary<string, Vector3> PuntosDeRuta()
@@ -1233,6 +1357,57 @@ public class UnityGameSessionController : MonoBehaviour
         return puntosDeRuta;
     }
 
+    /// La cámara del juego gira hacia donde el jugador 1 mantiene apretado el
+    /// botón de la tablet y vuelve sola al frente al soltarlo.
+    private void ActualizarCamara()
+    {
+        camara.Actualizar(Time.deltaTime, Time.time);
+        AplicarCamara();
+    }
+
+    private void CentrarCamara()
+    {
+        camara.Centrar();
+        AplicarCamara();
+    }
+
+    private void AplicarCamara()
+    {
+        Camera principal = Camera.main;
+        if (principal == null) return;
+        // La orientación de partida es la que tiene la cámara la primera vez
+        // (al empezar la partida, mirando al frente); el giro se suma a ella.
+        if (principal.transform != camaraDeJuego)
+        {
+            camaraDeJuego = principal.transform;
+            rotacionBaseDeCamara = camaraDeJuego.rotation;
+        }
+        camaraDeJuego.rotation = Quaternion.Euler(0f, camara.Yaw, 0f) * rotacionBaseDeCamara;
+    }
+
+    /// La trampa se ve en el mapa del jugador 1 (un disco rojo que late).
+    private void MostrarTrampa(string punto)
+    {
+        Vector3 lugar;
+        if (!PuntosDeRuta().TryGetValue(punto, out lugar) || trampasVisibles.ContainsKey(punto)) return;
+        trampasVisibles[punto] = TrampaVisible.Crear(punto, lugar);
+    }
+
+    private void QuitarTrampa(string punto)
+    {
+        GameObject objeto;
+        if (!trampasVisibles.TryGetValue(punto, out objeto)) return;
+        trampasVisibles.Remove(punto);
+        if (objeto != null) Destroy(objeto);
+    }
+
+    private void QuitarTodasLasTrampas()
+    {
+        foreach (GameObject objeto in trampasVisibles.Values)
+            if (objeto != null) Destroy(objeto);
+        trampasVisibles.Clear();
+    }
+
     private void ColocarTrampaDelOperador(AccionOperadorMessage accion)
     {
         if (!partidaActiva) { Rechazar(accion, "sin_partida"); return; }
@@ -1241,6 +1416,7 @@ public class UnityGameSessionController : MonoBehaviour
         {
             case RecursosDeOperador.ResultadoTrampa.Colocada:
                 string aviso = "Tu compañero puso una trampa";
+                MostrarTrampa(accion.punto);
                 AvisarAlJugador1(aviso);
                 Send(new EfectoMessage { animatronic = string.Empty, tipo = "trampa_colocada", segundos = 0f, message = aviso, id = accion.id });
                 PublicarEstadoOperador();
@@ -1268,6 +1444,7 @@ public class UnityGameSessionController : MonoBehaviour
                 Vector3 b = new Vector3(lugar.x, 0f, lugar.z);
                 if (Vector3.Distance(a, b) > RadioDeTrampaMetros) continue;
                 if (!recursos.DispararTrampa(punto)) break;
+                QuitarTrampa(punto);
                 brain.DetenerPor(RecursosDeOperador.SegundosDeTrampa);
                 string nombre = char.ToUpperInvariant(brain.nombreAnimatronico[0]) + brain.nombreAnimatronico.Substring(1);
                 string aviso = "Trampa: " + nombre + " atrapado";
@@ -1345,9 +1522,19 @@ public class UnityGameSessionController : MonoBehaviour
         valorCajaPuppet = MaxMusicBox;
         puppetEnPeligroPrevio = false;
         puppetCajaVaciaPrevio = false;
-        string aviso = "Tu compañero te salvó de Puppet";
+        string aviso = "Tu compañero te salvó de Puppet (la caja ahora dura " +
+            rescate.SegundosParaVaciarLaCaja.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + " s)";
         AvisarAlJugador1(aviso);
-        Send(new EfectoMessage { animatronic = "puppet", tipo = "puppet_rescatado", segundos = 0f, message = aviso, id = accion.id });
+        Send(new EfectoMessage
+        {
+            animatronic = "puppet",
+            tipo = "puppet_rescatado",
+            segundos = 0f,
+            message = aviso,
+            id = accion.id,
+            multa_factor = rescate.FactorDeDescarga,
+            segundos_caja = rescate.SegundosParaVaciarLaCaja
+        });
         PublicarEstadoOperador();
     }
 
@@ -1388,6 +1575,8 @@ public class UnityGameSessionController : MonoBehaviour
         {
             en_peligro = valorCajaPuppet < MaxMusicBox * 0.2f,
             valor_caja_porcentaje = Mathf.RoundToInt(100f * valorCajaPuppet / MaxMusicBox),
+            multa_factor = rescate.FactorDeDescarga,
+            segundos_caja = rescate.SegundosParaVaciarLaCaja,
             timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         });
     }
