@@ -12,18 +12,18 @@
     sin_partida: "No hay una partida en curso.",
     enfriamiento: "Aún se está enfriando.",
     desconocido: "Animatrónico no válido.",
-    sin_cargas: "No te quedan cargas: recarga con la mini-tarea.",
+    sin_cargas: "No te quedan cargas: resuelve un cálculo en la terminal.",
     punto_ocupado: "Ya hay una trampa en ese punto.",
     punto_invalido: "Ese punto no existe en el mapa.",
     sin_habilidad: "Todavía no ganaste el rescate de Puppet.",
     sin_ventana: "No hay nada que rescatar ahora.",
-    mini_tarea_muy_rapida: "Fue demasiado rápido: inténtalo de nuevo.",
-    mini_tarea_sin_inicio: "La recarga no se había iniciado.",
+    cargas_llenas: "Ya tienes todas las cargas: usa una trampa antes de recargar.",
+    habilidad_lista: "El rescate de Puppet ya está desbloqueado.",
+    bloqueado: "La terminal está bloqueada por un error.",
+    tarea_desconocida: "Esa tarea no existe.",
+    tarea_sin_pedir: "Esa tarea ya no está abierta: pídela de nuevo.",
+    tarea_muy_rapida: "Demasiado rápido: lee bien el problema.",
   };
-  const SIMBOLOS = ["▲", "●", "■", "◆"];
-  const LARGO_SECUENCIA = 4;
-  const MILISEGUNDOS_POR_SIMBOLO = 700;
-  const MILISEGUNDOS_ANTES_DE_EMPEZAR = 500;
   // Distancias (metros de la escena) a las que la señal del animatrónico falla.
   const SENAL_INESTABLE_M = 4;
   const SENAL_PERDIDA_M = 2;
@@ -55,6 +55,8 @@
   let estadoMapa = { animatronicos: [], recibidoEn: 0 };
   let estadoJugador = null;
   let estadoOperador = null;
+  let bloqueadoHasta = 0;              // hasta cuándo (performance.now) está bloqueada la terminal
+  let terminalBloqueada = false;
   let siguienteId = 1;
   let ventanaDeRescateHasta = 0;      // hora local (performance.now) en que se cierra la ventana
   let secuencia = [];
@@ -246,6 +248,7 @@
         break;
       case "estado_operador":
         estadoOperador = m;
+        bloqueadoHasta = performance.now() + (m.bloqueo_s || 0) * 1000;
         pintarJugador1();      // la multa de la caja vive en este mensaje
         ventanaDeRescateHasta = m.ventana_rescate_s > 0 ? performance.now() + m.ventana_rescate_s * 1000 : 0;
         pintarRecursos();
@@ -263,6 +266,14 @@
       }
       case "accion_rechazada":
         avisar(`${MOTIVOS[m.motivo] || "Acción rechazada."}${m.espera_s > 0 ? ` Faltan ${Math.ceil(m.espera_s)} s.` : ""}`);
+        // Demasiado rápido: la tarea sigue abierta. Cualquier otro rechazo de la terminal la cierra.
+        if (m.objetivo === "tarea" && m.motivo !== "tarea_muy_rapida") cerrarMiniTarea();
+        break;
+      case "tarea":
+        mostrarTarea(m);
+        break;
+      case "tarea_resultado":
+        resultadoDeTarea(m);
         break;
     }
   }
@@ -367,7 +378,7 @@
     const e = estadoOperador;
     if (!e) return;
     $("cargas").textContent = `${e.cargas} / ${e.max_cargas}`;
-    $("habilidad").textContent = e.habilidad_puppet ? "Lista" : `${e.progreso} / ${e.necesario} recargas`;
+    $("habilidad").textContent = e.habilidad_puppet ? "Lista" : "Resuelve el circuito";
     $("habilidad").className = "valor " + (e.habilidad_puppet ? "alerta" : "");
     actualizarBotones();
     if (e.cargas <= 0) salirDelModoTrampa();
@@ -376,7 +387,21 @@
   function actualizarBotones() {
     const e = estadoOperador;
     $("boton-trampa").disabled = !socket || finDePartida || !e || e.cargas <= 0;
-    $("boton-minitarea").disabled = !socket || finDePartida;
+    const bloqueada = performance.now() < bloqueadoHasta;
+    $("boton-minitarea").disabled = !socket || finDePartida || bloqueada || !!(e && e.cargas >= e.max_cargas);
+    $("boton-circuito").disabled = !socket || finDePartida || bloqueada || !!(e && e.habilidad_puppet);
+  }
+
+  // La terminal se bloquea unos segundos tras un error. La cuenta corre aquí
+  // (Unity manda lo que falta en `bloqueo_s`) y los botones lo dicen.
+  function pintarBloqueo(ahora) {
+    const restante = Math.max(0, (bloqueadoHasta - ahora) / 1000);
+    const bloqueada = restante > 0;
+    if (bloqueada === terminalBloqueada) return;
+    terminalBloqueada = bloqueada;
+    $("boton-minitarea").textContent = bloqueada ? "Terminal bloqueada…" : "Recargar (cálculo)";
+    $("boton-circuito").textContent = bloqueada ? "Terminal bloqueada…" : "Desbloquear rescate (circuito)";
+    actualizarBotones();
   }
 
   // Cuando Puppet sale de la caja hay unos segundos para rescatarlo (si ya
@@ -390,7 +415,7 @@
     if (abierta) {
       const texto = e && e.habilidad_puppet
         ? `Pulsa «Rescatar a Puppet»: te quedan ${restante.toFixed(1)} s`
-        : `Aún no ganaste el rescate (${e ? e.progreso : 0} / ${e ? e.necesario : 3} recargas)`;
+        : "Aún no desbloqueaste el rescate: resuelve el circuito de la terminal";
       if ($("alerta-puppet-detalle").textContent !== texto) $("alerta-puppet-detalle").textContent = texto;
     }
     $("boton-rescate").disabled = !socket || finDePartida || !abierta || !(e && e.habilidad_puppet);
@@ -439,54 +464,122 @@
     salirDelModoTrampa();
   });
 
-  // ------------------------------------------------- mini-tarea de recarga
-  function abrirMiniTarea() {
-    if (!socket) return;
+  // ------------------------------------------------- terminal: tareas que dan poderes
+  // Unity inventa la tarea (`tarea`) y comprueba la respuesta (`tarea_resultado`);
+  // aquí solo se muestra, se mueven los interruptores y se manda lo que el jugador 2 contesta.
+  let tareaActual = null;
+  let interruptores = [];
+
+  function pedirTarea(tipo) {
+    if (!socket || finDePartida) return;
+    if (performance.now() < bloqueadoHasta) {
+      avisar(`Terminal bloqueada: faltan ${Math.ceil((bloqueadoHasta - performance.now()) / 1000)} s.`);
+      return;
+    }
     cerrarMiniTarea();
-    secuencia = Logica.generarSecuencia(LARGO_SECUENCIA);
-    entrada = [];
-    enviar({ type: "mini_tarea_inicio" });
     $("minitarea").hidden = false;
-    $("mt-mensaje").textContent = "Memoriza la secuencia…";
-    ponerTeclas(false);
-    // Los símbolos salen uno a uno; Unity exige un mínimo de tiempo, así que no se puede saltar.
-    secuencia.forEach((simbolo, i) => {
-      const inicio = MILISEGUNDOS_ANTES_DE_EMPEZAR + i * MILISEGUNDOS_POR_SIMBOLO;
-      temporizadoresDeSecuencia.push(setTimeout(() => { $("mt-simbolo").textContent = SIMBOLOS[simbolo]; }, inicio));
-      temporizadoresDeSecuencia.push(setTimeout(() => { $("mt-simbolo").textContent = "\u00a0"; }, inicio + MILISEGUNDOS_POR_SIMBOLO - 150));
+    $("mt-titulo").textContent = "Terminal";
+    $("mt-enunciado").textContent = "Conectando con la terminal…";
+    $("mt-mensaje").textContent = "";
+    $("mt-calculo").hidden = true;
+    $("mt-circuito").hidden = true;
+    enviar({ type: "tarea_pedir", tipo });
+  }
+
+  function mostrarTarea(m) {
+    if ($("minitarea").hidden) return;      // la cerró antes de que llegara
+    tareaActual = m;
+    $("mt-mensaje").textContent = "";
+    const esCalculo = m.tipo === "calculo";
+    $("mt-titulo").textContent = esCalculo ? "Terminal · recarga de trampa" : "Terminal · circuito del rescate";
+    $("mt-calculo").hidden = !esCalculo;
+    $("mt-circuito").hidden = esCalculo;
+    if (esCalculo) {
+      $("mt-enunciado").textContent = m.enunciado;
+      $("mt-respuesta").value = "";
+      $("mt-respuesta").focus();
+      return;
+    }
+    $("mt-enunciado").textContent =
+      `Mueve los interruptores hasta que la salida ${m.salida} quede en ${m.objetivo ? 1 : 0}.`;
+    interruptores = m.entradas.map(() => 0);
+    const lista = $("mt-puertas");
+    lista.textContent = "";
+    for (const p of m.puertas) {
+      const fila = document.createElement("li");
+      fila.dataset.id = p.id;
+      const texto = document.createElement("span");
+      texto.textContent = Logica.textoDePuerta(p);
+      const valor = document.createElement("span");
+      valor.className = "valor-puerta";
+      fila.append(texto, valor);
+      lista.append(fila);
+    }
+    const caja = $("mt-interruptores");
+    caja.textContent = "";
+    m.entradas.forEach((nombre, i) => {
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.setAttribute("role", "switch");
+      boton.setAttribute("aria-checked", "false");
+      boton.dataset.indice = String(i);
+      boton.onclick = () => { interruptores[i] = interruptores[i] ? 0 : 1; pintarCircuito(); };
+      caja.append(boton);
     });
-    temporizadoresDeSecuencia.push(setTimeout(() => {
-      $("mt-mensaje").textContent = "Ahora repítela con las teclas.";
-      ponerTeclas(true);
-    }, MILISEGUNDOS_ANTES_DE_EMPEZAR + LARGO_SECUENCIA * MILISEGUNDOS_POR_SIMBOLO));
+    pintarCircuito();
+  }
+
+  // Cada puerta y el foco se actualizan al mover un interruptor: así se ve qué pasa.
+  function pintarCircuito() {
+    if (!tareaActual || tareaActual.tipo !== "circuito") return;
+    const { valores, salida } = Logica.evaluarCircuito(tareaActual, interruptores);
+    document.querySelectorAll("#mt-interruptores button").forEach((boton, i) => {
+      boton.setAttribute("aria-checked", interruptores[i] ? "true" : "false");
+      boton.textContent = `${tareaActual.entradas[i]} = ${interruptores[i]}`;
+    });
+    document.querySelectorAll("#mt-puertas li").forEach((fila) => {
+      const v = valores[fila.dataset.id];
+      fila.classList.toggle("encendida", !!v);
+      fila.lastChild.textContent = v ? "1" : "0";
+    });
+    const resuelto = Logica.circuitoResuelto(tareaActual, interruptores);
+    $("mt-foco").classList.toggle("resuelto", resuelto);
+    $("mt-foco").textContent = resuelto
+      ? `Salida ${tareaActual.salida} = ${salida ? 1 : 0}: es lo que se pide. Envíalo.`
+      : `Salida ${tareaActual.salida} = ${salida ? 1 : 0}: se pide ${tareaActual.objetivo ? 1 : 0}.`;
   }
 
   function cerrarMiniTarea() {
-    temporizadoresDeSecuencia.forEach(clearTimeout);
-    temporizadoresDeSecuencia = [];
+    tareaActual = null;
     $("minitarea").hidden = true;
   }
 
-  function ponerTeclas(activas) {
-    document.querySelectorAll("#mt-teclas button").forEach((b) => { b.disabled = !activas; });
+  function resultadoDeTarea(m) {
+    cerrarMiniTarea();
+    if (m.correcto) {
+      avisar(m.tipo === "calculo" ? "Correcto: +1 carga de trampa" : "Circuito resuelto: rescate de Puppet desbloqueado");
+      return;
+    }
+    bloqueadoHasta = performance.now() + (m.bloqueo_s || 0) * 1000;
+    avisar(`Incorrecto: la terminal se bloquea ${Math.ceil(m.bloqueo_s || 0)} s.`);
+    pintarBloqueo(performance.now());
   }
 
-  document.querySelectorAll("#mt-teclas button").forEach((boton) => {
-    boton.onclick = () => {
-      entrada.push(Number(boton.dataset.simbolo));
-      const resultado = Logica.evaluarEntrada(secuencia, entrada);
-      if (resultado === "mal") {
-        $("mt-mensaje").textContent = "Esa no era. Vamos otra vez.";
-        abrirMiniTarea();
-      } else if (resultado === "completa") {
-        enviar({ type: "mini_tarea_fin" });
-        cerrarMiniTarea();
-        avisar("Recarga lista");
-      }
-    };
-  });
+  $("mt-calculo").onsubmit = (evento) => {
+    evento.preventDefault();
+    if (!tareaActual || tareaActual.tipo !== "calculo") return;
+    const valor = Logica.leerRespuesta($("mt-respuesta").value);
+    if (valor === null) { $("mt-mensaje").textContent = "Escribe solo un número entero."; return; }
+    enviar({ type: "tarea_respuesta", id: tareaActual.id, valor });
+  };
 
-  $("boton-minitarea").onclick = abrirMiniTarea;
+  $("mt-enviar-circuito").onclick = () => {
+    if (!tareaActual || tareaActual.tipo !== "circuito") return;
+    enviar({ type: "tarea_respuesta", id: tareaActual.id, interruptores: interruptores.slice() });
+  };
+
+  $("boton-minitarea").onclick = () => pedirTarea("calculo");
+  $("boton-circuito").onclick = () => pedirTarea("circuito");
   $("mt-cerrar").onclick = cerrarMiniTarea;
 
   function pintarLatencia() {
@@ -728,6 +821,7 @@
     dibujar(ahora);
     pintarAmenazas(ahora);
     pintarRescate(ahora);
+    pintarBloqueo(ahora);
     if (caidaEn) {
       const quedan = Math.max(0, Math.ceil((VENTANA_PARA_VOLVER_MS - (performance.now() - caidaEn)) / 1000));
       const texto = `SIN SEÑAL · RECONECTANDO · INTENTO ${Math.min(Math.max(intentos, 1), MAX_INTENTOS)} DE ${MAX_INTENTOS} · QUEDAN ${quedan} s`;
