@@ -44,5 +44,39 @@ comprobar("la entrada completa y correcta termina bien", Logica.evaluarEntrada([
 comprobar("un símbolo equivocado falla", Logica.evaluarEntrada([0, 1, 2, 3], [0, 2]) === "mal");
 comprobar("una entrada vacía sigue en curso", Logica.evaluarEntrada([0, 1, 2, 3], []) === "en curso");
 
+console.log("textoDeEfecto (lo que ve el jugador 2 de lo que él mismo hizo)");
+const NOMBRES = { freddy: "Freddy", vixy: "Vixy", puppet: "Puppet" };
+const t = (m) => Logica.textoDeEfecto(m, NOMBRES);
+comprobar("retrasar: dice a quién y por cuánto, en segunda persona",
+  t({ tipo: "ralentizado", animatronic: "freddy", segundos: 5 }) === "Retrasaste a Freddy por 5 s");
+comprobar("sin tipo se toma como retraso (Unity viejo)",
+  t({ animatronic: "vixy", segundos: 5 }) === "Retrasaste a Vixy por 5 s");
+comprobar("trampa puesta", t({ tipo: "trampa_colocada" }) === "Trampa puesta");
+comprobar("trampa disparada", t({ tipo: "trampa_disparada", animatronic: "vixy" }) === "Trampa: Vixy atrapado");
+comprobar("rescate: cuenta la multa que paga el jugador 1",
+  t({ tipo: "puppet_rescatado", multa_factor: 2 }) === "Rescataste a Puppet · la caja del jugador 1 se descarga ×2 más rápido");
+comprobar("rescate sin multa en el mensaje (Unity viejo)", t({ tipo: "puppet_rescatado" }) === "Rescataste a Puppet");
+comprobar("rescate con la duración nueva de la caja: lo dice en segundos",
+  t({ tipo: "puppet_rescatado", multa_factor: 2, segundos_caja: 15 }) === "Rescataste a Puppet · la caja del jugador 1 ahora dura 15 s");
+comprobar("y con medios segundos",
+  t({ tipo: "puppet_rescatado", multa_factor: 4, segundos_caja: 7.5 }) === "Rescataste a Puppet · la caja del jugador 1 ahora dura 7,5 s");
+comprobar("los segundos se escriben sin ceros de más",
+  Logica.formatearSegundos(15) === "15" && Logica.formatearSegundos(7.5) === "7,5" && Logica.formatearSegundos(3.75) === "3,75");
+comprobar("su propia conexión no se anuncia a sí mismo", t({ tipo: "operador_conectado" }) === "");
+comprobar("ni su caída", t({ tipo: "operador_perdido" }) === "");
+comprobar("un tipo nuevo usa el texto de Unity", t({ tipo: "algo", message: "Pasó algo" }) === "Pasó algo");
+comprobar("un tipo nuevo sin texto no muestra nada", t({ tipo: "algo" }) === "");
+comprobar("la multa se escribe sin decimales sobrantes", Logica.formatearMulta(2) === "×2" && Logica.formatearMulta(1.5) === "×1,5");
+
+console.log("textoDeRuta (la guía de cada animatrónico para el jugador 2)");
+comprobar("une los puntos con flechas", Logica.textoDeRuta(["P01", "P03", "P07"]) === "P01 → P03 → P07");
+comprobar("una ruta vacía o ausente no dice nada", Logica.textoDeRuta([]) === "" && Logica.textoDeRuta(undefined) === "");
+
+console.log("textoDeCamara (hacia dónde mira el jugador 1)");
+comprobar("al frente dentro de ±5°", Logica.textoDeCamara(0) === "Al frente" && Logica.textoDeCamara(-4.9) === "Al frente");
+comprobar("a la izquierda con los grados", Logica.textoDeCamara(-45.4) === "Izquierda 45°");
+comprobar("a la derecha con los grados", Logica.textoDeCamara(74.6) === "Derecha 75°");
+comprobar("sin dato no inventa", Logica.textoDeCamara(undefined) === "–" && Logica.textoDeCamara(null) === "–");
+
 console.log(fallos === 0 ? "\nTodas las pruebas pasaron." : `\n${fallos} prueba(s) fallaron.`);
 process.exit(fallos ? 1 : 0);
