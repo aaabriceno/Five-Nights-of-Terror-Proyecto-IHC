@@ -24,6 +24,11 @@ class ConnectionProvider extends ChangeNotifier {
   ConnectionState _state = ConnectionState.idle;
   int _reconnectAttempts = 0;
   String _ultimoModo = 'nuevo';
+
+  /// true mientras se reintenta tras una caída de la conexión: el mensaje que se
+  /// manda entonces es `reconnect` (Unity retoma la noche en curso), no
+  /// `connect` (que la reiniciaría desde cero).
+  bool _esReconexion = false;
   StreamSubscription<Map<String, dynamic>>? _forwardingSubscription;
   Timer? _temporizadorDeRespuesta;
   Timer? _temporizadorDeReconexion;
@@ -67,6 +72,7 @@ class ConnectionProvider extends ChangeNotifier {
   /// cerrado la app decía "Conectado" sin que hubiera nadie del otro lado.
   void connect({String modo = 'nuevo'}) {
     _reconnectAttempts = 0;
+    _esReconexion = false;
     _conectar(modo);
   }
 
@@ -109,7 +115,7 @@ class ConnectionProvider extends ChangeNotifier {
     );
 
     _wsService.sendMessage({
-      'type': 'connect',
+      'type': _esReconexion ? 'reconnect' : 'connect',
       'device': 'tablet',
       'player_id': PlayerIdentity.playerId,
       'app_version': '0.1.0',
@@ -127,6 +133,7 @@ class ConnectionProvider extends ChangeNotifier {
     _temporizadorDeRespuesta?.cancel();
     _state = ConnectionState.connected;
     _reconnectAttempts = 0;
+    _esReconexion = false;
     notifyListeners();
   }
 
@@ -169,6 +176,7 @@ class ConnectionProvider extends ChangeNotifier {
     }
     _state = ConnectionState.reconnecting;
     _reconnectAttempts++;
+    _esReconexion = true;
     notifyListeners();
 
     _temporizadorDeReconexion?.cancel();
