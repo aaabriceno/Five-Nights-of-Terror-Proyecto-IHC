@@ -38,7 +38,7 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 
 | Tipo | De → a | Cuándo | Campos |
 |---|---|---|---|
-| `posiciones` | Unity → J2 | 20 veces por segundo mientras hay partida | `t`, `animatronicos[] {nombre,x,z}`, `jugador {x,z}` |
+| `posiciones` | Unity → J2 | 30 veces por segundo mientras hay partida (cada 33 ms; antes 20) | `t`, `animatronicos[] {nombre,x,z}`, `jugador {x,z}` |
 | `estado_jugador` | Unity → J2 | Cada tick (0,5 s) y **al instante** si cambia la mirada | `mirando_pantalla`, `tareas_pendientes`, `caja_pct`, `caja_en_peligro` |
 | `estado_operador` | Unity → J2 | Cada tick y al cambiar | `cargas`, `max_cargas`, `trampas[]`, `progreso`, `necesario`, `habilidad_puppet`, `ventana_rescate_s`, `multa_factor` |
 | `ping_operador` | J2 → Unity | Cada 2 s | `t` |
@@ -104,7 +104,7 @@ Coordenadas `x`, `z` en metros de la escena de Unity (vista desde arriba). El mi
 2. Que `estado_mapa` / `mapa_puntos` vayan solo al operador (hoy filtrado en el relay).
 3. ~~Si la tablet debe mostrar también el aviso `efecto`~~ (hecho el 2026-11-10; falta probarlo en la tablet física).
 4. Qué hacer si el operador se cae a media noche (hoy: reconecta solo y Unity le reenvía el mapa y los estados; sin ping en 6 s los animatrónicos vuelven a su ritmo normal).
-5. Las posiciones a 20 Hz (`posiciones`) y el ping de latido (`ping_operador`).
+5. Las posiciones a 30 Hz (`posiciones`) y el ping de latido (`ping_operador`).
 6. La ventana de 6 s para rescatar a Puppet y la multa de doble descarga.
 7. Los valores de agresividad (Freddy ×0,4, Vixy ×0,7) y de las trampas.
 
@@ -158,6 +158,16 @@ Solo para las pruebas automáticas (`pruebas/probar_vixy_y_puppet_con_juego.py`)
 
 - `-prueba-sin-freddy`: Freddy no aparece (así Vixy y Puppet pueden terminar su recorrido sin que él acabe la partida).
 - `-prueba-tareas-cada <s>`: una tarea nueva cada `<s>` segundos en vez de cada 30 (Vixy solo avanza con 6 tareas pendientes en la noche 1, y la noche dura 120 s).
+
+## Perfil de video y de hardware (2026-11-10)
+
+Los números acordados viven juntos en `Unity/Assets/scripts/PerfilDeVideo.cs` y se aplican al abrir el juego (`AjusteDeVideo.cs`):
+
+- **Resolución estándar 1920×1080** en pantalla completa (`ExclusiveFullScreen`). Unity dibuja a 1920×1080 y la pantalla lo escala, aunque el escritorio sea más grande (se vio en `Player.log`: `dibuja a 1920x1080, escritorio 2560x1600`). Si se lanza con `-screen-width`, `-screen-height`, `-screen-fullscreen` o `-popupwindow`, el perfil no toca la pantalla (así abren el juego las pruebas, en ventana chica).
+- **Máximo 60 cuadros por segundo**, con el vsync apagado (en una pantalla de 90 Hz el vsync dejaría pasar de 60).
+- **30 posiciones por segundo** hacia el jugador 2 (antes 20): intervalo de 33 ms.
+- **MediaPipe (detección de la cara) en la GPU, con respaldo a la CPU.** En una PC sin tarjeta (Mesa por software: `llvmpipe`/`softpipe`) o con `-mediapipe-cpu` va directo a la CPU; si la GPU falla (en esta laptop con la NVIDIA no consigue su contexto EGL: `kGpuService … eglMakeCurrent() returned error`), el juego lo detecta, lo anota en el log y reintenta con la CPU. Sin esto Freddy no se congelaba nunca porque la cámara no detectaba la cara.
+- `Player.log` deja `[Video]` (resolución, tarjeta y FPS medios cada 15 s) y `[Cara]` (cuándo se detecta y se pierde la cara) para comprobar el rendimiento de cualquier PC sin herramientas externas.
 
 ## Conexión de la tablet y del relay (2026-11-10)
 
