@@ -353,8 +353,8 @@ public class UnityGameSessionController : MonoBehaviour
     private readonly ControlDeCamara camara = new ControlDeCamara();
     private Transform camaraDeJuego;
     private Quaternion rotacionBaseDeCamara;
-    // Las posiciones salen cada 0,05 s (20 veces por segundo).
-    private const float SegundosEntrePosiciones = 0.05f;
+    // Las posiciones salen 30 veces por segundo (cada 33 ms): el ritmo lo fija PerfilDeVideo.
+    private const float SegundosEntrePosiciones = PerfilDeVideo.SegundosEntrePosiciones;
     private float relojDePosiciones;
     private const float RadioDeTrampaMetros = 1.5f;
     private Dictionary<string, Vector3> puntosDeRuta;
@@ -1207,7 +1207,7 @@ public class UnityGameSessionController : MonoBehaviour
         });
     }
 
-    /// Lo que el jugador 2 necesita ver al instante: las posiciones a 20 Hz y
+    /// Lo que el jugador 2 necesita ver al instante: las posiciones a 30 Hz y
     /// un cambio en la mirada del jugador 1 sin esperar al tick.
     private void PublicarAlJugador2EnCadaCuadro()
     {
