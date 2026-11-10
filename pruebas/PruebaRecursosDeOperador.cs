@@ -16,7 +16,7 @@ public static class PruebaRecursosDeOperador
     {
         var r = new RecursosDeOperador();
 
-        Comprobar("al empezar hay 1 carga y 0 progreso",
+        Comprobar("al empezar hay 1 carga y el rescate sin desbloquear",
             r.Cargas == RecursosDeOperador.CargasIniciales && r.Progreso == 0 && !r.HabilidadPuppet);
         Comprobar("colocar una trampa con carga se acepta",
             r.ColocarTrampa("PuntoA", true) == RecursosDeOperador.ResultadoTrampa.Colocada);
@@ -27,8 +27,7 @@ public static class PruebaRecursosDeOperador
 
         r.Reiniciar();
         r.ColocarTrampa("PuntoA", true);
-        r.IniciarMiniTarea(0f);
-        r.CompletarMiniTarea(3f);   // vuelve a haber 1 carga
+        r.GanarCargaPorCalculo();   // vuelve a haber 1 carga
         Comprobar("en un punto ocupado se rechaza sin gastar carga",
             r.ColocarTrampa("PuntoA", true) == RecursosDeOperador.ResultadoTrampa.PuntoOcupado && r.Cargas == 1);
         Comprobar("un punto que no existe se rechaza sin gastar carga",
@@ -37,24 +36,22 @@ public static class PruebaRecursosDeOperador
             r.DispararTrampa("PuntoA") && !r.Trampas.Contains("PuntoA"));
         Comprobar("disparar dos veces la misma devuelve false", !r.DispararTrampa("PuntoA"));
 
+        // Las tareas de la terminal (ver TareasDeOperador): el cálculo da cargas y el circuito, el rescate.
         r.Reiniciar();
-        Comprobar("completar sin haber iniciado se rechaza",
-            r.CompletarMiniTarea(10f) == RecursosDeOperador.ResultadoMiniTarea.SinInicio);
-        r.IniciarMiniTarea(10f);
-        Comprobar("completar a los 2 s se rechaza por muy rápida",
-            r.CompletarMiniTarea(12f) == RecursosDeOperador.ResultadoMiniTarea.MuyRapida);
-        Comprobar("la mini-tarea rechazada no cambia cargas ni progreso",
-            r.Cargas == RecursosDeOperador.CargasIniciales && r.Progreso == 0);
-        Comprobar("pasados los 3 s se acepta",
-            r.CompletarMiniTarea(13.2f) == RecursosDeOperador.ResultadoMiniTarea.Aceptada);
-        Comprobar("aceptada sube 1 carga y 1 progreso",
-            r.Cargas == RecursosDeOperador.CargasIniciales + 1 && r.Progreso == 1);
-        Comprobar("tras aceptarse hace falta iniciar otra vez",
-            r.CompletarMiniTarea(20f) == RecursosDeOperador.ResultadoMiniTarea.SinInicio);
+        Comprobar("al empezar las cargas no están llenas", !r.CargasLlenas);
+        r.GanarCargaPorCalculo();
+        Comprobar("un cálculo correcto da 1 carga y no toca el rescate",
+            r.Cargas == RecursosDeOperador.CargasIniciales + 1 && r.Progreso == 0 && !r.HabilidadPuppet);
+        for (int i = 0; i < 5; i++) r.GanarCargaPorCalculo();
+        Comprobar("las cargas nunca pasan del máximo", r.Cargas == RecursosDeOperador.MaxCargas && r.CargasLlenas);
+        Comprobar("solo con cálculos no se desbloquea el rescate de Puppet", !r.HabilidadPuppet);
 
-        for (int i = 0; i < 5; i++) { r.IniciarMiniTarea(100f + i * 10); r.CompletarMiniTarea(104f + i * 10); }
-        Comprobar("las cargas nunca pasan del máximo", r.Cargas == RecursosDeOperador.MaxCargas);
-        Comprobar("con 3 o más mini-tareas se desbloquea la habilidad de Puppet", r.HabilidadPuppet);
+        Comprobar("hace falta 1 circuito para desbloquear el rescate", RecursosDeOperador.CircuitosParaHabilidad == 1);
+        r.GanarHabilidadPorCircuito();
+        Comprobar("un circuito resuelto desbloquea la habilidad de Puppet", r.HabilidadPuppet);
+        Comprobar("y no toca las cargas", r.Cargas == RecursosDeOperador.MaxCargas);
+        r.GanarHabilidadPorCircuito();
+        Comprobar("otro circuito no acumula más de lo necesario", r.Progreso == RecursosDeOperador.CircuitosParaHabilidad);
         Comprobar("gastar la habilidad devuelve true", r.GastarHabilidadPuppet());
         Comprobar("tras gastarla no hay habilidad ni progreso", !r.HabilidadPuppet && r.Progreso == 0);
         Comprobar("gastarla sin tenerla devuelve false", !r.GastarHabilidadPuppet());
