@@ -87,7 +87,7 @@ async def medir():
             if mensaje.get("type") == "pong_operador":
                 esperas_ms.append((time.perf_counter() - salida) * 1000)
                 break
-        await asyncio.sleep(0.05)                      # unos 20 pings por segundo, como el ritmo del juego
+        await asyncio.sleep(1 / 30)                    # unos 30 pings por segundo, como el ritmo de las posiciones del juego
     tarea.cancel()
     await unity.close()
     await operador.close()
