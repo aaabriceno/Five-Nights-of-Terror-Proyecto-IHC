@@ -7,8 +7,10 @@ does not import or change the original backend.
 import asyncio
 import json
 import os
+import socket as red
 import time
 import websockets
+from websockets.asyncio.server import broadcast
 
 HOST = "0.0.0.0"
 PORT = 8000
@@ -23,6 +25,14 @@ last_connect_message = None
 SEGUNDOS_PARA_VOLVER = float(os.environ.get("VENTANA_OPERADOR_S", "15"))
 operador_perdido_en = None      # time.monotonic() de la caída del jugador 2, o None
 
+# Un cliente que se queda sin Wi-Fi no avisa: el relay solo se entera porque no
+# contesta los ping, y después espera a que cierre bien la conexión. Con 20 s +
+# 20 s + 10 s (lo que trae la biblioteca) tardaba hasta 50 s en darlo por perdido,
+# y en avisar a Unity y al jugador 2; con 5 s + 5 s + 2 s, hasta 12 s.
+PING_INTERVALO_S = float(os.environ.get("PING_INTERVALO_S", "5"))
+PING_TIMEOUT_S = float(os.environ.get("PING_TIMEOUT_S", "5"))
+CIERRE_TIMEOUT_S = float(os.environ.get("CIERRE_TIMEOUT_S", "2"))
+
 # El minimapa, las posiciones, el estado de los jugadores y los rechazos son
 # solo para el jugador 2 (operador): la tablet no los usa, así que no se le
 # reenvían.
@@ -33,18 +43,19 @@ SOLO_PARA_OPERADORES = {
 
 
 async def send_to(clients, payload):
-    client_list = list(clients)
-    if not client_list:
-        return
-    results = await asyncio.gather(
-        *(client.send(payload) for client in client_list),
-        return_exceptions=True,
-    )
-    for client, result in zip(client_list, results):
-        if isinstance(result, Exception):
-            tablets.discard(client)
-            unity_clients.discard(client)
-            operadores.discard(client)
+    """Manda `payload` a todos `clients` SIN esperar a ninguno.
+
+    Antes cada envío esperaba (await client.send) a que el cliente aceptara el
+    mensaje. Una tablet o un navegador atascados (Wi-Fi caído, app congelada)
+    dejaban esperando a todo el relay: los mensajes de Unity para los demás se
+    atrasaban, el relay dejaba de leer a Unity y, al no contestar esta los ping,
+    la daba por perdida y le cerraba la conexión. Con `broadcast` el mensaje se
+    encola en el momento y a un cliente lento lo saca el keepalive (ver
+    PING_INTERVALO_S), sin frenar a nadie más.
+    """
+    destinos = list(clients)
+    if destinos:
+        broadcast(destinos, payload)
 
 
 def olvidar_connect_si_no_hay_tablets():
@@ -56,6 +67,22 @@ def olvidar_connect_si_no_hay_tablets():
         last_connect_message = None
 
 
+def confirmar_de_inmediato(connection):
+    """Pide a Linux que confirme (ACK) enseguida lo que acaba de recibir.
+
+    Unity (ClientWebSocket de Mono) abre su socket con el algoritmo de Nagle
+    encendido (TCP_NODELAY = 0): un mensaje pequeño espera a que llegue el ACK
+    del anterior, y por defecto Linux demora ese ACK hasta 40 ms si no tiene
+    nada que contestar. Con TCP_QUICKACK el ACK sale al instante. Linux lo
+    apaga solo después de unos paquetes, por eso se vuelve a pedir con cada
+    mensaje. Si no se puede (otro sistema), no pasa nada."""
+    try:
+        connection.transport.get_extra_info("socket").setsockopt(
+            red.IPPROTO_TCP, red.TCP_QUICKACK, 1)
+    except (AttributeError, OSError):
+        pass
+
+
 def aviso(tipo, **campos):
     return json.dumps({"type": tipo, **campos})
 
@@ -65,6 +92,7 @@ async def handle_connection(socket):
     role = None
     try:
         async for raw in socket:
+            confirmar_de_inmediato(socket)
             try:
                 message = json.loads(raw)
             except (TypeError, json.JSONDecodeError):
@@ -101,6 +129,17 @@ async def handle_connection(socket):
                 operadores.discard(socket)
                 operador_perdido_en = None
                 role = None
+                continue
+
+            if message_type == "reconnect":
+                # La tablet perdió la conexión y volvió: Unity retoma la noche en
+                # curso (con `connect` la reiniciaría). No se toca el `connect`
+                # guardado ni la ventana del jugador 2.
+                role = "tablet"
+                tablets.add(socket)
+                await send_to(unity_clients, raw)
+                await send_to(operadores, aviso("jugador1_volvio"))
+                print("Flutter reconectado; Unity retoma la noche en curso")
                 continue
 
             if message_type == "connect":
@@ -142,6 +181,9 @@ async def handle_connection(socket):
             operador_perdido_en = time.monotonic()
         if era_tablet:
             await send_to(operadores, aviso("jugador1_salio", motivo="conexion_perdida"))
+            # Unity tiene que soltar lo que la tablet dejó apretado (la cuerda
+            # de la caja de Puppet, la cámara): nadie le va a mandar el «soltar».
+            await send_to(unity_clients, aviso("tablet_caida"))
         if era_unity:
             await send_to(operadores, aviso("juego_cerrado"))
         print("Cliente desconectado")
@@ -152,8 +194,9 @@ async def main():
         handle_connection,
         HOST,
         PORT,
-        ping_interval=20,
-        ping_timeout=20,
+        ping_interval=PING_INTERVALO_S,
+        ping_timeout=PING_TIMEOUT_S,
+        close_timeout=CIERRE_TIMEOUT_S,
     ):
         print(f"Relay Unity activo en ws://{HOST}:{PORT}")
         await asyncio.Future()
