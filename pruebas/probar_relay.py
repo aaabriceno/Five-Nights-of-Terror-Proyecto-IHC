@@ -316,13 +316,13 @@ async def caso_un_cliente_lento_no_frena_a_los_demas():
                         llegadas.append(time.perf_counter())
 
             lector = asyncio.ensure_future(leer())
-            # Unity manda 20 mensajes por segundo (de los que también reciben las tablets).
+            # Unity manda 30 mensajes por segundo (de los que también reciben las tablets).
             relleno = "x" * 2000
             unity_cerrada = False
             try:
                 for i in range(120):
                     await unity.send(json.dumps({"type": "estado_puppet", "n": i, "relleno": relleno}))
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(1 / 30)
             except websockets.exceptions.ConnectionClosed:
                 unity_cerrada = True
             await asyncio.sleep(0.3)
