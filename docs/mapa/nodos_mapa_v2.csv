@@ -1,0 +1,26 @@
+id,nombre,x,z,tipo,uso
+J1,Jugador 1 (cámara en la oficina),20.0,2.5,jugador,—
+P01,Escenario – Freddy,16.5,24.3,sala,Freddy (inicio)
+P02,Escenario – Vixy,23.5,26.3,sala,Vixy (inicio)
+P03,Comedor – norte,20.0,19.5,sala,Freddy
+P04,Comedor – centro,20.0,15.8,sala,Freddy
+P05,Comedor – sur,20.0,11.8,sala,Freddy
+P06,Pasillo principal,20.0,8.0,pasillo,Freddy
+P07,Puerta de la oficina,20.0,6.2,pasillo,Freddy (penúltimo punto)
+P08,Comedor – oeste (cruce),13.5,16.0,sala,desvío Freddy / Vixy
+P09,Comedor – este (cruce),26.5,16.0,sala,desvío Freddy / Puppet
+P10,Pasillo izquierdo – norte,7.5,25.5,pasillo,Vixy
+P11,Pasillo izquierdo – medio,7.5,16.0,pasillo,Vixy
+P12,Pasillo izquierdo – sur,7.5,10.0,pasillo,Vixy
+P13,Rincón de premios – caja de música,34.0,25.5,caja,"Puppet (inicio, oculto)"
+P14,Pasillo derecho – norte,32.5,19.5,pasillo,Puppet
+P15,Pasillo derecho – medio,32.5,16.0,pasillo,Puppet
+P16,Pasillo derecho – sur,32.5,10.0,pasillo,Puppet
+V01,Rejilla de entrada – izquierda,7.5,7.0,ducto,Vixy
+V02,Codo – ducto izquierdo,7.5,3.0,ducto,Vixy
+V03,Ducto izquierdo – medio,12.5,3.0,ducto,Vixy
+V04,Boca de la ventilación izquierda,16.3,3.0,ducto,Vixy (penúltimo punto)
+V05,Rejilla de entrada – derecha,32.5,7.0,ducto,Puppet
+V06,Codo – ducto derecho,32.5,3.0,ducto,Puppet
+V07,Ducto derecho – medio,27.5,3.0,ducto,Puppet
+V08,Boca de la ventilación derecha,23.7,3.0,ducto,Puppet (penúltimo punto)
