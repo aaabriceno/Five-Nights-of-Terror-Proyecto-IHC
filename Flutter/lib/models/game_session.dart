@@ -1,3 +1,4 @@
+import 'aviso_de_companero.dart';
 import 'task.dart';
 
 class GameSession {
@@ -26,6 +27,23 @@ class GameSession {
   /// tiempo real.
   int puppetValorCajaPorcentaje;
 
+  /// Cuántas veces más rápido se descarga la caja de Puppet. Sube cuando el
+  /// jugador 2 lo rescata (×2, luego ×4...); Unity lo manda en `estado_puppet`
+  /// y la tablet solo lo muestra. 1 = a su ritmo normal.
+  double multaDeCaja;
+
+  /// Lo que dura ahora la caja de Puppet llena (30 s al empezar la noche, la
+  /// mitad tras cada rescate). null si Unity no lo manda o aún no hubo rescate.
+  double? segundosDeCaja;
+
+  /// Lo último que hizo el jugador 2 y que hay que mostrar (retraso, trampa,
+  /// rescate...). La pantalla lo quita sola a los pocos segundos.
+  AvisoDeCompanero? avisoDeCompanero;
+
+  /// true/false según el último aviso de Unity; null si nunca hubo compañero en
+  /// esta partida (entonces no se muestra nada: se juega solo).
+  bool? companeroConectado;
+
   GameSession({
     required this.playerId,
     this.riesgo = 0,
@@ -41,5 +59,9 @@ class GameSession {
     List<Task>? tareasPendientes,
     this.puppetEnPeligro = false,
     this.puppetValorCajaPorcentaje = 100,
+    this.multaDeCaja = 1,
+    this.segundosDeCaja,
+    this.avisoDeCompanero,
+    this.companeroConectado,
   }) : tareasPendientes = tareasPendientes ?? [];
 }
