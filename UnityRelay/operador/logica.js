@@ -55,19 +55,48 @@
     };
   }
 
-  // Mini-tarea de recarga: repetir una secuencia de símbolos (0 a 3).
-  function generarSecuencia(largo, aleatorio) {
-    if (!aleatorio) aleatorio = Math.random;
-    const secuencia = [];
-    for (let i = 0; i < largo; i++) secuencia.push(Math.min(3, Math.floor(aleatorio() * 4)));
-    return secuencia;
+  // ------------------------------------------------------------ terminal (tareas)
+  // Unity inventa la tarea y comprueba la respuesta; aquí solo se calcula lo que
+  // hace falta para dibujarla mientras el jugador 2 mueve los interruptores.
+
+  // El circuito de una tarea con los interruptores puestos (0 o 1 por entrada,
+  // en el orden de `tarea.entradas`; los que falten valen 0). Devuelve el valor
+  // de cada entrada y puerta y el de la salida.
+  function evaluarCircuito(tarea, interruptores) {
+    const valores = {};
+    tarea.entradas.forEach((nombre, i) => { valores[nombre] = !!(interruptores && interruptores[i]); });
+    for (const p of tarea.puertas) {
+      const a = valores[p.a];
+      switch (p.op) {
+        case "NOT": valores[p.id] = !a; break;
+        case "AND": valores[p.id] = a && valores[p.b]; break;
+        case "OR": valores[p.id] = a || valores[p.b]; break;
+        default: valores[p.id] = a !== valores[p.b]; break;   // XOR
+      }
+    }
+    return { valores, salida: valores[tarea.salida] };
   }
 
-  // "en curso" mientras lo tecleado coincida con el principio de la secuencia,
-  // "completa" si coincide entera, "mal" al primer símbolo equivocado.
-  function evaluarEntrada(secuencia, entrada) {
-    for (let i = 0; i < entrada.length; i++) if (entrada[i] !== secuencia[i]) return "mal";
-    return entrada.length === secuencia.length ? "completa" : "en curso";
+  // ¿Con esos interruptores la salida es la que pide la tarea?
+  function circuitoResuelto(tarea, interruptores) {
+    return evaluarCircuito(tarea, interruptores).salida === !!tarea.objetivo;
+  }
+
+  // Una puerta como se lee en voz alta: "G1 = A Y B", "G2 = NO C".
+  function textoDePuerta(p) {
+    switch (p.op) {
+      case "NOT": return p.id + " = NO " + p.a;
+      case "AND": return p.id + " = " + p.a + " Y " + p.b;
+      case "OR": return p.id + " = " + p.a + " O " + p.b;
+      default: return p.id + " = " + p.a + " O exclusivo " + p.b;
+    }
+  }
+
+  // Lo que se teclea en un cálculo: un entero sin signo de hasta 6 cifras, o null.
+  function leerRespuesta(texto) {
+    const limpio = String(texto === undefined || texto === null ? "" : texto).trim();
+    if (!/^[0-9]{1,6}$/.test(limpio)) return null;
+    return Number(limpio);
   }
 
   // "×2", "×4", "×1,5": el factor de la multa sin decimales sobrantes.
@@ -118,5 +147,5 @@
     return (yaw < 0 ? "Izquierda " : "Derecha ") + Math.round(Math.abs(yaw)) + "°";
   }
 
-  return { suavizar, crearMedidor, generarSecuencia, evaluarEntrada, textoDeEfecto, formatearMulta, textoDeRuta, textoDeCamara, formatearSegundos };
+  return { suavizar, crearMedidor, evaluarCircuito, circuitoResuelto, textoDePuerta, leerRespuesta, textoDeEfecto, formatearMulta, textoDeRuta, textoDeCamara, formatearSegundos };
 });
