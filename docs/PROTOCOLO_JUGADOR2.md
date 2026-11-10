@@ -51,7 +51,12 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 | `accion_operador` | J2 → Unity | Nuevas acciones | `accion: "trampa"` + `punto`, o `accion: "rescatar_puppet"`; todas con `id` |
 | `mini_tarea_inicio` / `mini_tarea_fin` | J2 → Unity | Empieza y termina la mini-tarea de recarga | — |
 
-- `efecto` gana `tipo` (`ralentizado`, `trampa_colocada`, `trampa_disparada`, `puppet_rescatado`) y `id` (el de la acción que lo causó, 0 si fue por una trampa que se disparó).
+- `efecto` gana `tipo` (`ralentizado`, `trampa_colocada`, `trampa_disparada`, `puppet_rescatado`, y desde 2026-11-10 `operador_conectado` y `operador_perdido`) y `id` (el de la acción que lo causó, 0 si fue por una trampa que se disparó). Con `puppet_rescatado` llega además `multa_factor` (cuántas veces más rápido se descarga ahora la caja: 2, luego 4...); en los demás efectos vale 0.
+- `camara` (tablet → Unity, 2026-11-10): `direccion` -1 (izquierda), 1 (derecha) o 0 (soltó). Son los dos botones grandes de la tablet, que se **mantienen apretados**: mientras el dedo siga apoyado la tablet repite la orden cada 0,15 s y Unity gira la cámara del jugador 1 (70°/s, hasta ±75°); al soltar vuelve sola al frente (90°/s). Si pasan 0,5 s sin órdenes Unity da el botón por soltado, así que un «soltar» perdido por la red no deja la cámara girando. Se centra al empezar y al terminar la partida.
+- `posiciones` gana `camara_yaw` (grados; 0 = al frente, negativo = izquierda): la página del jugador 2 lo dibuja como un cono de visión desde J1 y lo escribe en el panel («Cámara: Izquierda 45°»).
+- `mapa_puntos` gana `rutas[] {animatronico, puntos[]}` (2026-11-10): el camino fijo de cada animatrónico, en orden, desde donde nace hasta el punto penúltimo (sin el jugador 1). Es la guía del jugador 2: la página la dibuja con líneas de colores y la escribe en cada tarjeta de amenaza. El jugador 1 no la recibe. Los desvíos ocasionales no van en la guía.
+- **La caja de Puppet (2026-11-10):** dura **30 s cada noche** (ya no baja de noche en noche; antes iba de ~51 s a ~34 s según la noche). Lo único que la acorta son los rescates del jugador 2: cada uno la deja en la mitad (30 s → 15 s → 7,5 s), con **un mínimo de 7,5 s** (`SegundosMinimosDeLaCaja`): más rescates siguen valiendo pero ya no la acortan. Vuelve a 30 s al empezar otra noche o partida. Darle cuerda la llena en 15 s y la multa no lo cambia. Unity lo manda en `segundos_caja` (en `estado_puppet`, `estado_operador` y `efecto puppet_rescatado`), además de `multa_factor`; la tablet y la página dicen los segundos ("La caja dura 15 s"). Con un Unity viejo (sin `segundos_caja`) la tablet cae al texto "×2 más rápida".
+- `estado_puppet` (a la tablet, cada 0,5 s) gana `multa_factor` (1 = sin multa). Es opcional: una tablet o un Unity viejos lo ignoran y la caja se ve a su ritmo.
 - `accion_rechazada` gana `id` y los `motivo` `sin_cargas`, `punto_ocupado`, `punto_invalido`, `sin_habilidad`, `sin_ventana`, `mini_tarea_muy_rapida`, `mini_tarea_sin_inicio`.
 - El relay envía `posiciones`, `estado_jugador`, `estado_operador` y `pong_operador` **solo** a operadores.
 - El `ping_operador` además le dice a Unity que el operador sigue conectado: el relay no avisa cuando un navegador se cae, así que Unity lo da por caído si pasan 6 s sin ping.
@@ -84,13 +89,20 @@ Coordenadas `x`, `z` en metros de la escena de Unity (vista desde arriba). El mi
 
 ## Lo que ve el jugador 1
 
-Un aviso grande arriba en la pantalla de Unity, por 3 s: "Vixy se ralentizó", "Tu compañero puso una trampa", "Trampa: Vixy atrapado", "Tu compañero te salvó de Puppet". La tablet recibe `efecto` pero **no lo muestra todavía** (Flutter ignora los tipos que no conoce); mostrarlo ahí queda pendiente hasta tocar Flutter.
+**En el PC (Unity):** un aviso grande arriba por 3 s: "Vixy se ralentizó", "Tu compañero puso una trampa", "Trampa: Vixy atrapado", "Tu compañero te salvó de Puppet (caja ×2 más rápida)", "Tu compañero se conectó: los animatrónicos van más rápido".
+
+**En la tablet (Flutter, desde 2026-11-10):** bajo el reloj de la noche, siempre a la vista:
+
+- **El aviso** de lo último que hizo el compañero, 5 s, con título y detalle ("Tu compañero te salvó de Puppet" / "Pero la caja se descarga ×2 más rápido"), y una vibración distinta: un toque breve (trampa, retraso), dos toques (rescate), uno largo (se cayó). El texto lo arma la tablet a partir de `tipo`, `animatronic`, `segundos` y `multa_factor`; el `message` de Unity solo se usa si llega un `tipo` que la tablet no conoce.
+- **Dos datos que no caducan:** "Compañero conectado / desconectado" (con compañero, Freddy y Vixy avanzan más rápido) y "Caja de Puppet ×2 más rápida" mientras la multa siga.
+
+**En la página del jugador 2:** el mismo `efecto` se le cuenta en segunda persona ("Retrasaste a Freddy por 5 s", "Rescataste a Puppet · la caja del jugador 1 se descarga ×2 más rápido") y el panel del jugador 1 muestra la multa de su caja. Su propia conexión o caída no se le anuncia.
 
 ## Qué hay que acordar con Marcelo
 
 1. Nombres de los mensajes y del rol (`operador_connect`).
 2. Que `estado_mapa` / `mapa_puntos` vayan solo al operador (hoy filtrado en el relay).
-3. Si la tablet debe mostrar también el aviso `efecto`.
+3. ~~Si la tablet debe mostrar también el aviso `efecto`~~ (hecho el 2026-11-10; falta probarlo en la tablet física).
 4. Qué hacer si el operador se cae a media noche (hoy: reconecta solo y Unity le reenvía el mapa y los estados; sin ping en 6 s los animatrónicos vuelven a su ritmo normal).
 5. Las posiciones a 20 Hz (`posiciones`) y el ping de latido (`ping_operador`).
 6. La ventana de 6 s para rescatar a Puppet y la multa de doble descarga.
@@ -130,3 +142,19 @@ Si la otra computadora no abre la página: misma red, firewall (puertos 8000 y 8
 - **Jugador 2 se cae**: el juego sigue sin cambios (Unity ya baja la agresividad cuando no hay latidos, 6 s). La página reintenta 3 veces, una cada 5 s, dentro de 15 s (`VENTANA_PARA_VOLVER_MS`, `MS_ENTRE_INTENTOS`, `MAX_INTENTOS` en `operador.js`) y muestra «SIN SEÑAL · RECONECTANDO · INTENTO n DE 3 · QUEDAN x s».
 - El **relay** lo hace cumplir: pasados 15 s de la caída (`VENTANA_OPERADOR_S`, por defecto 15) rechaza `operador_connect` con `operador_rechazado` hasta que la tablet mande un `connect` (partida nueva) o Unity mande `game_over`. Salir con `operador_salir` no abre la ventana.
 - La página ofrece «Reconectar» tras rendirse; si el relay lo rechaza, lo explica y no insiste.
+
+
+## Cómo se mueven los animatrónicos (2026-11-10)
+
+- **Freddy y Vixy siguen una ruta fija**, punto por punto y en orden: nunca se saltan uno ni retroceden. Freddy: `P01 → P03 → P04 → P05 → P06 → P07`; Vixy: `P02 → P11 → P12 → V01 → V02 → V03 → V04`; Puppet (sin cambios): `P13 → P14 → P15 → P16 → V05 → V06 → V07 → V08`.
+- **Desvíos ocasionales** (25 % por tramo que lo tiene, `ProbabilidadDeDesvio`): Freddy se asoma a `P08` o `P09` entre `P04` y `P05` (cuesta unos 20 s); Vixy puede ir a `P10` justo al salir. Después vuelve a la ruta. Es la sorpresa: no sale en la guía del jugador 2.
+- **Tiempo:** Freddy avanza cada 80–120 % del intervalo de la noche (antes era exacto); Vixy sigue dependiendo de las tareas pendientes.
+- `P10` deja de ser parte de la ruta de Vixy porque el escenario no tiene puerta al pasillo izquierdo: ir y volver son 35 m. Si Marcelo abre una puerta en el muro oeste del escenario, se puede volver a poner.
+- La trampa se ve en el mapa del jugador 1: un disco rojo con una luz que late; desaparece cuando un animatrónico la pisa o termina la partida.
+
+## Opciones de prueba del juego
+
+Solo para las pruebas automáticas (`pruebas/probar_vixy_y_puppet_con_juego.py`); sin ellas el juego es el de siempre:
+
+- `-prueba-sin-freddy`: Freddy no aparece (así Vixy y Puppet pueden terminar su recorrido sin que él acabe la partida).
+- `-prueba-tareas-cada <s>`: una tarea nueva cada `<s>` segundos en vez de cada 30 (Vixy solo avanza con 6 tareas pendientes en la noche 1, y la noche dura 120 s).
