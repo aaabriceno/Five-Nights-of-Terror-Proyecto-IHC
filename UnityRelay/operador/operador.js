@@ -188,9 +188,18 @@
         mostrarFin(m);
         break;
       case "jugador1_salio":
+        if (m.motivo === "conexion_perdida") {
+          // Se quedó sin Wi-Fi: la tablet reintenta sola y retoma la noche, así que
+          // la partida sigue; solo se avisa (no se cierra nada).
+          $("j1-sin-conexion").hidden = false;
+          break;
+        }
         mostrarCierre("EL JUGADOR 1 SE FUE DE LA PARTIDA",
           m.motivo === "salio" ? "Salió al menú." : "Perdió la conexión.",
           "Sin él la partida no continúa.", false, "esperar");
+        break;
+      case "jugador1_volvio":
+        $("j1-sin-conexion").hidden = true;
         break;
       case "juego_cerrado":
         mostrarCierre("EL JUEGO SE CERRÓ", "Unity ya no está conectado.", "Sin juego no hay partida.", false, "esperar");
@@ -202,6 +211,7 @@
         break;
       case "mapa_puntos":
         if (finDePartida) reiniciarVista();          // empezó otra noche
+        $("j1-sin-conexion").hidden = true;
         puntos = m.puntos || [];
         rutas = m.rutas || [];
         jugador = m.jugador || null;
@@ -278,6 +288,7 @@
   // noche, el jugador 1 o el juego se fueron, o la conexión se perdió.
   function mostrarCierre(titulo, detalle, estadisticas, gano, accion) {
     finDePartida = true;
+    $("j1-sin-conexion").hidden = true;
     accionPrimaria = accion;
     ventanaDeRescateHasta = 0;
     cerrarMiniTarea();
@@ -302,6 +313,7 @@
     $("fin-partida").hidden = true;
     for (const nombre in muestras) delete muestras[nombre];
     puntos = []; rutas = []; jugador = null; camaraYaw = null; limites = null;
+    $("j1-sin-conexion").hidden = true;
     estadoMapa = { animatronicos: [], recibidoEn: 0 };
     estadoJugador = null; estadoOperador = null;
     ventanaDeRescateHasta = 0;
