@@ -45,6 +45,7 @@ public class HeadOrientationTracker : MonoBehaviour
             if (!contenedorPuntos.gameObject.activeInHierarchy || !contenedorPuntos.GetChild(0).gameObject.activeInHierarchy)
             {
                 mirandoPC = false;
+                RegistrarCara(false);
                 return; // Salimos de la función sin calcular nada
             }
 
@@ -64,6 +65,7 @@ public class HeadOrientationTracker : MonoBehaviour
                 {
                     // Calculamos la proporción
                     ratioActual = distanciaFrenteNariz / distanciaNarizMenton;
+                    RegistrarCara(true);
 
                     // Si la frente se alarga mucho respecto al mentón, estás mirando abajo
                     mirandoPC = (ratioActual < umbralRatio);
@@ -75,6 +77,18 @@ public class HeadOrientationTracker : MonoBehaviour
                 mirandoPC = false;
             }
         }
+    }
+
+    private bool caraVisible;
+
+    /// Deja en Player.log cuándo MediaPipe encuentra o pierde la cara (solo al
+    /// cambiar, no en cada cuadro): así se comprueba que la cámara detecta de
+    /// verdad, en la GPU o en la CPU, sin mirar la pantalla del juego.
+    private void RegistrarCara(bool visible)
+    {
+        if (visible == caraVisible) return;
+        caraVisible = visible;
+        Debug.Log(visible ? $"[Cara] detectada (proporción {ratioActual:F2})" : "[Cara] perdida");
     }
 
     private void OnGUI()
