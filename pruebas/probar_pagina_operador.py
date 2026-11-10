@@ -13,6 +13,7 @@ import asyncio
 import base64
 import http.server
 import json
+import os
 import socketserver
 import subprocess
 import tempfile
@@ -65,6 +66,8 @@ def levantar_web():
 RECIBIDOS_POR_UNITY = []     # tipos de mensaje que la página le mandó al Unity falso
 ORDENES = None               # cola de órdenes del test al Unity falso: ("fin", resultado) o ("nueva",)
 PUNTOS = [{"nombre": f"Punto{i}", "x": float(i * 3), "z": float((i % 2) * 4)} for i in range(5)]
+RUTAS = [{"animatronico": "freddy", "puntos": ["Punto0", "Punto1", "Punto2"]},
+         {"animatronico": "vixy", "puntos": ["Punto4", "Punto3"]}]
 
 
 async def unity_falso(socket):
@@ -105,7 +108,7 @@ async def unity_falso(socket):
                                               "total_damage": 100, "score": 700},
                               "timestamp": int(time.time() * 1000)})
             else:
-                await enviar({"type": "mapa_puntos", "puntos": PUNTOS,
+                await enviar({"type": "mapa_puntos", "puntos": PUNTOS, "rutas": RUTAS,
                               "jugador": {"nombre": "jugador", "x": 12.0, "z": 2.0}})
                 await enviar({"type": "estado_mapa", "partida_activa": True, "noche": 3, "hora": "12:00 AM",
                               "animatronicos": [{"nombre": "freddy", "x": 1.0, "z": 1.0, "retraso_s": 0, "espera_s": 0}],
@@ -116,7 +119,7 @@ async def unity_falso(socket):
         # Antes del mapa: la página no debe fallar con esto.
         while True:
             i += 1
-            await enviar({"type": "posiciones", "t": int(time.time() * 1000),
+            await enviar({"type": "posiciones", "t": int(time.time() * 1000), "camara_yaw": -45.0,
                           "animatronicos": [{"nombre": "freddy", "x": 1.0 + i * 0.05, "z": 1.0},
                                             {"nombre": "vixy", "x": 6.0, "z": 3.0},
                                             {"nombre": "puppet", "x": 9.0, "z": 0.5}],
@@ -130,7 +133,7 @@ async def unity_falso(socket):
             if mensaje.get("type") == "operador_connect":
                 envios.append(asyncio.ensure_future(posiciones()))
                 await asyncio.sleep(0.3)           # el mapa llega DESPUÉS de las primeras posiciones
-                await enviar({"type": "mapa_puntos", "puntos": PUNTOS,
+                await enviar({"type": "mapa_puntos", "puntos": PUNTOS, "rutas": RUTAS,
                               "jugador": {"nombre": "jugador", "x": 12.0, "z": 2.0}})
                 await enviar({"type": "estado_mapa", "partida_activa": True, "noche": 2, "hora": "3:40 AM",
                               "animatronicos": [
@@ -178,6 +181,11 @@ class Navegador:
     def ejecutar(self, script, argumentos=None):
         return self._pedir("POST", f"/session/{self.sesion}/execute/sync",
                            {"script": script, "args": argumentos or []})["value"]
+
+    def captura(self, ruta):
+        """Guarda una foto de la página (para mirarla a ojo cuando se toca el dibujo del mapa)."""
+        datos = self._pedir("GET", f"/session/{self.sesion}/screenshot")["value"]
+        Path(ruta).write_bytes(base64.b64decode(datos))
 
     def texto(self, id_):
         return self.ejecutar("var e=document.getElementById(arguments[0]);return e?e.textContent.trim():null;", [id_])
@@ -314,6 +322,35 @@ async def principal(captura):
         navegador.ejecutar("document.getElementById('conectar').click();")
         comprobar("«Conectar» vuelve a conectar tras Salir",
                   await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or ""), 8.0))
+
+        # --- lo que hace el jugador 1 con la cámara se le ve al jugador 2 ---
+        comprobar("el panel del jugador 1 dice hacia dónde mira su cámara",
+                  await esperar(lambda: (navegador.texto("j1-camara") or "") == "Izquierda 45°", 4.0))
+
+        # --- la guía: la ruta de cada animatrónico ---
+        comprobar("el panel muestra la ruta de Freddy como guía",
+                  await esperar(lambda: (navegador.texto("ruta-freddy") or "") == "Ruta: Punto0 → Punto1 → Punto2", 4.0))
+        comprobar("y la de Vixy", (navegador.texto("ruta-vixy") or "") == "Ruta: Punto4 → Punto3")
+        await asyncio.sleep(0.5)
+        if os.environ.get("CAPTURA_PAGINA"):
+            navegador.captura(os.environ["CAPTURA_PAGINA"])
+
+        # --- lo que hace el jugador 2 se le cuenta a él en segunda persona ---
+        ORDENES.put_nowait(("raw", {"type": "efecto", "animatronic": "puppet", "tipo": "puppet_rescatado",
+                                    "segundos": 0, "message": "Tu compañero te salvó de Puppet (caja ×2 más rápida)",
+                                    "id": 1, "multa_factor": 2, "segundos_caja": 15}))
+        comprobar("el rescate le dice al jugador 2 qué hizo y cuánto dura ahora la caja del jugador 1",
+                  await esperar(lambda: "Rescataste a Puppet" in (navegador.texto("aviso") or "")
+                                and "ahora dura 15 s" in (navegador.texto("aviso") or ""), 4.0))
+        comprobar("y no le repite el texto escrito para el jugador 1",
+                  "Tu compañero" not in (navegador.texto("aviso") or ""))
+        ORDENES.put_nowait(("raw", {"type": "estado_jugador", "mirando_pantalla": True, "tareas_pendientes": 1,
+                                    "caja_pct": 60, "caja_en_peligro": False}))
+        ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 1, "max_cargas": 3, "trampas": [],
+                                    "progreso": 0, "necesario": 3, "habilidad_puppet": False,
+                                    "ventana_rescate_s": 0, "multa_factor": 2, "segundos_caja": 15}))
+        comprobar("el panel del jugador 1 muestra cuánto dura ahora su caja (15 s)",
+                  await esperar(lambda: "dura 15 s" in (navegador.texto("j1-caja") or ""), 4.0))
         ORDENES.put_nowait(("raw", {"type": "jugador1_salio", "motivo": "salio"}))
         comprobar("si el jugador 1 se va, la página lo avisa",
                   await esperar(lambda: js(visible) and "SE FUE" in (navegador.texto("fin-titulo") or "").upper(), 5.0))
