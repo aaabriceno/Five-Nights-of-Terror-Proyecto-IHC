@@ -564,6 +564,13 @@ public class UnityGameSessionController : MonoBehaviour
             switch (header.type)
             {
                 case "connect": StartGame(JsonUtility.FromJson<ConnectMessage>(json)); break;
+                case "reconnect": ReconectarTablet(JsonUtility.FromJson<ConnectMessage>(json)); break;
+                case "tablet_caida":
+                    // La tablet se quedó sin conexión (lo avisa el relay): nadie va a
+                    // mandar el «soltar» de la cuerda ni de la cámara.
+                    windingPuppet = false;
+                    CentrarCamara();
+                    break;
                 case "task_completed":
                 case "task_failed": ResolveTask(JsonUtility.FromJson<TaskResultMessage>(json), header.type == "task_failed"); break;
                 case "dar_cuerda_inicio":
@@ -665,6 +672,25 @@ public class UnityGameSessionController : MonoBehaviour
             tarea_completada = tutorialTareaCompletada,
             camara_disponible = TutorialCamaraDisponible
         });
+    }
+
+    /// La tablet perdió la conexión (Wi-Fi) y volvió: se retoma la noche en
+    /// curso en vez de reiniciarla, y se le manda el estado para que su pantalla
+    /// se ponga al día. Sin partida en curso (Unity se reinició o la noche ya
+    /// terminó) no hay nada que retomar: se empieza como con `connect`.
+    private void ReconectarTablet(ConnectMessage message)
+    {
+        if (!partidaActiva)
+        {
+            StartGame(message);
+            return;
+        }
+        windingPuppet = false;
+        CentrarCamara();
+        presencia.OlvidarCambio();      // la tablet vuelve a saber si hay compañero
+        PublishState();
+        PublishPuppetState();
+        PublishTaskList();
     }
 
     private void StartGame(ConnectMessage message)
