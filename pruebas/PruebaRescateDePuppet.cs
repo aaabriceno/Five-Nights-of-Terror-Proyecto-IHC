@@ -46,6 +46,41 @@ public static class PruebaRescateDePuppet
         Comprobar("al vencer sin rescate se consume una vez", r.ConsumirVencimiento(56.1f));
         Comprobar("y no una segunda vez", !r.ConsumirVencimiento(57f));
 
+        // La caja dura 30 s cada noche; cada rescate del jugador 2 la deja en la mitad.
+        var c = new RescateDePuppet();
+        Comprobar("sin rescates la caja se vacía en 30 s", Cerca(c.SegundosParaVaciarLaCaja, 30f));
+        c.AbrirVentana(0f); c.Rescatar(1f, true);
+        Comprobar("tras el primer rescate dura 15 s", Cerca(c.SegundosParaVaciarLaCaja, 15f));
+        c.AbrirVentana(10f); c.Rescatar(11f, true);
+        Comprobar("tras el segundo, 7,5 s", Cerca(c.SegundosParaVaciarLaCaja, 7.5f));
+        c.AbrirVentana(20f);
+        Comprobar("un tercer rescate se acepta", c.Rescatar(21f, true) == RescateDePuppet.Resultado.Rescatado);
+        Comprobar("pero la caja no baja de 7,5 s (el mínimo)", Cerca(c.SegundosParaVaciarLaCaja, 7.5f));
+        Comprobar("y la multa se queda en ×4", Cerca(c.FactorDeDescarga, 4f));
+        c.AbrirVentana(30f); c.Rescatar(31f, true);
+        Comprobar("ni con más rescates", Cerca(c.SegundosParaVaciarLaCaja, 7.5f) && Cerca(c.FactorDeDescarga, 4f));
+        c.Reiniciar();
+        Comprobar("al empezar otra noche vuelve a 30 s", Cerca(c.SegundosParaVaciarLaCaja, 30f));
+
+        const float cajaLlena = 2000f;
+        Comprobar("la descarga por segundo no depende de la noche: llena la caja se vacía en 30 s",
+            Cerca(c.DescargaPorSegundo(cajaLlena) * 30f, cajaLlena));
+        c.AbrirVentana(0f); c.Rescatar(1f, true);
+        Comprobar("tras un rescate se descarga al doble por segundo",
+            Cerca(c.DescargaPorSegundo(cajaLlena), 2f * cajaLlena / 30f));
+        Comprobar("darle cuerda la llena en 15 s y no se ve afectado por la multa",
+            Cerca(c.RecargaPorSegundo(cajaLlena) * 15f, cajaLlena));
+
+        // Simulación con ticks de 0,5 s: de llena a vacía.
+        var s2 = new RescateDePuppet();
+        float caja = cajaLlena; float t = 0f;
+        while (caja > 0.01f && t < 100f) { caja -= s2.DescargaPorSegundo(cajaLlena) * 0.5f; t += 0.5f; }
+        Comprobar("simulada, la caja llega a 0 a los 30 s", Cerca(t, 30f));
+        s2.AbrirVentana(0f); s2.Rescatar(1f, true);
+        caja = cajaLlena; t = 0f;
+        while (caja > 0.01f && t < 100f) { caja -= s2.DescargaPorSegundo(cajaLlena) * 0.5f; t += 0.5f; }
+        Comprobar("simulada tras un rescate, a los 15 s", Cerca(t, 15f));
+
         r.AbrirVentana(60f);
         r.Reiniciar();
         Comprobar("reiniciar cierra la ventana", !r.VentanaAbierta(61f));
