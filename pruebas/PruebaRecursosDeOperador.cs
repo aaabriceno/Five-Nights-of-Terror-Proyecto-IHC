@@ -67,6 +67,32 @@ public static class PruebaRecursosDeOperador
         p.Reiniciar();
         Comprobar("tras reiniciar no está vivo", !p.EstaVivo(10.5f));
 
+        // El jugador 1 se entera (en la tablet) de que su compañero entró o se cayó.
+        var c = new PresenciaDeOperador();
+        Comprobar("sin latidos no hay nada que avisar",
+            c.RevisarCambio(0f) == PresenciaDeOperador.Cambio.SinCambio);
+        c.Latir(10f);
+        Comprobar("el primer latido avisa que el compañero se conectó",
+            c.RevisarCambio(10f) == PresenciaDeOperador.Cambio.Conectado);
+        Comprobar("el aviso de conexión sale una sola vez",
+            c.RevisarCambio(10.5f) == PresenciaDeOperador.Cambio.SinCambio);
+        c.Latir(12f);
+        Comprobar("mientras llegan latidos no hay cambio",
+            c.RevisarCambio(17f) == PresenciaDeOperador.Cambio.SinCambio);
+        Comprobar("pasados 6 s sin latido avisa que se perdió",
+            c.RevisarCambio(18.5f) == PresenciaDeOperador.Cambio.Perdido);
+        Comprobar("el aviso de pérdida sale una sola vez",
+            c.RevisarCambio(30f) == PresenciaDeOperador.Cambio.SinCambio);
+        c.Latir(31f);
+        Comprobar("si vuelve, avisa otra vez que se conectó",
+            c.RevisarCambio(31f) == PresenciaDeOperador.Cambio.Conectado);
+        c.OlvidarCambio();
+        Comprobar("en una partida nueva, un compañero que ya estaba se anuncia de nuevo",
+            c.RevisarCambio(32f) == PresenciaDeOperador.Cambio.Conectado);
+        c.OlvidarCambio();
+        Comprobar("en una partida nueva sin compañero no se avisa nada",
+            c.RevisarCambio(60f) == PresenciaDeOperador.Cambio.SinCambio);
+
         Comprobar("con operador vivo, Freddy va 0,4 veces el intervalo (más rápido)",
             Math.Abs(RecursosDeOperador.FactorDeAgresividad("freddy", true) - 0.4f) < 0.001f);
         Comprobar("con operador vivo, Vixy va 0,7",
