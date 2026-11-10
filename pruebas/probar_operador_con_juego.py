@@ -40,6 +40,36 @@ async def esperar_tipo(socket, tipo, espera=10.0):
         return None
 
 
+async def esperar_efecto(socket, tipo, espera=10.0):
+    """Lee mensajes hasta un `efecto` de ese tipo (los otros efectos se saltan)."""
+    try:
+        async with asyncio.timeout(espera):
+            while True:
+                mensaje = json.loads(await socket.recv())
+                if mensaje.get("type") == "efecto" and mensaje.get("tipo") == tipo:
+                    return mensaje
+    except TimeoutError:
+        return None
+
+
+async def yaw_de_la_camara(socket, espera=2.0):
+    """El último `camara_yaw` que llegue en `posiciones` durante `espera` segundos (None si ninguno)."""
+    yaw = None
+    for mensaje in await recolectar(socket, espera):
+        if mensaje.get("type") == "posiciones" and "camara_yaw" in mensaje:
+            yaw = mensaje["camara_yaw"]
+    return yaw
+
+
+async def mantener_boton(tablet, direccion, segundos):
+    """Como el dedo apoyado en la tablet: repite la orden cada 0,15 s y al final manda 0."""
+    fin = asyncio.get_event_loop().time() + segundos
+    while asyncio.get_event_loop().time() < fin:
+        await tablet.send(json.dumps({"type": "camara", "direccion": direccion}))
+        await asyncio.sleep(0.15)
+    await tablet.send(json.dumps({"type": "camara", "direccion": 0}))
+
+
 async def recolectar(socket, segundos):
     """Lee todo lo que llegue durante `segundos` y lo devuelve como lista."""
     mensajes = []
@@ -100,6 +130,15 @@ async def principal():
             if puntos:
                 comprobar("el mapa trae puntos de ruta", len(puntos["puntos"]) > 0)
                 comprobar("el mapa trae la posición del jugador", puntos.get("jugador") is not None)
+                rutas = {r["animatronico"]: r["puntos"] for r in puntos.get("rutas", [])}
+                comprobar("el mapa trae la guía: la ruta fija de los tres animatrónicos",
+                          sorted(rutas) == ["freddy", "puppet", "vixy"])
+                comprobar("la ruta de Freddy es la del plano y termina en el punto penúltimo, sin el jugador",
+                          rutas.get("freddy") == ["P01", "P03", "P04", "P05", "P06", "P07"])
+                comprobar("la ruta de Vixy va por el pasillo izquierdo hasta el ducto (P10 es solo un desvío)",
+                          rutas.get("vixy") == ["P02", "P11", "P12", "V01", "V02", "V03", "V04"])
+                comprobar("la ruta de Puppet va por el pasillo derecho hasta el ducto",
+                          rutas.get("puppet") == ["P13", "P14", "P15", "P16", "V05", "V06", "V07", "V08"])
 
             retrasar = json.dumps({"type": "accion_operador", "accion": "retrasar", "objetivo": "vixy"})
             await operador.send(retrasar)
@@ -118,11 +157,21 @@ async def principal():
                 nombres = sorted(a["nombre"] for a in estado["animatronicos"])
                 comprobar("estado_mapa trae a los tres animatrónicos", nombres == ["freddy", "puppet", "vixy"])
 
+            # El jugador 1 (tablet) se entera de que tiene compañero: con él los
+            # animatrónicos van más rápido.
+            conectado = await esperar_efecto(tablet, "operador_conectado", 5.0)
+            comprobar("la tablet recibe el efecto operador_conectado al empezar la partida",
+                      conectado is not None and "compañero" in conectado.get("message", ""))
+
             await operador.send(retrasar)
             efecto = await esperar_tipo(operador, "efecto")
             comprobar("retrasar a Vixy devuelve efecto", efecto is not None and efecto["animatronic"] == "vixy")
-            efecto_tablet = await esperar_tipo(tablet, "efecto")
-            comprobar("la tablet también recibe el efecto", efecto_tablet is not None)
+            efecto_tablet = await esperar_efecto(tablet, "ralentizado")
+            comprobar("la tablet también recibe el efecto de retrasar, con el animatrónico y los segundos",
+                      efecto_tablet is not None and efecto_tablet["animatronic"] == "vixy" and efecto_tablet["segundos"] > 0)
+            puppet_tablet = await esperar_tipo(tablet, "estado_puppet", 3.0)
+            comprobar("la tablet recibe estado_puppet con multa_factor 1 mientras nadie rescate a Puppet",
+                      puppet_tablet is not None and puppet_tablet.get("multa_factor") == 1)
 
             await operador.send(retrasar)
             rechazo = await esperar_tipo(operador, "accion_rechazada")
@@ -151,6 +200,26 @@ async def principal():
             comprobar("posiciones trae a los 3 animatrónicos y al jugador",
                       posicion is not None and len(posicion["animatronicos"]) == 3 and "jugador" in posicion)
 
+            # --- cámara del jugador 1: los botones de la tablet la giran y el jugador 2 lo ve ---
+            tarea_latidos = asyncio.ensure_future(latidos(operador))   # sin latidos Unity da al operador por caído (y calla las posiciones)
+            comprobar("al empezar la partida la cámara mira al frente", await yaw_de_la_camara(operador, 0.5) == 0)
+            tarea_boton = asyncio.ensure_future(mantener_boton(tablet, -1, 1.2))
+            yaw_izquierda = await yaw_de_la_camara(operador, 1.3)
+            await tarea_boton
+            comprobar(f"mantener «izquierda» 1,2 s gira la cámara a la izquierda (llegó a {yaw_izquierda}°)",
+                      yaw_izquierda is not None and -90 < yaw_izquierda < -60)
+            yaw_vuelta = await yaw_de_la_camara(operador, 1.6)
+            comprobar(f"al soltar vuelve sola al frente (quedó en {yaw_vuelta}°)", yaw_vuelta == 0)
+            tarea_boton = asyncio.ensure_future(mantener_boton(tablet, 1, 5.0))
+            yaw_derecha = await yaw_de_la_camara(operador, 5.0)
+            await tarea_boton
+            comprobar(f"mantener «derecha» no pasa de 75° (llegó a {yaw_derecha}°)", yaw_derecha is not None and 70 < yaw_derecha <= 75)
+            yaw_vuelta = await yaw_de_la_camara(operador, 1.6)
+            comprobar(f"y también vuelve al frente (quedó en {yaw_vuelta}°)", yaw_vuelta == 0)
+            await tablet.send(json.dumps({"type": "camara", "direccion": 1}))     # el «soltar» se pierde
+            yaw_perdido = await yaw_de_la_camara(operador, 3.0)
+            comprobar(f"si se pierde el «soltar», la cámara no se queda girando (quedó en {yaw_perdido}°)", yaw_perdido == 0)
+
             # Un segundo operador que se conecta a mitad de la noche recibe todo de golpe.
             async with websockets.connect(URL, ping_interval=None, max_queue=None) as operador2:
                 await operador2.send(json.dumps({"type": "operador_connect"}))
@@ -159,8 +228,9 @@ async def principal():
                           {"mapa_puntos", "estado_mapa", "estado_jugador", "estado_operador"} <= inicial)
 
             # --- trampas, mini-tarea de recarga y rescate de Puppet ---
-            tarea_latidos = asyncio.ensure_future(latidos(operador))
-            punto_a, punto_b = puntos["puntos"][0]["nombre"], puntos["puntos"][1]["nombre"]
+            # Los últimos puntos están lejos de donde nacen los animatrónicos: una trampa en
+            # el punto de salida (P01, P02, P13) se dispara al instante y deja de estar ocupada.
+            punto_a, punto_b = puntos["puntos"][-1]["nombre"], puntos["puntos"][-2]["nombre"]
 
             def accion(identificador, **campos):
                 return json.dumps({"type": "accion_operador", "id": identificador, **campos})
@@ -169,6 +239,8 @@ async def principal():
             r = await esperar_respuesta(operador, 1)
             comprobar("colocar una trampa con carga devuelve efecto trampa_colocada con el mismo id",
                       r is not None and r["type"] == "efecto" and r.get("tipo") == "trampa_colocada")
+            trampa_tablet = await esperar_efecto(tablet, "trampa_colocada", 3.0)
+            comprobar("la tablet recibe que el compañero puso una trampa", trampa_tablet is not None)
             e = await esperar_estado_operador(operador, lambda m: m["cargas"] == 0 and punto_a in m["trampas"])
             comprobar("estado_operador muestra 0 cargas y la trampa puesta", e is not None)
 
@@ -205,6 +277,11 @@ async def principal():
             comprobar("rescatar a Puppet sin que haya salido se rechaza (sin_ventana)",
                       r is not None and r.get("motivo") == "sin_ventana")
             tarea_latidos.cancel()
+
+            # Sin latidos durante 6 s Unity da por caído al compañero y se lo cuenta a la tablet.
+            perdido = await esperar_efecto(tablet, "operador_perdido", 12.0)
+            comprobar("sin latidos del compañero, la tablet recibe operador_perdido",
+                      perdido is not None and "desconect" in perdido.get("message", ""))
 
             await tablet.send(json.dumps({"type": "disconnect"}))
     finally:
