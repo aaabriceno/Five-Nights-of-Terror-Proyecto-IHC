@@ -9,7 +9,7 @@ TEMP="$(mktemp -d)"
 trap 'rm -rf "$TEMP"' EXIT
 
 # Cada prueba tiene su propio Main, así que se compila una por una.
-for par in "RecursosDeOperador:PruebaRecursosDeOperador" "RescateDePuppet:PruebaRescateDePuppet"; do
+for par in "RecursosDeOperador:PruebaRecursosDeOperador" "RescateDePuppet:PruebaRescateDePuppet" "RutaFija:PruebaRutaFija" "ControlDeCamara:PruebaControlDeCamara"; do
   regla="${par%%:*}"
   prueba="${par##*:}"
   echo "== $regla =="
