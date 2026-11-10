@@ -33,16 +33,47 @@ for (let i = 0; i < 250; i++) medidor.registrar(5);
 comprobar("guarda como máximo 200 registros", medidor.resumen().n === 200);
 comprobar("medidor vacío no falla", Logica.crearMedidor().resumen().n === 0);
 
-console.log("mini-tarea (secuencia de símbolos)");
-let n = 0;
-const azar = () => [0.0, 0.3, 0.6, 0.99][n++ % 4];
-const secuencia = Logica.generarSecuencia(4, azar);
-comprobar("genera 4 símbolos del 0 al 3", secuencia.length === 4 && secuencia.every((v) => v >= 0 && v <= 3));
-comprobar("con ese azar sale 0, 1, 2, 3", secuencia.join() === "0,1,2,3");
-comprobar("una entrada parcial correcta sigue en curso", Logica.evaluarEntrada([0, 1, 2, 3], [0, 1]) === "en curso");
-comprobar("la entrada completa y correcta termina bien", Logica.evaluarEntrada([0, 1, 2, 3], [0, 1, 2, 3]) === "completa");
-comprobar("un símbolo equivocado falla", Logica.evaluarEntrada([0, 1, 2, 3], [0, 2]) === "mal");
-comprobar("una entrada vacía sigue en curso", Logica.evaluarEntrada([0, 1, 2, 3], []) === "en curso");
+console.log("terminal: circuito lógico (lo que se ve mientras se mueven los interruptores)");
+// (A Y B) O (NO C), con una puerta XOR al final: G1 = A Y B, G2 = NO C, G3 = G1 O G2, G4 = G3 XOR D
+const circuito = {
+  entradas: ["A", "B", "C", "D"],
+  puertas: [
+    { id: "G1", op: "AND", a: "A", b: "B" },
+    { id: "G2", op: "NOT", a: "C", b: "" },
+    { id: "G3", op: "OR", a: "G1", b: "G2" },
+    { id: "G4", op: "XOR", a: "G3", b: "D" },
+  ],
+  salida: "G4",
+  objetivo: true,
+};
+let c = Logica.evaluarCircuito(circuito, [1, 1, 1, 0]);
+comprobar("A=1 B=1 C=1 D=0: G1=1, G2=0, G3=1 y la salida 1",
+  c.valores.G1 === true && c.valores.G2 === false && c.valores.G3 === true && c.salida === true);
+c = Logica.evaluarCircuito(circuito, [0, 0, 1, 0]);
+comprobar("A=0 B=0 C=1 D=0: G1=0, G2=0, G3=0 y la salida 0", c.valores.G3 === false && c.salida === false);
+c = Logica.evaluarCircuito(circuito, [0, 0, 1, 1]);
+comprobar("el XOR con D=1 invierte la salida", c.salida === true);
+comprobar("las entradas también salen en los valores", c.valores.A === false && c.valores.D === true);
+// Solo A=1: G1=0, G2=NO 0=1, G3=1, G4=1 XOR 0=1.
+comprobar("con interruptores de menos no falla (los que faltan valen 0)",
+  Logica.evaluarCircuito(circuito, [1]).salida === true && Logica.evaluarCircuito(circuito, undefined).salida === true);
+comprobar("el foco se enciende cuando la salida es el objetivo",
+  Logica.circuitoResuelto(circuito, [0, 0, 1, 1]) === true && Logica.circuitoResuelto(circuito, [0, 0, 1, 0]) === false);
+comprobar("con objetivo apagado se resuelve con la salida en 0",
+  Logica.circuitoResuelto({ ...circuito, objetivo: false }, [0, 0, 1, 0]) === true);
+comprobar("las puertas se leen en español",
+  Logica.textoDePuerta(circuito.puertas[0]) === "G1 = A Y B" &&
+  Logica.textoDePuerta(circuito.puertas[1]) === "G2 = NO C" &&
+  Logica.textoDePuerta(circuito.puertas[2]) === "G3 = G1 O G2" &&
+  Logica.textoDePuerta(circuito.puertas[3]) === "G4 = G3 O exclusivo D");
+
+console.log("terminal: lo que se escribe en un cálculo");
+comprobar("un número se lee tal cual", Logica.leerRespuesta("42") === 42);
+comprobar("con espacios alrededor también", Logica.leerRespuesta("  7 ") === 7);
+comprobar("ceros a la izquierda no importan", Logica.leerRespuesta("0042") === 42);
+comprobar("vacío no es una respuesta", Logica.leerRespuesta("") === null && Logica.leerRespuesta("   ") === null);
+comprobar("letras o símbolos no son una respuesta", Logica.leerRespuesta("4x") === null && Logica.leerRespuesta("1,5") === null && Logica.leerRespuesta("-3") === null);
+comprobar("un número absurdo de largo se rechaza", Logica.leerRespuesta("12345678901") === null);
 
 console.log("textoDeEfecto (lo que ve el jugador 2 de lo que él mismo hizo)");
 const NOMBRES = { freddy: "Freddy", vixy: "Vixy", puppet: "Puppet" };
