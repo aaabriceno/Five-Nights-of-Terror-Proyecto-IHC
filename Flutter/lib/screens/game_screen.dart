@@ -6,6 +6,8 @@ import '../providers/game_provider.dart';
 import '../services/servicio_de_avisos.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/barra_reloj_de_noche.dart';
+import '../widgets/botones_de_camara.dart';
+import '../widgets/franja_del_companero.dart';
 import '../widgets/puppet_game_widget.dart';
 import '../widgets/placeholder_game_widget.dart';
 import '../widgets/menu_de_tareas.dart';
@@ -37,10 +39,12 @@ class _GameScreenState extends State<GameScreen> {
   bool _mostrandoCajaDePuppet = false;
   bool _gameOverTransitionScheduled = false;
   ServicioDeAvisos? _avisos;
+  late final GameProvider _juego;
 
   @override
   void initState() {
     super.initState();
+    _juego = context.read<GameProvider>();
     // Los avisos por vibración (caja en peligro, tarea en rojo) viven aquí, y no
     // en el menú de tareas, para que funcionen aunque el jugador esté dentro de
     // una tarea o de la caja.
@@ -54,10 +58,14 @@ class _GameScreenState extends State<GameScreen> {
         );
       },
     )..iniciar();
+    // Lo que hace el compañero también se siente: un toque de vibración distinto
+    // según qué (trampa, rescate, se cayó).
+    _juego.alAvisoDeCompanero = (aviso) => _avisos?.avisarDeCompanero(aviso.tipo);
   }
 
   @override
   void dispose() {
+    _juego.alAvisoDeCompanero = null;
     _avisos?.detener();
     super.dispose();
   }
@@ -136,8 +144,18 @@ class _GameScreenState extends State<GameScreen> {
                 nocheActual: game.session.nocheActual,
                 horaEnJuego: game.session.horaEnJuego,
               ),
+              FranjaDelCompanero(
+                aviso: game.session.avisoDeCompanero,
+                companeroConectado: game.session.companeroConectado,
+                multaDeCaja: game.session.multaDeCaja,
+                segundosDeCaja: game.session.segundosDeCaja,
+              ),
               const SizedBox(height: 16),
               Expanded(child: _buildContenidoPrincipal(game)),
+              const SizedBox(height: 12),
+              // Siempre a la vista, en el mismo lugar, aunque haya una tarea abierta:
+              // la cámara del juego se mueve desde aquí.
+              BotonesDeCamara(alMirar: game.mirarHacia),
             ],
           ),
         ),
