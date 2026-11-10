@@ -158,3 +158,11 @@ Solo para las pruebas automáticas (`pruebas/probar_vixy_y_puppet_con_juego.py`)
 
 - `-prueba-sin-freddy`: Freddy no aparece (así Vixy y Puppet pueden terminar su recorrido sin que él acabe la partida).
 - `-prueba-tareas-cada <s>`: una tarea nueva cada `<s>` segundos en vez de cada 30 (Vixy solo avanza con 6 tareas pendientes en la noche 1, y la noche dura 120 s).
+
+## Conexión de la tablet y del relay (2026-11-10)
+
+- **La tablet se cae y vuelve:** la app manda `reconnect` (en vez de `connect`, que reinicia la noche). El relay lo reenvía a Unity y avisa al jugador 2 con `jugador1_volvio`; Unity retoma la noche en curso y le manda a la tablet `night_status`, `task_list` y `estado_puppet` para ponerla al día. Sin partida en curso (Unity se reinició o la noche ya terminó) lo trata como un `connect`. El relay no toca el `connect` guardado.
+- **La tablet se cae sin despedirse:** el relay manda a Unity `tablet_caida` (Unity suelta la cuerda de la caja y centra la cámara) y al jugador 2 `jugador1_salio` con `motivo: "conexion_perdida"`. La página del jugador 2 ya no lo toma como el fin de la partida: muestra «JUGADOR 1 SIN CONEXIÓN · ESPERANDO QUE VUELVA» hasta que llega `jugador1_volvio`. Con `disconnect` (salir a propósito) todo sigue como antes.
+- **Keepalive del relay:** ping cada 5 s, 5 s de espera y 2 s para cerrar (antes 20 + 20 + 10): una tablet o un navegador sin red se dan por perdidos en 12 s como máximo. Se cambia con las variables `PING_INTERVALO_S`, `PING_TIMEOUT_S` y `CIERRE_TIMEOUT_S`.
+- **El relay no espera a ningún cliente** (`broadcast`): uno atascado no atrasa a los demás ni hace que Unity sea dada por perdida.
+- **El relay pide `TCP_QUICKACK`** al recibir cada mensaje (en Linux): el cliente de Unity tiene Nagle encendido y sin esto un mensaje podía esperar hasta 40 ms.
