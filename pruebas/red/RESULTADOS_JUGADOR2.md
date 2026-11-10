@@ -20,6 +20,28 @@ Lectura:
 - Las posiciones llegan en promedio cada 50 ms (20 por segundo), pero con tirones hasta de ~118 ms cuando un cuadro tarda más. La página suaviza ese movimiento interpolando (`logica.js`).
 - Para bajar más la latencia hay que subir los cuadros por segundo de Unity (menos carga de escena o calidad gráfica menor), no tocar la red.
 
+## 2026-11-10 · revisión de latencia y conectividad
+
+Mismo comando (`--lanzar --n 200`), misma laptop (Ryzen + AMD Radeon 610M integrada + RTX 5060), con el mapa V2 de Marcelo.
+
+| Configuración | Ping p50 | Ping p95 | Ping máx | Intervalo de posiciones p95 |
+|---|---|---|---|---|
+| Antes: relay anterior, juego en la integrada, pantalla 2560×1600 | 40,8 ms | 44,0 ms | 72,5 ms | 101,6 ms |
+| Solo el juego en la NVIDIA | 7,7 ms | 41,4 ms | 42,8 ms | 60,0 ms |
+| Solo el relay arreglado (integrada, 2560×1600) | 22,9 ms | 43,5 ms | 47,8 ms | 90,2 ms |
+| **Después: relay arreglado + juego en la NVIDIA** | **6,2 ms** | **11,3 ms** | **12,7 ms** | **56,2 ms** |
+
+Qué se encontró (y se arregló):
+
+1. **El juego se abría en la tarjeta integrada** (AMD 610M), no en la RTX 5060 (`Player.log`: `Renderer: AMD Radeon 610M`), a 2560×1600: unos 20 cuadros por segundo. Unity atiende la red una vez por cuadro, así que el ping era de ~40 ms. *Arreglo:* `iniciar.sh` abre el juego con el render offload de NVIDIA cuando hay una (`SIN_TARJETA_NVIDIA=1` lo desactiva). Con la ventana a 1280×720 en la integrada también bajaba a ~8 ms.
+2. **Nagle + ACK demorado: el p95 de ~41 ms.** El cliente de Unity (ClientWebSocket de Mono) abre el socket con `TCP_NODELAY = 0` (comprobado con `strace`), y Linux demora hasta 40 ms el ACK del relay; un mensaje pequeño que sale justo después de otro esperaba ese ACK. Con `ServicePointManager.UseNagleAlgorithm = false` no cambia nada (no lo usa). *Arreglo:* el relay pide `TCP_QUICKACK` con cada mensaje que recibe (`confirmar_de_inmediato`). `pruebas/probar_latencia_del_relay.py` lo vigila.
+3. **Un cliente atascado frenaba a todos y terminaba tumbando a Unity.** El relay esperaba (`await client.send`) a que cada cliente aceptara el mensaje: una tablet o un navegador que dejan de leer (Wi-Fi caído, app congelada) dejaban esperando al relay, que dejaba de leer a Unity, y al no contestar esta los ping la daba por perdida y **cerraba la conexión de Unity** (se vio: llegaban 20 de 120 mensajes). *Arreglo:* el relay manda con `broadcast`, sin esperar a nadie; a un cliente lento lo saca el keepalive. Caso 13 de `probar_relay.py`.
+4. **Una tablet sin Wi-Fi tardaba hasta 50 s en darse por perdida** (ping cada 20 s + 20 s de espera + 10 s de cierre). Ahora 5 + 5 + 2 = 12 s como máximo (`PING_INTERVALO_S`, `PING_TIMEOUT_S`, `CIERRE_TIMEOUT_S`). Con eso, Unity y el jugador 2 se enteran antes.
+5. **Reconectar la tablet reiniciaba la noche** (se comprobó con el juego real: Freddy volvía a P01 al reconectar). La app mandaba otro `connect`. Ahora manda `reconnect` y Unity retoma la noche (ver `docs/PROTOCOLO_JUGADOR2.md`).
+6. **Si la tablet se caía con la cuerda de la caja apretada, la cuerda se quedaba apretada** (y la cámara girada): nadie mandaba el «soltar». Ahora el relay avisa a Unity (`tablet_caida`) y los suelta.
+
+No se tocó la red entre dos máquinas: sigue pendiente repetir la medición desde la computadora del jugador 2 y con la tablet física.
+
 ## Pendiente
 
 - Repetir desde la computadora del jugador 2 (otra máquina, misma red): `--host <IP de la laptop> --iniciar-partida` con el juego abierto.
