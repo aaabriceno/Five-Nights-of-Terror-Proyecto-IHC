@@ -79,6 +79,19 @@ class ServicioDeAvisos {
   /// "trin": un pulso corto.
   static const List<int> patronDeTareaRoja = <int>[0, 300];
 
+  /// Lo que hace el compañero: un toque breve (trampa, retraso)...
+  static const List<int> patronDeCompanero = <int>[0, 150];
+
+  /// ...dos toques cuando te salva de Puppet, que es lo más importante...
+  static const List<int> patronDeRescate = <int>[0, 200, 100, 200];
+
+  /// ...y uno largo cuando se cae, porque desde ese momento estás solo.
+  static const List<int> patronDeCompaneroPerdido = <int>[0, 500];
+
+  /// Tras un rescate la tablet aún puede tener, un instante, el estado viejo
+  /// de la caja en peligro: durante este tiempo no se vuelve a vibrar por ella.
+  static const Duration silencioTrasUnRescate = Duration(seconds: 2);
+
   final Vibrador vibrador;
   final ({bool cajaEnPeligro, List<Task> tareas}) Function()? leerEstado;
   final DateTime Function() _ahora;
@@ -92,6 +105,7 @@ class ServicioDeAvisos {
   bool _disponible = false;
   DateTime? _ultimoAvisoDeLaCaja;
   final Set<int> _tareasYaAvisadas = <int>{};
+  DateTime? _sinAvisoDeCajaHasta;
   Timer? _temporizador;
 
   /// Comprueba si hay motor de vibración y, si se dio [leerEstado], empieza a
@@ -126,6 +140,9 @@ class ServicioDeAvisos {
   }) {
     if (!_disponible) return;
 
+    final DateTime? silencio = _sinAvisoDeCajaHasta;
+    if (silencio != null && ahora.isBefore(silencio)) cajaEnPeligro = false;
+
     if (cajaEnPeligro) {
       final DateTime? ultimo = _ultimoAvisoDeLaCaja;
       if (ultimo == null || ahora.difference(ultimo) >= repeticionDeLaCaja) {
@@ -139,7 +156,8 @@ class ServicioDeAvisos {
 
     if (_ultimoAvisoDeLaCaja != null) {
       _ultimoAvisoDeLaCaja = null;
-      vibrador.cancelar();
+      // En silencio tras un rescate no se cancela: se cortaría el aviso del rescate.
+      if (silencio == null || !ahora.isBefore(silencio)) vibrador.cancelar();
     }
 
     _tareasYaAvisadas.removeWhere(
@@ -153,5 +171,33 @@ class ServicioDeAvisos {
       }
     }
     if (hayTareaNuevaEnRojo) vibrador.vibrar(patronDeTareaRoja);
+  }
+
+  /// El jugador 2 hizo algo (o se cayó): un aviso por vibración distinto según
+  /// qué. No corta el "trrr" de la caja en peligro, salvo el rescate: ese lo
+  /// termina porque la caja ya está a salvo.
+  void avisarDeCompanero(String tipo) {
+    if (!_disponible) return;
+    final List<int>? patron = switch (tipo) {
+      'puppet_rescatado' => patronDeRescate,
+      'operador_perdido' => patronDeCompaneroPerdido,
+      'ralentizado' ||
+      'trampa_colocada' ||
+      'trampa_disparada' ||
+      'operador_conectado' => patronDeCompanero,
+      _ => null,
+    };
+    if (patron == null) return;
+
+    if (tipo == 'puppet_rescatado') {
+      if (_ultimoAvisoDeLaCaja != null) {
+        vibrador.cancelar();
+        _ultimoAvisoDeLaCaja = null;
+      }
+      _sinAvisoDeCajaHasta = _ahora().add(silencioTrasUnRescate);
+    } else if (_ultimoAvisoDeLaCaja != null) {
+      return;
+    }
+    vibrador.vibrar(patron);
   }
 }
