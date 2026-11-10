@@ -226,7 +226,7 @@ input {
   #aviso, #aviso.visible { transform: translate(-50%, 0); }
 }
 
-#alerta-puppet[hidden], #minitarea[hidden], #fin-partida[hidden], #reconectando[hidden] { display: none; }
+#alerta-puppet[hidden], #minitarea[hidden], #fin-partida[hidden], #reconectando[hidden], #j1-sin-conexion[hidden] { display: none; }
 
 .botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .botones button { flex: 1 1 8rem; }
@@ -253,7 +253,7 @@ input {
 @keyframes entrada { from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); } }
 
 /* conexión perdida: franja fija arriba, no tapa el mapa */
-#reconectando {
+#reconectando, #j1-sin-conexion {
   position: absolute; left: 0; right: 0; top: 0; z-index: 3;
   padding: 8px 12px;
   text-align: center; letter-spacing: .12em; font-weight: 700; font-size: 13px;
