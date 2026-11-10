@@ -14,10 +14,21 @@ public class AnimatronicUnityBrain : MonoBehaviour
     [Serializable]
     public class StringEvent : UnityEvent<string> { }
 
+    /// Un punto al que a veces se desvía entre dos puntos de su ruta fija.
+    [Serializable]
+    public class DesvioDeRuta
+    {
+        [Tooltip("Índice del punto de la ruta tras el cual puede hacerse el desvío (entre ese punto y el siguiente).")]
+        public int despuesDe;
+        public Transform punto;
+    }
+
     [Header("Identidad y ruta")]
     public string nombreAnimatronico = "Freddy";
-    [Tooltip("Para Freddy/Vixy: puntos candidatos, punto penúltimo y posición del jugador al final. Para Puppet: ruta en orden.")]
+    [Tooltip("Ruta fija, en orden: puntos, punto penúltimo y posición del jugador al final.")]
     public Transform[] ruta;
+    [Tooltip("Desvíos ocasionales entre dos puntos de la ruta (solo Freddy y Vixy). La ruta no se altera: se pasa por el desvío y se vuelve.")]
+    public DesvioDeRuta[] desvios = new DesvioDeRuta[0];
     [Tooltip("Índices de ruta donde este animatrónico puede atacar si no se le mira.")]
     public int[] puntosDeObservacion;
     [Tooltip("Tipos de tarea que aumentan el riesgo de este animatrónico.")]
@@ -57,6 +68,13 @@ public class AnimatronicUnityBrain : MonoBehaviour
     private bool mantenidoQuieto;
     private readonly Dictionary<string, float> segundosTareaPendiente = new Dictionary<string, float>();
     private readonly HashSet<int> puntosVisitados = new HashSet<int>();
+    // Freddy y Vixy siguen su ruta en orden; de vez en cuando hacen un desvío.
+    private RutaFija rutaFija;
+    private float probabilidadDeDesvio;
+    // Freddy no avanza a un ritmo perfectamente fijo: cada paso dura entre un
+    // 80 % y un 120 % del intervalo, para que el jugador 2 no pueda cronometrarlo.
+    private const float VariacionDelIntervaloDeFreddy = 0.2f;
+    private float variacionDelIntervalo = 1f;
     private readonly Dictionary<int, Vector3> posicionesDeRutaNavMesh = new Dictionary<int, Vector3>();
     private float movementClock;
     private float riskClock;
@@ -246,6 +264,8 @@ public class AnimatronicUnityBrain : MonoBehaviour
         puppetExitClock = 0f;
         puntosVisitados.Clear();
         posicionesDeRutaNavMesh.Clear();
+        if (rutaFija != null) rutaFija.Reiniciar();
+        variacionDelIntervalo = 1f;
         waypointActivo = -1;
         esperandoAtaquePenultimo = false;
         proximoIntentoPenultimo = 0f;
@@ -288,6 +308,33 @@ public class AnimatronicUnityBrain : MonoBehaviour
         tiposDeTarea = GetDefaultTasks();
         if (detectorCabeza == null && usaSeguimientoDeMirada)
             detectorCabeza = FindObjectOfType<HeadOrientationTracker>();
+    }
+
+    /// Desvíos ocasionales de la ruta fija. `probabilidad` es la de hacer un
+    /// desvío en cada tramo que lo tiene (0 = nunca, 1 = siempre).
+    public void ConfigurarDesvios(DesvioDeRuta[] lista, float probabilidad)
+    {
+        desvios = lista ?? new DesvioDeRuta[0];
+        probabilidadDeDesvio = Mathf.Clamp01(probabilidad);
+        rutaFija = null;
+    }
+
+    /// Un punto de la ruta, o de los desvíos (los desvíos se numeran después de la ruta).
+    private Transform PuntoDeRuta(int indice)
+    {
+        if (ruta == null || indice < 0) return null;
+        if (indice < ruta.Length) return ruta[indice];
+        int d = indice - ruta.Length;
+        return desvios != null && d < desvios.Length ? desvios[d].punto : null;
+    }
+
+    private RutaFija RutaDeEsteAnimatronico()
+    {
+        if (rutaFija != null) return rutaFija;
+        int[] tras = new int[desvios == null ? 0 : desvios.Length];
+        for (int i = 0; i < tras.Length; i++) tras[i] = desvios[i].despuesDe;
+        rutaFija = new RutaFija(PenultimateWaypointIndex + 1, ruta.Length, tras);
+        return rutaFija;
     }
 
     public void SetTasks(List<AnimatronicGameCoordinator.TaskState> tasks)
@@ -349,8 +396,11 @@ public class AnimatronicUnityBrain : MonoBehaviour
         }
 
         movementClock += deltaTime;
-        if (movementClock < interval) return;
-        movementClock -= interval;
+        float intervaloDeEstePaso = interval * variacionDelIntervalo;
+        if (movementClock < intervaloDeEstePaso) return;
+        movementClock -= intervaloDeEstePaso;
+        if (detenerseCuandoMira)
+            variacionDelIntervalo = UnityEngine.Random.Range(1f - VariacionDelIntervaloDeFreddy, 1f + VariacionDelIntervaloDeFreddy);
 
         if (ataqueVixyPorTresTareas)
         {
@@ -361,9 +411,9 @@ public class AnimatronicUnityBrain : MonoBehaviour
         }
         else if (!detenerseCuandoMira)
         {
-            // Freddy (detenerseCuandoMira) avanza a ritmo fijo: mirarlo es la
-            // única defensa, así que su tiempo debe ser predecible. El resto
-            // conserva el avance probabilístico original.
+            // Freddy (detenerseCuandoMira) avanza a un ritmo casi fijo (±20 %):
+            // mirarlo es la única defensa, así que su tiempo debe ser
+            // predecible. El resto conserva el avance probabilístico original.
             float oldestPendingTask = 0f;
             foreach (float age in segundosTareaPendiente.Values)
                 oldestPendingTask = Mathf.Max(oldestPendingTask, age);
@@ -376,7 +426,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
             if (!EnsureAgentOnNavMesh()) return;
             int nextIndex = SelectNextWaypoint();
             if (nextIndex < 0) return;
-            Transform probabilisticTarget = ruta[nextIndex];
+            Transform probabilisticTarget = PuntoDeRuta(nextIndex);
             if (probabilisticTarget == null) return;
             agent.isStopped = false;
             Vector3 destination = posicionesDeRutaNavMesh.TryGetValue(nextIndex, out Vector3 snappedPosition)
@@ -409,49 +459,30 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
     private int PenultimateWaypointIndex => ruta == null ? -1 : ruta.Length - 2;
 
+    /// Ruta fija: el siguiente punto de la ruta en orden, o a veces un desvío.
+    /// Nunca se salta un punto ni retrocede. Si un punto no tiene malla de
+    /// navegación se avisa y se sigue con el siguiente, para no quedarse parado.
     private int SelectNextWaypoint()
     {
         int penultimate = PenultimateWaypointIndex;
         if (penultimate < 0 || ruta[penultimate] == null) return -1;
 
-        Vector3 playerPosition = ruta[ruta.Length - 1] != null
-            ? ruta[ruta.Length - 1].position
-            : transform.position;
-        if (HorizontalDistance(transform.position, playerPosition) <= 9f)
-            return CacheWalkableWaypoint(penultimate, out _) ? penultimate : -1;
-
-        float currentPlayerDistance = HorizontalDistance(transform.position, playerPosition);
-        List<WaypointChoice> advancing = new List<WaypointChoice>();
-        List<WaypointChoice> reachable = new List<WaypointChoice>();
-        for (int i = 0; i < penultimate; i++)
+        RutaFija recorrido = RutaDeEsteAnimatronico();
+        float probabilidad = probabilidadDeDesvio;
+        for (int intento = 0; intento <= ruta.Length + (desvios == null ? 0 : desvios.Length); intento++)
         {
-            if (puntosVisitados.Contains(i) || ruta[i] == null) continue;
-            if (!CacheWalkableWaypoint(i, out float pathDistance)) continue;
+            int siguiente = recorrido.Siguiente(probabilidad, () => UnityEngine.Random.value);
+            if (siguiente < 0) return -1;
+            if (PuntoDeRuta(siguiente) != null && CacheWalkableWaypoint(siguiente, out _)) return siguiente;
 
-            WaypointChoice choice = new WaypointChoice(i, pathDistance);
-            reachable.Add(choice);
-            if (HorizontalDistance(ruta[i].position, playerPosition) < currentPlayerDistance - 0.25f)
-                advancing.Add(choice);
+            Debug.LogWarning($"{nombreAnimatronico}: el punto {(PuntoDeRuta(siguiente) != null ? PuntoDeRuta(siguiente).name : siguiente.ToString())} no está en la malla de navegación.");
+            if (recorrido.EsDesvio(siguiente))
+            {
+                recorrido.AbandonarDesvio();
+                probabilidad = 0f;
+            }
         }
-
-        List<WaypointChoice> pool = advancing.Count > 0 ? advancing : reachable;
-        if (pool.Count == 0) return CacheWalkableWaypoint(penultimate, out _) ? penultimate : -1;
-        pool.Sort((left, right) => left.pathDistance.CompareTo(right.pathDistance));
-
-        // Roll among the three closest route points, weighted toward the
-        // nearest one. Mirrored points make either side of the map eligible.
-        int choiceCount = Mathf.Min(3, pool.Count);
-        float totalWeight = 0f;
-        for (int i = 0; i < choiceCount; i++)
-            totalWeight += 1f / (pool[i].pathDistance + 0.5f);
-
-        float roll = UnityEngine.Random.value * totalWeight;
-        for (int i = 0; i < choiceCount; i++)
-        {
-            roll -= 1f / (pool[i].pathDistance + 0.5f);
-            if (roll <= 0f) return pool[i].index;
-        }
-        return pool[choiceCount - 1].index;
+        return -1;
     }
 
     private bool TryGetPathDistance(Vector3 destination, out float distance)
@@ -470,9 +501,10 @@ public class AnimatronicUnityBrain : MonoBehaviour
     private bool CacheWalkableWaypoint(int index, out float pathDistance)
     {
         pathDistance = 0f;
-        if (index < 0 || index >= ruta.Length || ruta[index] == null || agent == null || !agent.isOnNavMesh)
+        Transform punto = PuntoDeRuta(index);
+        if (punto == null || agent == null || !agent.isOnNavMesh)
             return false;
-        if (!NavMesh.SamplePosition(ruta[index].position, out NavMeshHit hit, 2f, agent.areaMask))
+        if (!NavMesh.SamplePosition(punto.position, out NavMeshHit hit, 2f, agent.areaMask))
             return false;
         if (!TryGetPathDistance(hit.position, out pathDistance))
             return false;
@@ -494,11 +526,12 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
     private bool IsAtWaypoint(int index)
     {
-        if (index < 0 || index >= ruta.Length || ruta[index] == null) return false;
+        Transform punto = PuntoDeRuta(index);
+        if (punto == null) return false;
         Vector3 here = transform.position;
         Vector3 target = posicionesDeRutaNavMesh.TryGetValue(index, out Vector3 snappedPosition)
             ? snappedPosition
-            : ruta[index].position;
+            : punto.position;
         return HorizontalDistance(here, target) <= Mathf.Max(1.1f, agent != null ? agent.stoppingDistance + 0.5f : 1.1f);
     }
 
@@ -533,17 +566,6 @@ public class AnimatronicUnityBrain : MonoBehaviour
         left.y = 0f;
         right.y = 0f;
         return Vector3.Distance(left, right);
-    }
-
-    private struct WaypointChoice
-    {
-        public int index;
-        public float pathDistance;
-        public WaypointChoice(int index, float pathDistance)
-        {
-            this.index = index;
-            this.pathDistance = pathDistance;
-        }
     }
 
     private void UpdatePendingTaskThreat(float deltaTime)
