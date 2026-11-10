@@ -26,6 +26,9 @@ from pathlib import Path
 
 import websockets
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import solucionador_de_tareas as solucion  # noqa: E402
+
 RAIZ = Path(__file__).resolve().parent.parent
 URL = "ws://127.0.0.1:8000"
 JUEGO = RAIZ / "Unity/Builds/Linux/FiveNightsOfTerror.x86_64"
@@ -54,6 +57,7 @@ class Partida:
         self.posiciones = []            # (t, {nombre: (x, z)})
         self.caja = []                  # (t, porcentaje, segundos_caja, multa)
         self.estado_operador = []       # (t, mensaje)
+        self.tareas = []                # (t, mensaje) de las tareas de la terminal que entrega Unity
         self.efectos = []               # (t, mensaje)
         self.fin = None                 # (t, mensaje) de game_over
         self.estado_jugador = []        # (t, mensaje)
@@ -114,6 +118,8 @@ class Partida:
                                 self.visitas[nombre].append((nodo, t))
                 elif tipo == "estado_operador":
                     self.estado_operador.append((t, m))
+                elif tipo == "tarea":
+                    self.tareas.append((t, m))
                 elif tipo == "estado_jugador":
                     self.estado_jugador.append((t, m))
                 elif tipo in ("jugador1_salio", "jugador1_volvio"):
@@ -146,10 +152,24 @@ class Partida:
             await asyncio.sleep(cada)
         return condicion()
 
-    async def mini_tarea(self):
-        await self.operador.send(json.dumps({"type": "mini_tarea_inicio"}))
-        await asyncio.sleep(3.2)
-        await self.operador.send(json.dumps({"type": "mini_tarea_fin"}))
+    async def _resolver_tarea(self, tipo, espera_minima):
+        """Pide una tarea de la terminal, espera lo mínimo que exige Unity y la responde bien."""
+        antes = len(self.tareas)
+        await self.operador.send(json.dumps({"type": "tarea_pedir", "tipo": tipo}))
+        if not await self.esperar(lambda: len(self.tareas) > antes, 3):
+            return False
+        tarea = self.tareas[-1][1]
+        await asyncio.sleep(espera_minima)
+        await self.operador.send(json.dumps(solucion.respuesta_para(tarea)))
+        return True
+
+    async def ganar_carga(self):
+        """Un cálculo bien resuelto: 1 carga de trampa."""
+        return await self._resolver_tarea("calculo", 1.7)
+
+    async def ganar_rescate(self):
+        """Un circuito bien resuelto: desbloquea el rescate de Puppet."""
+        return await self._resolver_tarea("circuito", 3.2)
 
     async def cerrar(self):
         for tarea in getattr(self, "lectores", []):
@@ -230,10 +250,9 @@ async def escenario_rescate():
     p = Partida(["-prueba-sin-freddy"])
     try:
         await p.abrir()
-        # El jugador 2 gana la habilidad de rescatar: 3 mini-tareas.
-        for _ in range(3):
-            await p.mini_tarea()
-        comprobar("tras 3 mini-tareas el jugador 2 tiene la habilidad de rescatar",
+        # El jugador 2 gana la habilidad de rescatar resolviendo un circuito lógico.
+        await p.ganar_rescate()
+        comprobar("tras resolver un circuito el jugador 2 tiene la habilidad de rescatar",
                   await p.esperar(lambda: p.estado_operador and p.estado_operador[-1][1]["habilidad_puppet"], 3))
         t_vacia = next((t for t, pct, _, _ in p.caja if pct <= 0), None)
         if t_vacia is None:
@@ -258,8 +277,7 @@ async def escenario_rescate():
                       ok and efecto["segundos_caja"] == segundos and efecto["multa_factor"] == factor)
             t_rescate = p.t()
             if numero < len(esperados):
-                for _ in range(3):                   # gana la habilidad otra vez mientras tanto
-                    await p.mini_tarea()
+                await p.ganar_rescate()              # gana la habilidad otra vez mientras tanto
             await p.esperar(lambda: any(t > t_rescate + 1 and pct <= 0 for t, pct, _, _ in p.caja), segundos + 6)
             t_fin = next((t for t, pct, _, _ in p.caja if t > t_rescate + 1 and pct <= 0), None)
             if t_fin is not None:
