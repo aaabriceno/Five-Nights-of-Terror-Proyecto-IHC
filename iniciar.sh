@@ -114,10 +114,13 @@ if [ -f "$RAIZ/UnityRelay/operador/operador.html" ] && [ -x "$PYTHON_RELAY" ]; t
 fi
 
 # En laptops con dos tarjetas gráficas (integrada + NVIDIA) Linux abre el juego
-# en la integrada por defecto. Con esta escena y la pantalla a 2560x1600 iba a
-# ~20 cuadros por segundo, y como Unity atiende la red una vez por cuadro, el
-# ping del jugador 2 era de ~40 ms; en la NVIDIA baja a ~8 ms. Se pide que el
-# juego use la NVIDIA solo si hay una (SIN_TARJETA_NVIDIA=1 lo desactiva).
+# en la integrada por defecto, y Unity atiende la red una vez por cuadro: con
+# pocos cuadros el ping del jugador 2 sube (~40 ms en la integrada, ~8 ms en la
+# NVIDIA). Se pide la NVIDIA solo si hay una (SIN_TARJETA_NVIDIA=1 lo desactiva).
+# Con la NVIDIA, MediaPipe no logra su contexto de GPU (EGL), así que el propio
+# juego pasa la detección de la cara a la CPU (ver FaceLandmarkerRunner.cs);
+# en una PC sin NVIDIA no se toca nada y MediaPipe usa la GPU integrada o, si
+# no hay tarjeta, la CPU.
 if [ -z "${SIN_TARJETA_NVIDIA:-}" ] && command -v nvidia-smi >/dev/null && nvidia-smi -L >/dev/null 2>&1; then
   export __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only
 fi
