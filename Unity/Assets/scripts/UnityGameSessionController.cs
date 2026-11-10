@@ -397,35 +397,37 @@ public class UnityGameSessionController : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        string[] routeMarkers =
-        {
-            "E1_punto1", "E1_punto2", "E1_punto3", "E1_punto4",
-            "E2_punto1", "E2_punto2", "E2_punto3", "E2_punto4",
-            "punto_penultimo_jumpscare"
-        };
-        foreach (string markerName in routeMarkers)
+        DrawRouteGizmos(new Color(1f,.72f,.12f), "P01","P03","P04","P05","P06","P07","J1");
+        DrawRouteGizmos(new Color(.2f,.85f,1f), "P02","P10","P11","P12","V01","V02","V03","V04","J1");
+        DrawRouteGizmos(new Color(1f,.25f,.3f), "P13","P14","P15","P16","V05","V06","V07","V08","J1");
+        DrawRouteGizmos(Color.magenta, "P08","P09");
+    }
+
+    private static void DrawRouteGizmos(Color color, params string[] names)
+    {
+        Gizmos.color = color;
+        Vector3? previous = null;
+        foreach (string markerName in names)
         {
             GameObject marker = GameObject.Find(markerName);
             if (marker == null) continue;
-            bool penultimate = markerName == "punto_penultimo_jumpscare";
-            Gizmos.color = penultimate ? Color.red : (markerName.StartsWith("E2_") ? Color.cyan : Color.yellow);
-            Gizmos.DrawSphere(marker.transform.position, penultimate ? 0.35f : 0.22f);
+            Vector3 position = marker.transform.position;
+            Gizmos.DrawSphere(position, markerName == "J1" ? .3f : .19f);
+            if (previous.HasValue) Gizmos.DrawLine(previous.Value, position);
 #if UNITY_EDITOR
-            UnityEditor.Handles.Label(marker.transform.position + Vector3.up * 0.35f, markerName);
+            UnityEditor.Handles.Label(position + Vector3.up * .3f, markerName);
 #endif
+            previous = position;
         }
     }
 
     private void ConfigureSceneActors()
     {
-        Transform[] routeFreddy = null;
         GameObject freddyObject = GameObject.Find(actorFreddy);
         if (freddyObject != null)
         {
             PatrullaPorPuntos existingPatrol = freddyObject.GetComponent<PatrullaPorPuntos>();
-            routeFreddy = FindRoute("E1_punto1", "E1_punto2", "E1_punto3", "E1_punto4",
-                "E2_punto1", "E2_punto2", "E2_punto3", "E2_punto4", "punto_penultimo_jumpscare");
-            routeFreddy = AppendPlayerEndpoint(routeFreddy);
+            Transform[] routeFreddy = FindRoute("P01", "P03", "P04", "P05", "P06", "P07", "J1");
             if (existingPatrol != null)
             {
                 existingPatrol.controladoPorIAExterna = true;
@@ -436,14 +438,13 @@ public class UnityGameSessionController : MonoBehaviour
 
         GameObject vixyObject = GameObject.Find(actorVixy);
         if (vixyObject != null)
-            AttachBrain(vixyObject, "Vixy", AppendPlayerEndpoint(FindRoute(
-                "E1_punto1", "E1_punto2", "E1_punto3", "E1_punto4",
-                "E2_punto1", "E2_punto2", "E2_punto3", "E2_punto4", "punto_penultimo_jumpscare")),
+            AttachBrain(vixyObject, "Vixy", FindRoute(
+                "P02", "P10", "P11", "P12", "V01", "V02", "V03", "V04", "J1"),
                 true, false, false, probabilisticRoute: true, vixyTaskThreshold: true);
 
         GameObject puppetObject = GameObject.Find(actorPuppet);
         if (puppetObject != null)
-            AttachBrain(puppetObject, "Puppet", FindRoute("E1_punto2", "E1_punto1", jugador != null ? jugador.name : "Main Camera"), false, false, true);
+            AttachBrain(puppetObject, "Puppet", FindRoute("P13", "P14", "P15", "P16", "V05", "V06", "V07", "V08", "J1"), false, false, true);
     }
 
     private AnimatronicUnityBrain AttachBrain(GameObject actor, string role, Transform[] route, bool gaze,
@@ -1037,15 +1038,14 @@ public class UnityGameSessionController : MonoBehaviour
     private void PublicarPuntosDelMapa()
     {
         var puntos = new List<PuntoDeMapa>();
-        var vistos = new HashSet<Transform>();
-        foreach (AnimatronicUnityBrain brain in brains)
+        foreach (var punto in PuntosDeRuta())
         {
-            if (brain.ruta == null) continue;
-            foreach (Transform punto in brain.ruta)
+            puntos.Add(new PuntoDeMapa
             {
-                if (punto == null || punto == jugador || !vistos.Add(punto)) continue;
-                puntos.Add(new PuntoDeMapa { nombre = punto.name, x = punto.position.x, z = punto.position.z });
-            }
+                nombre = punto.Key,
+                x = punto.Value.x,
+                z = punto.Value.z
+            });
         }
         Send(new MapaPuntosMessage
         {
@@ -1214,6 +1214,15 @@ public class UnityGameSessionController : MonoBehaviour
     {
         if (puntosDeRuta != null) return puntosDeRuta;
         puntosDeRuta = new Dictionary<string, Vector3>();
+        var nodosDelPlano = GameObject.Find("Mapa_V2/Nodos_Ruta");
+        if (nodosDelPlano != null)
+        {
+            foreach (Transform punto in nodosDelPlano.transform)
+                if (punto != jugador)
+                    puntosDeRuta[punto.name] = punto.position;
+            return puntosDeRuta;
+        }
+
         foreach (AnimatronicUnityBrain brain in brains)
         {
             if (brain.ruta == null) continue;

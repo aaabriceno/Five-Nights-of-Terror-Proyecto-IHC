@@ -261,6 +261,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
             {
                 agent.ResetPath();
                 agent.Warp(initialPosition);
+                transform.rotation = initialRotation;
             }
             else
             {
