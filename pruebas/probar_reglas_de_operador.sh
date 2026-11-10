@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compila las reglas del jugador 2 (recursos, presencia y rescate de Puppet)
+# Compila las reglas del jugador 2 (recursos, presencia, rescate de Puppet, ruta, cámara) y el perfil de video
 # con sus pruebas usando el Mono que trae Unity y las corre, sin abrir el editor.
 set -euo pipefail
 
@@ -9,7 +9,7 @@ TEMP="$(mktemp -d)"
 trap 'rm -rf "$TEMP"' EXIT
 
 # Cada prueba tiene su propio Main, así que se compila una por una.
-for par in "RecursosDeOperador:PruebaRecursosDeOperador" "RescateDePuppet:PruebaRescateDePuppet" "RutaFija:PruebaRutaFija" "ControlDeCamara:PruebaControlDeCamara"; do
+for par in "RecursosDeOperador:PruebaRecursosDeOperador" "RescateDePuppet:PruebaRescateDePuppet" "RutaFija:PruebaRutaFija" "ControlDeCamara:PruebaControlDeCamara" "PerfilDeVideo:PruebaPerfilDeVideo"; do
   regla="${par%%:*}"
   prueba="${par##*:}"
   echo "== $regla =="
