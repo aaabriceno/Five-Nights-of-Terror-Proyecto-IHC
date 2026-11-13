@@ -47,7 +47,6 @@
   let latido = null;
 
   let puntos = [];
-  let rutas = [];                     // [{animatronico, puntos: [nombres]}]: la guía de cada animatrónico
   let plano = [];                     // el edificio visto desde arriba (lo manda Unity con la geometría real)
   let jugador = null;
   let camaraYaw = null;               // hacia dónde mira el jugador 1 (grados; 0 = al frente); null = no se sabe
@@ -216,12 +215,10 @@
         if (finDePartida) reiniciarVista();          // empezó otra noche
         $("j1-sin-conexion").hidden = true;
         puntos = m.puntos || [];
-        rutas = m.rutas || [];
         plano = Logica.piezasValidas(m.plano);
         $("mapa").dataset.plano = String(plano.length);
         jugador = m.jugador || null;
         limites = null;
-        pintarRutas();
         $("mapa").dataset.estado = "listo";
         break;
       case "posiciones": {
@@ -326,7 +323,7 @@
     finDePartida = false;
     $("fin-partida").hidden = true;
     for (const nombre in muestras) delete muestras[nombre];
-    puntos = []; rutas = []; plano = []; jugador = null; camaraYaw = null; limites = null;
+    puntos = []; plano = []; jugador = null; camaraYaw = null; limites = null;
     $("j1-sin-conexion").hidden = true;
     estadoMapa = { animatronicos: [], recibidoEn: 0 };
     estadoJugador = null; estadoOperador = null;
@@ -617,54 +614,9 @@
       detalle.className = "detalle";
       detalle.id = "detalle-" + a.nombre;
       detalle.textContent = "–";
-      const ruta = document.createElement("span");
-      ruta.className = "ruta";
-      ruta.id = "ruta-" + a.nombre;
-      fila.append(nombre, boton, detalle, ruta);
+      fila.append(nombre, boton, detalle);
       contenedor.appendChild(fila);
     }
-    pintarRutas();
-  }
-
-  // La guía: por dónde va cada animatrónico. El jugador 1 no la tiene; el
-  // jugador 2 la usa para decidir dónde poner trampas y a quién retrasar. Los
-  // desvíos ocasionales no salen aquí: son la sorpresa.
-  function pintarRutas() {
-    for (const r of rutas) {
-      const fila = $("ruta-" + r.animatronico);
-      if (fila) fila.textContent = "Ruta: " + Logica.rutaPorZonas(r.puntos, puntos, plano);
-    }
-  }
-
-  function dibujarRutas(razon) {
-    const porNombre = {};
-    for (const p of puntos) porNombre[p.nombre] = p;
-    g.save();
-    g.lineWidth = 2 * razon; g.lineCap = "round";
-    for (const r of rutas) {
-      const color = COLORES[r.animatronico] || "#ccc";
-      const camino = (r.puntos || []).map((n) => porNombre[n]).filter(Boolean);
-      if (camino.length < 2) continue;
-      g.strokeStyle = color; g.fillStyle = color; g.globalAlpha = 0.5;
-      g.setLineDash([9 * razon, 6 * razon]);
-      g.beginPath();
-      camino.forEach((p, i) => { const [x, y] = proyectar(p); if (i === 0) g.moveTo(x, y); else g.lineTo(x, y); });
-      g.stroke();
-      g.setLineDash([]);
-      for (let i = 1; i < camino.length; i++) {          // una flecha en medio de cada tramo
-        const [x0, y0] = proyectar(camino[i - 1]), [x1, y1] = proyectar(camino[i]);
-        const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, ang = Math.atan2(y1 - y0, x1 - x0), t = 6 * razon;
-        g.beginPath();
-        g.moveTo(mx + Math.cos(ang) * t, my + Math.sin(ang) * t);
-        g.lineTo(mx + Math.cos(ang + 2.5) * t, my + Math.sin(ang + 2.5) * t);
-        g.lineTo(mx + Math.cos(ang - 2.5) * t, my + Math.sin(ang - 2.5) * t);
-        g.closePath(); g.fill();
-      }
-      const [ex, ey] = proyectar(camino[camino.length - 1]);   // el penúltimo punto: por donde entra a atacar
-      g.globalAlpha = 0.9; g.lineWidth = 2 * razon;
-      g.beginPath(); g.arc(ex, ey, 11 * razon, 0, 7); g.stroke();
-    }
-    g.restore();
   }
 
   function posicionActual(nombre, ahora) {
@@ -793,7 +745,9 @@
       return;
     }
     dibujarPlano(razon);
-    dibujarRutas(razon);
+    // Las rutas no se dibujan (2026-11-13): Unity las sigue mandando en
+    // `mapa_puntos`, pero el jugador 2 tiene que deducir por dónde viene cada
+    // animatrónico mirando cómo se mueve, y así decidir dónde poner trampas.
     g.font = `${11 * razon}px ui-monospace, monospace`;
     g.textAlign = "left";
     // Los puntos de ruta (P01, V03...) no se muestran: al jugador 2 le sirve el

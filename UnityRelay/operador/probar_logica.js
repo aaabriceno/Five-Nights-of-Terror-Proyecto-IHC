@@ -99,10 +99,6 @@ comprobar("un tipo nuevo usa el texto de Unity", t({ tipo: "algo", message: "Pas
 comprobar("un tipo nuevo sin texto no muestra nada", t({ tipo: "algo" }) === "");
 comprobar("la multa se escribe sin decimales sobrantes", Logica.formatearMulta(2) === "×2" && Logica.formatearMulta(1.5) === "×1,5");
 
-console.log("textoDeRuta (la guía de cada animatrónico para el jugador 2)");
-comprobar("une los puntos con flechas", Logica.textoDeRuta(["P01", "P03", "P07"]) === "P01 → P03 → P07");
-comprobar("una ruta vacía o ausente no dice nada", Logica.textoDeRuta([]) === "" && Logica.textoDeRuta(undefined) === "");
-
 console.log("textoDeCamara (hacia dónde mira el jugador 1)");
 comprobar("al frente dentro de ±5°", Logica.textoDeCamara(0) === "Al frente" && Logica.textoDeCamara(-4.9) === "Al frente");
 comprobar("a la izquierda con los grados", Logica.textoDeCamara(-45.4) === "Izquierda 45°");
@@ -136,28 +132,6 @@ const validas = Logica.piezasValidas([
 comprobar("piezasValidas descarta números rotos, nulos y tipos desconocidos", validas.length === 4);
 comprobar("con algo que no es lista devuelve una lista vacía", Logica.piezasValidas("x").length === 0);
 
-
-console.log("ruta por zonas");
-const planoZonas = [
-  { tipo: "sala", etiqueta: "ESCENARIO", x0: 10, z0: 22, x1: 30, z1: 29 },
-  { tipo: "sala", etiqueta: "COMEDOR", x0: 10, z0: 10, x1: 30, z1: 22 },
-  { tipo: "pasillo", etiqueta: "PASILLO", x0: 18, z0: 6, x1: 22, z1: 10 },
-  { tipo: "ducto", etiqueta: "VENTILACIÓN", x0: 6.5, z0: 2, x1: 17, z1: 4 },
-  { tipo: "ducto", etiqueta: "", x0: 6.5, z0: 4, x1: 8.5, z1: 6 },
-  { tipo: "muro", etiqueta: "", x0: 10, z0: 10, x1: 30, z1: 10.18 },
-];
-const puntosZonas = [
-  { nombre: "P01", x: 16.5, z: 24.3 }, { nombre: "P03", x: 20, z: 19.5 }, { nombre: "P04", x: 20, z: 15.8 },
-  { nombre: "P06", x: 20, z: 8 }, { nombre: "V01", x: 7.5, z: 5 }, { nombre: "V02", x: 7.5, z: 3 },
-];
-comprobar("la ruta se cuenta por zonas, sin repetir la misma seguida",
-  Logica.rutaPorZonas(["P01", "P03", "P04", "P06"], puntosZonas, planoZonas) === "Escenario → Comedor → Pasillo");
-comprobar("una entrada de ducto sin rótulo cuenta como ventilación",
-  Logica.rutaPorZonas(["V01", "V02"], puntosZonas, planoZonas) === "Ventilación");
-comprobar("sin plano vuelve a los nombres de los puntos",
-  Logica.rutaPorZonas(["P01", "P03"], puntosZonas, []) === "P01 → P03");
-comprobar("un punto fuera de toda zona se salta",
-  Logica.rutaPorZonas(["P01", "X"], [...puntosZonas, { nombre: "X", x: 99, z: 99 }], planoZonas) === "Escenario");
 
 console.log(fallos === 0 ? "\nTodas las pruebas pasaron." : `\n${fallos} prueba(s) fallaron.`);
 process.exit(fallos ? 1 : 0);

@@ -178,8 +178,6 @@ body {
 .amenaza .punto { width: 10px; height: 10px; border-radius: 50%; }
 .amenaza .detalle { grid-column: 1; color: var(--suave); font-size: 12px; }
 .amenaza button { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
-.amenaza .ruta { grid-column: 1 / -1; color: var(--suave); font-size: 11px; letter-spacing: .04em; overflow-wrap: anywhere; }
-.amenaza .ruta:empty { display: none; }
 .amenaza.sin-senal .nombre::after { content: "SEÑAL PERDIDA"; color: var(--peligro); font-size: 10px; letter-spacing: .12em; animation: rec 1s steps(2, jump-none) infinite; }
 
 button {

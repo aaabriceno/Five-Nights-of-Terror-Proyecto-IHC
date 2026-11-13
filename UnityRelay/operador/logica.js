@@ -135,11 +135,6 @@
     return m.message || "";
   }
 
-  // La ruta de un animatrónico como texto: "P01 → P03 → P07".
-  function textoDeRuta(puntos) {
-    return Array.isArray(puntos) ? puntos.join(" → ") : "";
-  }
-
   // Hacia dónde mira la cámara del jugador 1: 0 = al frente, negativo = izquierda.
   function textoDeCamara(yaw) {
     if (typeof yaw !== "number" || !isFinite(yaw)) return "–";
@@ -165,30 +160,5 @@
     return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
   }
 
-  // "Escenario → Comedor → Pasillo": la ruta contada por las zonas del plano en
-  // vez de por los nombres de los puntos (P01, P03...), que al jugador 2 no le
-  // dicen nada. Sin plano, quedan los nombres de los puntos.
-  function rutaPorZonas(nombres, puntos, plano) {
-    const zonas = piezasValidas(plano).filter((p) => ["sala", "oficina", "pasillo", "ducto"].includes(p.tipo));
-    if (!zonas.length) return textoDeRuta(nombres);
-    const porNombre = {};
-    for (const p of puntos || []) porNombre[p.nombre] = p;
-    const partes = [];
-    for (const nombre of nombres || []) {
-      const p = porNombre[nombre];
-      if (!p) continue;
-      const zona = zonas.find((z) => p.x >= z.x0 && p.x <= z.x1 && p.z >= z.z0 && p.z <= z.z1);
-      if (!zona) continue;
-      const texto = zona.tipo === "ducto" ? "Ventilación" : aTitulo(zona.etiqueta || zona.tipo);
-      if (partes[partes.length - 1] !== texto) partes.push(texto);
-    }
-    return partes.join(" → ");
-  }
-
-  function aTitulo(texto) {
-    const t = String(texto).toLowerCase();
-    return t.charAt(0).toUpperCase() + t.slice(1);
-  }
-
-  return { rutaPorZonas, piezasValidas, limitesDelMapa, suavizar, crearMedidor, evaluarCircuito, circuitoResuelto, textoDePuerta, leerRespuesta, textoDeEfecto, formatearMulta, textoDeRuta, textoDeCamara, formatearSegundos };
+  return { piezasValidas, limitesDelMapa, suavizar, crearMedidor, evaluarCircuito, circuitoResuelto, textoDePuerta, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
 });
