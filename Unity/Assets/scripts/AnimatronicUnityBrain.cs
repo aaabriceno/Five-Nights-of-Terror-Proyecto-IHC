@@ -176,8 +176,30 @@ public class AnimatronicUnityBrain : MonoBehaviour
         factorDeAgresividad = Mathf.Clamp(factor, 0.2f, 1f);
     }
 
+    /// Solo para las capturas de prueba (-prueba-posar): se planta a `distancia`
+    /// metros frente al jugador, mirándolo, y no se mueve más.
+    public void PosarFrenteAlJugador(Transform jugador, float distancia)
+    {
+        posando = true;
+        Vector3 adelante = jugador.forward;
+        adelante.y = 0f;
+        adelante.Normalize();
+        Vector3 destino = jugador.position + adelante * distancia;
+        destino.y = transform.position.y;
+        if (agent != null && agent.isOnNavMesh) agent.Warp(destino);
+        else transform.position = destino;
+        transform.rotation = Quaternion.LookRotation(-adelante, Vector3.up);
+    }
+
+    private bool posando;
+
     private void Update()
     {
+        if (posando)
+        {
+            if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
+            return;
+        }
         if (!activo || attackSent || ruta == null || ruta.Length == 0) return;
         float deltaTime = Time.deltaTime * factorDeVelocidad;
 

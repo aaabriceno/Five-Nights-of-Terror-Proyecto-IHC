@@ -49,4 +49,27 @@ public static class PerfilDeVideo
         string nombre = nombreDeLaTarjeta.ToLowerInvariant();
         return nombre.Contains("llvmpipe") || nombre.Contains("softpipe");
     }
+
+    /// Cuánto gasta el ambiente (ver AjusteDeAmbiente): `Alto` suma bloom,
+    /// sombras de la oficina y más polvo; `Basico` deja viñeta, grano, niebla y
+    /// ojos, que casi no cuestan.
+    public enum Nivel { Basico, Alto }
+
+    /// Alto solo con una tarjeta dedicada (NVIDIA, Radeon RX, Intel Arc): la
+    /// integrada de esta laptop ya va a ~35 cuadros con MediaPipe en la CPU y
+    /// no le sobra. -graficos-alto y -graficos-basico mandan sobre la tarjeta.
+    public static Nivel NivelGrafico(string nombreDeLaTarjeta, string[] argumentos)
+    {
+        if (argumentos != null)
+        {
+            if (Array.IndexOf(argumentos, "-graficos-alto") >= 0) return Nivel.Alto;
+            if (Array.IndexOf(argumentos, "-graficos-basico") >= 0) return Nivel.Basico;
+        }
+        if (string.IsNullOrEmpty(nombreDeLaTarjeta)) return Nivel.Basico;
+        string nombre = nombreDeLaTarjeta.ToLowerInvariant();
+        if (nombre.Contains("llvmpipe") || nombre.Contains("softpipe")) return Nivel.Basico;
+        bool dedicada = nombre.Contains("nvidia") || nombre.Contains("geforce") || nombre.Contains("rtx")
+            || nombre.Contains("radeon rx") || nombre.Contains("radeon pro") || nombre.Contains("arc a");
+        return dedicada ? Nivel.Alto : Nivel.Basico;
+    }
 }

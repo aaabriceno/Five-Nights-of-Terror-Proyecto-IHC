@@ -312,9 +312,27 @@ public class UnityGameSessionController : MonoBehaviour
     // Sin ellas en la línea de comandos el juego es el de siempre:
     //   -prueba-sin-freddy        Freddy no aparece (para ver a Vixy y a Puppet sin que él termine la partida)
     //   -prueba-tareas-cada <s>   una tarea nueva cada <s> segundos en vez de cada 30
+    //   -prueba-posar <nombre>   ese animatrónico se planta frente al jugador, mirándolo, y no se mueve
+    //                            (para fotografiar el ambiente: ojos, balanceo, luces)
     private static readonly bool PruebaSinFreddy = Array.IndexOf(Environment.GetCommandLineArgs(), "-prueba-sin-freddy") >= 0;
+    private static readonly string PruebaPosar = TextoDeOpcion("-prueba-posar");
+    private bool posadoParaPrueba;
     private static readonly float PruebaTareasCada = ValorDeOpcion("-prueba-tareas-cada");
     private static float SegundosEntreTareasActual => PruebaTareasCada > 0f ? PruebaTareasCada : SegundosEntreTareas;
+
+    private static string TextoDeOpcion(string nombre)
+    {
+        string[] argumentos = Environment.GetCommandLineArgs();
+        int i = Array.IndexOf(argumentos, nombre);
+        return i >= 0 && i + 1 < argumentos.Length ? argumentos[i + 1] : null;
+    }
+
+    private void PosarParaPrueba(string nombre)
+    {
+        foreach (AnimatronicUnityBrain brain in brains)
+            if (string.Equals(brain.nombreAnimatronico, nombre, StringComparison.OrdinalIgnoreCase) && jugador != null)
+                brain.PosarFrenteAlJugador(jugador, 3.5f);
+    }
 
     private static float ValorDeOpcion(string nombre)
     {
@@ -446,8 +464,17 @@ public class UnityGameSessionController : MonoBehaviour
         // La estática es del juego en curso: sin partida (espera, tutorial,
         // resultado o la X de la tablet) no debe sonar, sea cual sea el camino.
         if (!partidaActiva && gestorSonido != null) gestorSonido.DetenerEstatica();
+        // Lo poco que el ambiente (luces, niebla, posprocesado) necesita saber del juego.
+        AmbienteDelJuego.PartidaActiva = partidaActiva;
+        AmbienteDelJuego.Noche = noche;
+        AmbienteDelJuego.CajaEnPeligro = partidaActiva && valorCajaPuppet < MaxMusicBox * 0.2f;
         if (!partidaActiva) return;
         ActualizarCamara();
+        if (!string.IsNullOrEmpty(PruebaPosar) && !posadoParaPrueba)
+        {
+            posadoParaPrueba = true;
+            PosarParaPrueba(PruebaPosar);
+        }
         bool operadorVivo = presencia.EstaVivo(Time.time);
         AvisarSiCambiaElCompanero();
         foreach (AnimatronicUnityBrain brain in brains)
@@ -599,6 +626,7 @@ public class UnityGameSessionController : MonoBehaviour
                     // mandar el «soltar» de la cuerda ni de la cámara.
                     windingPuppet = false;
                     CentrarCamara();
+                    AmbienteDelJuego.PedirEstatica(Time.time, 1f);
                     break;
                 case "task_completed":
                 case "task_failed": ResolveTask(JsonUtility.FromJson<TaskResultMessage>(json), header.type == "task_failed"); break;
@@ -1365,6 +1393,7 @@ public class UnityGameSessionController : MonoBehaviour
     private void AvisarAlJugador1(string texto)
     {
         avisoDeOperador = texto;
+        AmbienteDelJuego.PedirEstatica(Time.time, 0.8f);   // la pantalla «pierde señal» un instante
         avisoDeOperadorHasta = Time.time + 3f;
     }
 
@@ -1380,6 +1409,7 @@ public class UnityGameSessionController : MonoBehaviour
             ? "Tu compañero se conectó: los animatrónicos van más rápido"
             : "Tu compañero se desconectó: los animatrónicos vuelven a su ritmo";
         AvisarAlJugador1(aviso);
+        AmbienteDelJuego.PedirEstatica(Time.time, conectado ? 0.4f : 1.2f);
         Send(new EfectoMessage
         {
             animatronic = string.Empty,
@@ -1439,7 +1469,9 @@ public class UnityGameSessionController : MonoBehaviour
             camaraDeJuego = principal.transform;
             rotacionBaseDeCamara = camaraDeJuego.rotation;
         }
-        camaraDeJuego.rotation = Quaternion.Euler(0f, camara.Yaw, 0f) * rotacionBaseDeCamara;
+        // Respiración sutil de la cámara (AmbienteDelJuego): cabeceo de ±0,3°.
+        (float cabeceo, float balanceo) = AmbienteDelJuego.RespiracionDeCamara(Time.time);
+        camaraDeJuego.rotation = Quaternion.Euler(0f, camara.Yaw, 0f) * rotacionBaseDeCamara * Quaternion.Euler(cabeceo, 0f, balanceo);
     }
 
     /// La trampa se ve en el mapa del jugador 1 (un disco rojo que late).
