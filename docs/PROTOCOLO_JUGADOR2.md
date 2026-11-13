@@ -34,7 +34,7 @@ Cooperativo asimétrico (idea A). El **jugador 1** es el vigilante (PC con cáma
 | Tipo | De → a | Cuándo | Campos |
 |---|---|---|---|
 | `operador_connect` | J2 → Unity | Al conectarse | — |
-| `mapa_puntos` | Unity → J2 | Al inicio de cada noche y cuando llega `operador_connect` | `puntos[] {nombre,x,z}`, `jugador {x,z}` |
+| `mapa_puntos` | Unity → J2 | Al inicio de cada noche y cuando llega `operador_connect` | `puntos[] {nombre,x,z}`, `jugador {x,z}`, `rutas[]`, `plano[] {tipo,etiqueta,x0,z0,x1,z1}` (el edificio visto desde arriba; ver «Plano del mapa») |
 | `estado_mapa` | Unity → J2 | Cada tick (0,5 s) y al aceptar una acción | `partida_activa`, `noche`, `hora`, `animatronicos[] {nombre,x,z,retraso_s,espera_s}` |
 | `accion_operador` | J2 → Unity | El jugador 2 pulsa **Retrasar** | `accion: "retrasar"`, `objetivo: "freddy"\|"vixy"\|"puppet"` |
 | `efecto` | Unity → J1 y J2 | Unity aceptó la acción | `animatronic`, `tipo: "ralentizado"`, `segundos`, `message` |
@@ -206,3 +206,12 @@ Los números acordados viven juntos en `Unity/Assets/scripts/PerfilDeVideo.cs` y
 - **Los mensajes se reparten antes del `Update` del juego** (`DefaultExecutionOrder(-100)` en `UnityWebSocketClient`): hasta un cuadro menos de reacción.
 - Revisión completa de latencia, seguridad e interfaz: `docs/REVISION_LATENCIA_SEGURIDAD_UI.md`.
 - **Tablet por cable USB (2026-11-12):** en redes que aíslan a cada cliente (la de la universidad: PC y tablet en subredes distintas y tráfico entre clientes bloqueado por el punto de acceso) la tablet no llega a la PC por Wi-Fi. `./conectar_tablet_por_usb.sh` hace `adb reverse tcp:8000 tcp:8000`: la tablet se configura con IP `127.0.0.1` y puerto `8000` y llega al relay por el cable. Probado con el juego real (partida iniciada, 60 FPS). La computadora del jugador 2 sigue necesitando una red común con la PC: para la demo, un punto de acceso del celular (5 GHz) al que se conecten los tres equipos.
+
+## Plano del mapa para el jugador 2 (2026-11-12)
+
+La página dibuja el edificio visto desde arriba, como el bosquejo `docs/mapa/bosquejo_mapa_v2.pdf`: paredes (los huecos son las puertas), ventilación con línea punteada, la tarima del escenario, las mesas con sus sillas, la caja de música y el nombre de cada zona. Encima van las rutas de los animatrónicos. Los nombres de los nodos (P01, V03…) ya no se muestran: solo se marcan como círculos al elegir dónde poner una trampa, y el panel cuenta la ruta por zonas («Escenario → Comedor → Pasillo»).
+
+- **De dónde sale:** Unity lo arma al publicar `mapa_puntos` con la geometría real que hay bajo `Mapa_V2` (`Renderer.bounds` de cada objeto), así que si Marcelo cambia el mapa el plano cambia solo. `PlanoDelMapa.cs` decide qué es cada objeto por su nombre: `Piso_*` (sala, oficina, pasillo o ducto, con su rótulo), `Muro_*` y `Vent_*` (muro), `Plataforma_Escenario*` (tarima), `Mesa_*` sin `_Base` (mesa) y `Caja_Musica*` (caja). Techos, sillas, focos y la cortina no van.
+- **Tamaño:** 57 piezas, unos 7 kB.
+- **Sin plano** (un Unity viejo): la página dibuja como antes, con los nodos y sus nombres.
+- **Foto con el juego real:** `UnityRelay/.venv/bin/python pruebas/capturar_mapa_jugador2.py <archivo.png>` (pantalla virtual y Firefox sin ventana).
