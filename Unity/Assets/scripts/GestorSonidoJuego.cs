@@ -29,6 +29,7 @@ public class GestorSonidoJuego : MonoBehaviour
     public AudioClip campanas6am;
 
     private Prioridad prioridadActual = Prioridad.Baja;
+    private Coroutine musicaPendiente;
     private float volumenEstaticaNormal = 0.5f;
 
     private void Awake()
@@ -63,13 +64,40 @@ public class GestorSonidoJuego : MonoBehaviour
         if (campanas6am == null) campanas6am = Resources.Load<AudioClip>("sounds/FNaF_2_-_Campanas_(6_a.m.)");
     }
 
+    /// La música del menú suena unas 13 veces más fuerte que las campanas de las
+    /// 6 AM (-21,6 dB contra -32,9 dB de volumen medio): si arranca mientras
+    /// suenan, las tapa. En ese caso espera a que terminen.
     public void ReproducirMusicaMenu()
     {
+        if (CampanasSonando)
+        {
+            if (musicaPendiente != null) return;
+            float restante = Mathf.Max(0f, fuenteEfectos.clip.length - fuenteEfectos.time);
+            Debug.Log($"[Sonido] La música del menú espera {restante:0.0} s a que terminen las campanas");
+            musicaPendiente = StartCoroutine(MusicaDelMenuDespues(restante));
+            return;
+        }
         ReproducirMusica(musicaMenu);
     }
 
+    private bool CampanasSonando =>
+        fuenteEfectos != null && fuenteEfectos.isPlaying && campanas6am != null && fuenteEfectos.clip == campanas6am;
+
+    private System.Collections.IEnumerator MusicaDelMenuDespues(float segundos)
+    {
+        yield return new WaitForSeconds(segundos);
+        musicaPendiente = null;
+        ReproducirMusica(musicaMenu);
+    }
+
+    /// También cancela la música del menú que esperaba a las campanas (empezó otra noche).
     public void DetenerMusica()
     {
+        if (musicaPendiente != null)
+        {
+            StopCoroutine(musicaPendiente);
+            musicaPendiente = null;
+        }
         fuenteMusica.Stop();
     }
 
@@ -134,6 +162,7 @@ public class GestorSonidoJuego : MonoBehaviour
     private void ReproducirMusica(AudioClip clip)
     {
         if (clip == null || (fuenteMusica.clip == clip && fuenteMusica.isPlaying)) return;
+        if (clip == musicaMenu) Debug.Log("[Sonido] Música del menú: suena");
         fuenteMusica.clip = clip;
         fuenteMusica.Play();
     }
@@ -144,7 +173,11 @@ public class GestorSonidoJuego : MonoBehaviour
         // Un efecto de prioridad baja no puede cortar a uno de prioridad alta
         // que todavia este sonando; alta siempre puede cortar a cualquiera.
         if (fuenteEfectos.isPlaying && prioridadActual == Prioridad.Alta && prioridad == Prioridad.Baja)
+        {
+            Debug.Log($"[Sonido] {clip.name} no suena: hay un efecto de prioridad alta en curso ({fuenteEfectos.clip?.name})");
             return;
+        }
+        Debug.Log($"[Sonido] {clip.name} ({prioridad}, {clip.length:0.0} s, volumen {fuenteEfectos.volume:0.00})");
         prioridadActual = prioridad;
         fuenteEfectos.Stop();
         fuenteEfectos.clip = clip;

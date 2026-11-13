@@ -332,6 +332,8 @@ public class UnityGameSessionController : MonoBehaviour
     //                            (para fotografiar el ambiente: ojos, balanceo, luces)
     private static readonly bool PruebaSinFreddy = Array.IndexOf(Environment.GetCommandLineArgs(), "-prueba-sin-freddy") >= 0;
     private static readonly string PruebaPosar = TextoDeOpcion("-prueba-posar");
+    //   -prueba-segundos-noche <s>   la noche dura <s> segundos reales (para probar el final sin esperar)
+    private static readonly float PruebaSegundosNoche = ValorDeOpcion("-prueba-segundos-noche");
     private bool posadoParaPrueba;
     private static readonly float PruebaTareasCada = ValorDeOpcion("-prueba-tareas-cada");
     private static float SegundosEntreTareasActual => PruebaTareasCada > 0f ? PruebaTareasCada : SegundosEntreTareas;
@@ -853,7 +855,8 @@ public class UnityGameSessionController : MonoBehaviour
     /// 60 unidades; repartirlas en la duración de la noche actual hace que
     /// las noches largas transcurran más despacio en vez de durar más horas.
     private float EscalaDeTiempoDeLaNoche =>
-        360f / SegundosRealesPorNoche[Mathf.Clamp(noche - 1, 0, SegundosRealesPorNoche.Length - 1)];
+        360f / (PruebaSegundosNoche > 0f ? PruebaSegundosNoche
+            : SegundosRealesPorNoche[Mathf.Clamp(noche - 1, 0, SegundosRealesPorNoche.Length - 1)]);
 
     private void TickGame()
     {
