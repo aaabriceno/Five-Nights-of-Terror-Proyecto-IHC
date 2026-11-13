@@ -109,5 +109,55 @@ comprobar("a la izquierda con los grados", Logica.textoDeCamara(-45.4) === "Izqu
 comprobar("a la derecha con los grados", Logica.textoDeCamara(74.6) === "Derecha 75°");
 comprobar("sin dato no inventa", Logica.textoDeCamara(undefined) === "–" && Logica.textoDeCamara(null) === "–");
 
+
+console.log("plano del edificio");
+const plano = [
+  { tipo: "sala", etiqueta: "COMEDOR", x0: 10, z0: 10, x1: 30, z1: 22 },
+  { tipo: "muro", etiqueta: "", x0: 5, z0: 6, x1: 5.18, z1: 29 },
+  { tipo: "muro", etiqueta: "", x0: 37.82, z0: 22, x1: 38, z1: 29 },
+  { tipo: "muro", etiqueta: "", x0: 17, z0: 0, x1: 23, z1: 0.18 },
+];
+let L = Logica.limitesDelMapa([{ x: 20, z: 15 }], plano, 1);
+comprobar("los límites abarcan todo el edificio, no solo los puntos de ruta",
+  L.x0 === 4 && L.x1 === 39 && L.z0 === -1 && L.z1 === 30);
+L = Logica.limitesDelMapa([{ x: 20, z: 15 }, { x: 0, z: 40 }], plano, 2);
+comprobar("y también los puntos que quedan fuera del plano", L.x0 === -2 && L.z1 === 42);
+comprobar("sin plano ni puntos no hay límites", Logica.limitesDelMapa([], [], 2) === null);
+comprobar("sin plano usa solo los puntos (como antes)",
+  JSON.stringify(Logica.limitesDelMapa([{ x: 1, z: 2 }, { x: 5, z: 8 }], undefined, 2)) ===
+  JSON.stringify({ x0: -1, x1: 7, z0: 0, z1: 10 }));
+const validas = Logica.piezasValidas([
+  ...plano,
+  { tipo: "muro", x0: "a", z0: 0, x1: 1, z1: 1 },
+  { tipo: "muro", x0: 0, z0: 0, x1: Infinity, z1: 1 },
+  null,
+  { tipo: "<img src=x>", x0: 0, z0: 0, x1: 1, z1: 1 },
+]);
+comprobar("piezasValidas descarta números rotos, nulos y tipos desconocidos", validas.length === 4);
+comprobar("con algo que no es lista devuelve una lista vacía", Logica.piezasValidas("x").length === 0);
+
+
+console.log("ruta por zonas");
+const planoZonas = [
+  { tipo: "sala", etiqueta: "ESCENARIO", x0: 10, z0: 22, x1: 30, z1: 29 },
+  { tipo: "sala", etiqueta: "COMEDOR", x0: 10, z0: 10, x1: 30, z1: 22 },
+  { tipo: "pasillo", etiqueta: "PASILLO", x0: 18, z0: 6, x1: 22, z1: 10 },
+  { tipo: "ducto", etiqueta: "VENTILACIÓN", x0: 6.5, z0: 2, x1: 17, z1: 4 },
+  { tipo: "ducto", etiqueta: "", x0: 6.5, z0: 4, x1: 8.5, z1: 6 },
+  { tipo: "muro", etiqueta: "", x0: 10, z0: 10, x1: 30, z1: 10.18 },
+];
+const puntosZonas = [
+  { nombre: "P01", x: 16.5, z: 24.3 }, { nombre: "P03", x: 20, z: 19.5 }, { nombre: "P04", x: 20, z: 15.8 },
+  { nombre: "P06", x: 20, z: 8 }, { nombre: "V01", x: 7.5, z: 5 }, { nombre: "V02", x: 7.5, z: 3 },
+];
+comprobar("la ruta se cuenta por zonas, sin repetir la misma seguida",
+  Logica.rutaPorZonas(["P01", "P03", "P04", "P06"], puntosZonas, planoZonas) === "Escenario → Comedor → Pasillo");
+comprobar("una entrada de ducto sin rótulo cuenta como ventilación",
+  Logica.rutaPorZonas(["V01", "V02"], puntosZonas, planoZonas) === "Ventilación");
+comprobar("sin plano vuelve a los nombres de los puntos",
+  Logica.rutaPorZonas(["P01", "P03"], puntosZonas, []) === "P01 → P03");
+comprobar("un punto fuera de toda zona se salta",
+  Logica.rutaPorZonas(["P01", "X"], [...puntosZonas, { nombre: "X", x: 99, z: 99 }], planoZonas) === "Escenario");
+
 console.log(fallos === 0 ? "\nTodas las pruebas pasaron." : `\n${fallos} prueba(s) fallaron.`);
 process.exit(fallos ? 1 : 0);

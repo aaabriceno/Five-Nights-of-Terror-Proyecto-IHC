@@ -147,5 +147,48 @@
     return (yaw < 0 ? "Izquierda " : "Derecha ") + Math.round(Math.abs(yaw)) + "°";
   }
 
-  return { suavizar, crearMedidor, evaluarCircuito, circuitoResuelto, textoDePuerta, leerRespuesta, textoDeEfecto, formatearMulta, textoDeRuta, textoDeCamara, formatearSegundos };
+  // El plano del edificio que manda Unity (salas, pasillos, ductos, muros...):
+  // solo pasan las piezas con un tipo conocido y cuatro números finitos.
+  const TIPOS_DEL_PLANO = ["sala", "oficina", "pasillo", "ducto", "muro", "tarima", "mesa", "caja"];
+  function piezasValidas(plano) {
+    if (!Array.isArray(plano)) return [];
+    return plano.filter((p) => p && TIPOS_DEL_PLANO.includes(p.tipo) &&
+      [p.x0, p.z0, p.x1, p.z1].every((v) => typeof v === "number" && isFinite(v)));
+  }
+
+  // Lo que debe caber en el mapa: todo el edificio y todos los puntos, con un margen (metros).
+  function limitesDelMapa(puntos, plano, margen) {
+    const xs = [], zs = [];
+    for (const p of puntos || []) { xs.push(p.x); zs.push(p.z); }
+    for (const p of piezasValidas(plano)) { xs.push(p.x0, p.x1); zs.push(p.z0, p.z1); }
+    if (!xs.length) return null;
+    return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
+  }
+
+  // "Escenario → Comedor → Pasillo": la ruta contada por las zonas del plano en
+  // vez de por los nombres de los puntos (P01, P03...), que al jugador 2 no le
+  // dicen nada. Sin plano, quedan los nombres de los puntos.
+  function rutaPorZonas(nombres, puntos, plano) {
+    const zonas = piezasValidas(plano).filter((p) => ["sala", "oficina", "pasillo", "ducto"].includes(p.tipo));
+    if (!zonas.length) return textoDeRuta(nombres);
+    const porNombre = {};
+    for (const p of puntos || []) porNombre[p.nombre] = p;
+    const partes = [];
+    for (const nombre of nombres || []) {
+      const p = porNombre[nombre];
+      if (!p) continue;
+      const zona = zonas.find((z) => p.x >= z.x0 && p.x <= z.x1 && p.z >= z.z0 && p.z <= z.z1);
+      if (!zona) continue;
+      const texto = zona.tipo === "ducto" ? "Ventilación" : aTitulo(zona.etiqueta || zona.tipo);
+      if (partes[partes.length - 1] !== texto) partes.push(texto);
+    }
+    return partes.join(" → ");
+  }
+
+  function aTitulo(texto) {
+    const t = String(texto).toLowerCase();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  return { rutaPorZonas, piezasValidas, limitesDelMapa, suavizar, crearMedidor, evaluarCircuito, circuitoResuelto, textoDePuerta, leerRespuesta, textoDeEfecto, formatearMulta, textoDeRuta, textoDeCamara, formatearSegundos };
 });

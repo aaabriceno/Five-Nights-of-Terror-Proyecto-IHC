@@ -48,6 +48,7 @@
 
   let puntos = [];
   let rutas = [];                     // [{animatronico, puntos: [nombres]}]: la guía de cada animatrónico
+  let plano = [];                     // el edificio visto desde arriba (lo manda Unity con la geometría real)
   let jugador = null;
   let camaraYaw = null;               // hacia dónde mira el jugador 1 (grados; 0 = al frente); null = no se sabe
   let limites = null;
@@ -216,6 +217,8 @@
         $("j1-sin-conexion").hidden = true;
         puntos = m.puntos || [];
         rutas = m.rutas || [];
+        plano = Logica.piezasValidas(m.plano);
+        $("mapa").dataset.plano = String(plano.length);
         jugador = m.jugador || null;
         limites = null;
         pintarRutas();
@@ -323,7 +326,7 @@
     finDePartida = false;
     $("fin-partida").hidden = true;
     for (const nombre in muestras) delete muestras[nombre];
-    puntos = []; rutas = []; jugador = null; camaraYaw = null; limites = null;
+    puntos = []; rutas = []; plano = []; jugador = null; camaraYaw = null; limites = null;
     $("j1-sin-conexion").hidden = true;
     estadoMapa = { animatronicos: [], recibidoEn: 0 };
     estadoJugador = null; estadoOperador = null;
@@ -629,7 +632,7 @@
   function pintarRutas() {
     for (const r of rutas) {
       const fila = $("ruta-" + r.animatronico);
-      if (fila) fila.textContent = "Ruta: " + Logica.textoDeRuta(r.puntos);
+      if (fila) fila.textContent = "Ruta: " + Logica.rutaPorZonas(r.puntos, puntos, plano);
     }
   }
 
@@ -701,11 +704,67 @@
   }
 
   function calcularLimites() {
-    const xs = [], zs = [];
-    for (const p of [...puntos, ...(jugador ? [jugador] : [])]) { xs.push(p.x); zs.push(p.z); }
-    if (!xs.length) return null;
-    const margen = 2;
-    return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
+    return Logica.limitesDelMapa([...puntos, ...(jugador ? [jugador] : [])], plano, plano.length ? 1 : 2);
+  }
+
+  // El plano del edificio en líneas, como el bosquejo del mapa: paredes (los
+  // huecos son las puertas), ventilación punteada, tarima, mesas con sus sillas,
+  // la caja de música y el nombre de cada zona. Sin rellenos fuertes: es la guía.
+  const COLOR_DEL_PLANO = "rgba(125,255,154,.55)";
+  const COLOR_DE_LOS_MUEBLES = "rgba(125,255,154,.3)";
+  function dibujarPlano(razon) {
+    if (!plano.length) return;
+    g.save();
+    for (const p of plano) {
+      const [ax, ay, escala] = proyectar({ x: p.x0, z: p.z1 });
+      const [bx, by] = proyectar({ x: p.x1, z: p.z0 });
+      const ancho = bx - ax, alto = by - ay;
+      switch (p.tipo) {
+        case "muro":
+          g.fillStyle = COLOR_DEL_PLANO;
+          g.fillRect(ax, ay, Math.max(ancho, 2 * razon), Math.max(alto, 2 * razon));
+          break;
+        case "ducto":
+          g.strokeStyle = COLOR_DE_LOS_MUEBLES; g.lineWidth = razon; g.setLineDash([5 * razon, 4 * razon]);
+          g.strokeRect(ax, ay, ancho, alto);
+          g.setLineDash([]);
+          break;
+        case "tarima":
+          g.strokeStyle = COLOR_DE_LOS_MUEBLES; g.lineWidth = razon;
+          g.strokeRect(ax, ay, ancho, alto);
+          break;
+        case "mesa": {
+          const cx = ax + ancho / 2, cy = ay + alto / 2, radio = Math.min(ancho, alto) / 2;
+          g.strokeStyle = COLOR_DE_LOS_MUEBLES; g.lineWidth = razon;
+          g.beginPath(); g.arc(cx, cy, radio, 0, 7); g.stroke();
+          g.fillStyle = COLOR_DE_LOS_MUEBLES;               // cuatro sillas alrededor
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            g.beginPath(); g.arc(cx + dx * (radio + 0.45 * escala), cy + dy * (radio + 0.45 * escala), 0.22 * escala, 0, 7); g.fill();
+          }
+          break;
+        }
+        case "caja":
+          g.strokeStyle = "rgba(217,160,102,.7)"; g.lineWidth = razon;
+          g.strokeRect(ax, ay, ancho, alto);
+          g.fillStyle = "rgba(217,160,102,.8)"; g.font = `${10 * razon}px ui-monospace, monospace`; g.textAlign = "center";
+          g.fillText("♪ caja de música", ax + ancho / 2, by + 12 * razon);
+          break;
+      }
+    }
+    g.fillStyle = "rgba(125,255,154,.45)";
+    g.font = `bold ${11 * razon}px ui-monospace, monospace`; g.textAlign = "center";
+    for (const p of plano) {
+      if (!p.etiqueta) continue;
+      const [ax, ay] = proyectar({ x: p.x0, z: p.z1 });
+      const [bx, by] = proyectar({ x: p.x1, z: p.z0 });
+      const vertical = (by - ay) > 2.5 * (bx - ax);       // pasillos largos: el nombre de costado
+      g.save();
+      g.translate((ax + bx) / 2, vertical ? (ay + by) / 2 : ay + 14 * razon);
+      if (vertical) g.rotate(-Math.PI / 2);
+      g.fillText(p.etiqueta, 0, 0);
+      g.restore();
+    }
+    g.restore();
   }
 
   function proyectar(p) {
@@ -733,13 +792,18 @@
       g.fillText("ESPERANDO SEÑAL DEL JUEGO…", lienzo.width / 2, lienzo.height / 2);
       return;
     }
+    dibujarPlano(razon);
     dibujarRutas(razon);
     g.font = `${11 * razon}px ui-monospace, monospace`;
     g.textAlign = "left";
-    for (const p of puntos) {
-      const [x, y] = proyectar(p);
-      g.fillStyle = "#1f4a2d"; g.fillRect(x - 3 * razon, y - 3 * razon, 6 * razon, 6 * razon);
-      g.fillStyle = "#3d7a50"; g.fillText(p.nombre, x + 7 * razon, y + 4 * razon);
+    // Los puntos de ruta (P01, V03...) no se muestran: al jugador 2 le sirve el
+    // plano, no los nombres internos. Solo se marcan al elegir dónde va una trampa.
+    if (!plano.length) {
+      for (const p of puntos) {                       // sin plano (Unity viejo): como antes
+        const [x, y] = proyectar(p);
+        g.fillStyle = "#1f4a2d"; g.fillRect(x - 3 * razon, y - 3 * razon, 6 * razon, 6 * razon);
+        g.fillStyle = "#3d7a50"; g.fillText(p.nombre, x + 7 * razon, y + 4 * razon);
+      }
     }
     const trampas = (estadoOperador && estadoOperador.trampas) || [];
     const enModoTrampa = lienzo.dataset.modo === "trampa";
