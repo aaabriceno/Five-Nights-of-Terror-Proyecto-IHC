@@ -136,6 +136,20 @@ PATH="$TEMP/bin_nvidia:$PATH" SIN_TARJETA_NVIDIA=1 MARCA="$TEMP/marca8b" EJECUTA
 comprobar "con SIN_TARJETA_NVIDIA=1 no se toca nada" grep -sqx "no/no" "$TEMP/marca8b"
 esperar_puerto_libre
 
+echo "Caso 9: la página del jugador 2 se sirve sin caché (si no, el navegador sigue con la versión vieja)"
+# Un juego falso que, mientras corre, le pide al servidor de la página sus cabeceras.
+cat > "$TEMP/juego_pagina.sh" <<'FIN'
+#!/usr/bin/env bash
+for _ in $(seq 1 20); do
+  curl -sI "http://127.0.0.1:8081/operador.js" > "$MARCA" 2>/dev/null && grep -q "200" "$MARCA" && break
+  sleep 0.3
+done
+FIN
+chmod +x "$TEMP/juego_pagina.sh"
+MARCA="$TEMP/marca9" EJECUTABLE_JUEGO="$TEMP/juego_pagina.sh" REGISTRO_RELAY="$TEMP/relay9.log" "$RAIZ/iniciar.sh" >/dev/null 2>&1
+comprobar "operador.js llega con Cache-Control: no-store" grep -qi "^cache-control:.*no-store" "$TEMP/marca9"
+esperar_puerto_libre
+
 echo
 if [ "$FALLOS" -eq 0 ]; then
   echo "Todas las pruebas pasaron."
