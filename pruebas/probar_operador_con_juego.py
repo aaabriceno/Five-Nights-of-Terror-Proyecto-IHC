@@ -154,6 +154,19 @@ async def principal():
                           rutas.get("vixy") == ["P02", "P11", "P12", "V01", "V02", "V03", "V04"])
                 comprobar("la ruta de Puppet va por el pasillo derecho hasta el ducto",
                           rutas.get("puppet") == ["P13", "P14", "P15", "P16", "V05", "V06", "V07", "V08"])
+                # El plano del edificio sale de la geometría real del mapa (no del bosquejo).
+                plano = puntos.get("plano") or []
+                tipos = {}
+                for pieza in plano:
+                    tipos[pieza["tipo"]] = tipos.get(pieza["tipo"], 0) + 1
+                comprobar(f"mapa_puntos trae el plano del edificio: muros, salas, ductos y mesas ({tipos})",
+                          tipos.get("muro", 0) >= 20 and tipos.get("sala", 0) >= 3
+                          and tipos.get("ducto", 0) >= 2 and tipos.get("mesa", 0) >= 4)
+                comedor = next((p for p in plano if p.get("etiqueta") == "COMEDOR"), None)
+                comprobar("el comedor del plano está donde dice el bosquejo (x 10-30, z 10-22): Unity no lo espeja",
+                          comedor is not None and abs(comedor["x0"] - 10) < 0.3 and abs(comedor["x1"] - 30) < 0.3
+                          and abs(comedor["z0"] - 10) < 0.3 and abs(comedor["z1"] - 22) < 0.3)
+                comprobar(f"y el mensaje pesa menos de 16 kB ({len(json.dumps(puntos))} bytes)", len(json.dumps(puntos)) < 16000)
 
             retrasar = json.dumps({"type": "accion_operador", "accion": "retrasar", "objetivo": "vixy"})
             await operador.send(retrasar)
