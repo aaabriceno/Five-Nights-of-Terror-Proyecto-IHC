@@ -101,7 +101,8 @@ if [ -f "$RAIZ/UnityRelay/operador/operador.html" ] && [ -x "$PYTHON_RELAY" ]; t
   if (exec 3<>"/dev/tcp/127.0.0.1/$PUERTO_OPERADOR") 2>/dev/null; then
     echo "El puerto $PUERTO_OPERADOR está ocupado: no se sirve la página del jugador 2."
   else
-    "$PYTHON_RELAY" -m http.server "$PUERTO_OPERADOR" --directory "$RAIZ/UnityRelay/operador" >/dev/null 2>&1 9>&- &
+    # Sin caché: si no, el navegador del jugador 2 sigue con el operador.js viejo tras actualizar.
+    "$PYTHON_RELAY" "$RAIZ/UnityRelay/servir_pagina.py" "$PUERTO_OPERADOR" "$RAIZ/UnityRelay/operador" >/dev/null 2>&1 9>&- &
     PID_OPERADOR=$!
     DIRECCIONES_OPERADOR=""
     for ip in $(hostname -I 2>/dev/null); do
