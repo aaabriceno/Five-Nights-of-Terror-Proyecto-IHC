@@ -170,9 +170,9 @@ Si la otra computadora no abre la página: misma red, firewall (puertos 8000 y 8
 ## Cómo se mueven los animatrónicos (2026-11-10)
 
 - **Freddy y Vixy siguen una ruta fija**, punto por punto y en orden: nunca se saltan uno ni retroceden. Freddy: `P01 → P03 → P04 → P05 → P06 → P07`; Vixy: `P02 → P11 → P12 → V01 → V02 → V03 → V04`; Puppet (sin cambios): `P13 → P14 → P15 → P16 → V05 → V06 → V07 → V08`.
-- **Desvíos ocasionales** (25 % por tramo que lo tiene, `ProbabilidadDeDesvio`): Freddy se asoma a `P08` o `P09` entre `P04` y `P05` (cuesta unos 20 s); Vixy puede ir a `P10` justo al salir. Después vuelve a la ruta. Es la sorpresa: no sale en la guía del jugador 2.
+- **Desvíos ocasionales** (25 % por tramo que lo tiene, `ProbabilidadDeDesvio`): Freddy se asoma a `P08` o `P09` entre `P04` y `P05` (cuesta unos 20 s) y después vuelve a la ruta. Vixy no tiene desvíos (2026-11-13). Es la sorpresa: no sale en la guía del jugador 2.
 - **Tiempo:** Freddy avanza cada 80–120 % del intervalo de la noche (antes era exacto); Vixy sigue dependiendo de las tareas pendientes.
-- `P10` deja de ser parte de la ruta de Vixy porque el escenario no tiene puerta al pasillo izquierdo: ir y volver son 35 m. Si Marcelo abre una puerta en el muro oeste del escenario, se puede volver a poner.
+- `P10` ya no se usa (2026-11-13): primero salió de la ruta de Vixy y luego también de sus desvíos, porque el escenario no tiene puerta al pasillo izquierdo y llegar ahí la hacía subir 35 m hasta la esquina de arriba del mapa y bajar otra vez. Si Marcelo abre una puerta en el muro oeste del escenario, se puede volver a poner. Las rutas están en `RecorridosDeAnimatronicos.cs`.
 - La trampa se ve en el mapa del jugador 1: un disco rojo con una luz que late; desaparece cuando un animatrónico la pisa o termina la partida.
 
 ## Opciones de prueba del juego
