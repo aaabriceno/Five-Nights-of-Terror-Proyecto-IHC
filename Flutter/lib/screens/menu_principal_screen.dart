@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../config/server_config.dart';
 import '../providers/connection_provider.dart';
+import '../utils/colors.dart';
 import 'configurar_servidor_screen.dart';
 import 'splash_screen.dart';
 import 'tutorial_screen.dart';
@@ -23,13 +24,21 @@ import 'tutorial_screen.dart';
 /// escalarla y recortarla, no sobre el tamaño de la imagen original, para
 /// que sigan alineadas con el texto en cualquier tamaño de pantalla.
 ///
+/// Abajo a la derecha dice con qué PC va a jugar la tablet (o que está en
+/// modo de prueba, sin PC): el error más común al probar era tocar «Nuevo
+/// juego» con el modo de prueba encendido y no entender por qué la PC no
+/// hacía nada. Tocarlo abre Opciones.
+///
 /// También reproduce música ambiente en loop mientras esta pantalla está
 /// visible (única pantalla de Flutter con audio — el resto del sonido de
 /// gameplay pertenece a Unity, ver PROGRESS.md). Se detiene al navegar a
 /// SplashScreen (Nuevo Juego/Continuar) para no superponerse con el
 /// juego; sigue sonando si el jugador solo abre Opciones y vuelve.
 class MenuPrincipalScreen extends StatefulWidget {
-  const MenuPrincipalScreen({super.key});
+  /// false en las pruebas: ahí no hay reproductor de audio.
+  final bool musica;
+
+  const MenuPrincipalScreen({super.key, this.musica = true});
 
   @override
   State<MenuPrincipalScreen> createState() => _MenuPrincipalScreenState();
@@ -56,22 +65,27 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
   static const String _rutaMusicaMenu =
       'sounds/FNaF_2_-_Música_del_menú.ogg';
 
-  final AudioPlayer _reproductor = AudioPlayer();
+  AudioPlayer? _reproductor;
 
   @override
   void initState() {
     super.initState();
-    _reproducirMusicaDeMenu();
+    if (widget.musica) {
+      _reproductor = AudioPlayer();
+      _reproducirMusicaDeMenu();
+    }
   }
 
   Future<void> _reproducirMusicaDeMenu() async {
-    await _reproductor.setReleaseMode(ReleaseMode.loop);
-    await _reproductor.play(AssetSource(_rutaMusicaMenu));
+    final AudioPlayer? reproductor = _reproductor;
+    if (reproductor == null) return;
+    await reproductor.setReleaseMode(ReleaseMode.loop);
+    await reproductor.play(AssetSource(_rutaMusicaMenu));
   }
 
   @override
   void dispose() {
-    _reproductor.dispose();
+    _reproductor?.dispose();
     super.dispose();
   }
 
@@ -118,9 +132,45 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
                 yRelativo: _ySalir,
                 onTap: () => _alSalir(),
               ),
+              Positioned(
+                right: 24,
+                bottom: 24,
+                child: SafeArea(child: _indicadorDeConexion(context)),
+              ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  /// "PC: 192.168.1.100:8000" o "Modo de prueba · sin PC". Va a la derecha,
+  /// lejos de las opciones dibujadas a la izquierda, y abre Opciones al tocarlo.
+  Widget _indicadorDeConexion(BuildContext context) {
+    final bool prueba = ServerConfig.useMock;
+    final Color color = prueba ? AppColors.advertencia : AppColors.textoSecundario;
+    return Material(
+      color: Colors.black.withValues(alpha: 0.55),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _alTocarOpciones(context),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(prueba ? Icons.science_outlined : Icons.computer, size: 30, color: color),
+              const SizedBox(width: 12),
+              Text(
+                prueba ? 'Modo de prueba · sin PC' : 'PC: ${ServerConfig.direccion}',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: color),
+              ),
+              const SizedBox(width: 10),
+              Icon(Icons.settings, size: 26, color: color),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -150,6 +200,8 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
     );
   }
 
+  /// Zona táctil invisible sobre cada palabra del menú. Al tocarla se ve un
+  /// destello suave (antes no había ninguna respuesta visual al toque).
   Widget _zonaTactil({
     required Rect rectangulo,
     required double yRelativo,
@@ -162,36 +214,43 @@ class _MenuPrincipalScreenState extends State<MenuPrincipalScreen> {
       height: _altoZona * rectangulo.height,
       child: Material(
         color: Colors.transparent,
-        child: InkWell(onTap: onTap),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          splashColor: AppColors.peligro.withValues(alpha: 0.25),
+          highlightColor: AppColors.peligro.withValues(alpha: 0.15),
+          onTap: onTap,
+        ),
       ),
     );
   }
 
   void _alIniciar(BuildContext context, {required String modo}) {
-    _reproductor.stop();
+    _reproductor?.stop();
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => SplashScreen(modo: modo)),
     );
   }
 
   void _alTocarTutorial(BuildContext context) {
-    _reproductor.stop();
+    _reproductor?.stop();
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => const TutorialScreen()),
     );
   }
 
-  void _alTocarOpciones(BuildContext context) {
-    Navigator.of(context).push(
+  Future<void> _alTocarOpciones(BuildContext context) async {
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const ConfigurarServidorScreen()),
     );
+    // Al volver, el indicador muestra lo que se acaba de guardar.
+    if (mounted) setState(() {});
   }
 
   /// Le avisa a Unity (con un `connect` de modo "salir") para que cierre el
   /// juego de la PC y después cierra la app de la tablet. Sin servidor real
   /// (mock) o sin conexión solo se cierra la tablet.
   Future<void> _alSalir() async {
-    _reproductor.stop();
+    _reproductor?.stop();
     if (!ServerConfig.useMock) {
       final ConnectionProvider conexion = context.read<ConnectionProvider>();
       conexion.connect(modo: 'salir');

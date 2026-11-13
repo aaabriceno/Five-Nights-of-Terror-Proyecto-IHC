@@ -44,8 +44,14 @@ class ConnectionProvider extends ChangeNotifier {
   /// procesar 'connect' a través del relay.
   void Function(Map<String, dynamic>)? onMessage;
 
+  /// Por qué el relay no dejó entrar a la tablet (`conexion_rechazada`): por
+  /// ejemplo `ya_hay_jugador1`, otra tablet está jugando en esa PC. Null si la
+  /// conexión no fue rechazada. Se limpia al volver a conectar.
+  String? _motivoDeRechazo;
+
   ConnectionState get state => _state;
   int get reconnectAttempts => _reconnectAttempts;
+  String? get motivoDeRechazo => _motivoDeRechazo;
 
   Stream<Map<String, dynamic>> get messages =>
       ServerConfig.useMock ? _mockService.messages : _wsService.messages;
@@ -73,6 +79,7 @@ class ConnectionProvider extends ChangeNotifier {
   void connect({String modo = 'nuevo'}) {
     _reconnectAttempts = 0;
     _esReconexion = false;
+    _motivoDeRechazo = null;
     _conectar(modo);
   }
 
@@ -107,6 +114,10 @@ class ConnectionProvider extends ChangeNotifier {
     _wsService.connect(ServerConfig.wsUrl);
     _forwardingSubscription = _wsService.messages.listen(
       (Map<String, dynamic> mensaje) {
+        if (mensaje['type'] == 'conexion_rechazada') {
+          _alSerRechazada((mensaje['motivo'] as String?) ?? 'desconocido');
+          return;
+        }
         _alResponderElJuego();
         onMessage?.call(mensaje);
       },
@@ -134,6 +145,20 @@ class ConnectionProvider extends ChangeNotifier {
     _state = ConnectionState.connected;
     _reconnectAttempts = 0;
     _esReconexion = false;
+    notifyListeners();
+  }
+
+  /// El relay no dejó entrar a la tablet (otra tablet ya juega en esa PC). No
+  /// tiene sentido reintentar solo: la respuesta sería la misma. Se corta y se
+  /// le dice al jugador por qué.
+  void _alSerRechazada(String motivo) {
+    _motivoDeRechazo = motivo;
+    _temporizadorDeRespuesta?.cancel();
+    _temporizadorDeReconexion?.cancel();
+    _forwardingSubscription?.cancel();
+    _forwardingSubscription = null;
+    _wsService.disconnect();
+    _state = ConnectionState.error;
     notifyListeners();
   }
 

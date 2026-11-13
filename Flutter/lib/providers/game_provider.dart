@@ -35,18 +35,38 @@ class GameProvider extends ChangeNotifier {
   /// llama una vez por cada `efecto` que se entiende.
   void Function(AvisoDeCompanero)? alAvisoDeCompanero;
 
+  /// Un mensaje roto (un campo que falta o viene con otro tipo) se ignora y se
+  /// anota: no puede tumbar la partida ni dejar la sesión a medias. Las
+  /// pantallas solo se avisan cuando el mensaje se entendió entero.
   void handleMessage(Map<String, dynamic> message) {
-    final String type = message['type'] as String;
+    final Object? type = message['type'];
+    if (type is! String) {
+      appLogger.w('Mensaje sin "type" válido: $message');
+      return;
+    }
+    try {
+      _aplicarMensaje(type, message);
+    } catch (error) {
+      appLogger.w('Mensaje "$type" mal formado, se ignora ($error): $message');
+      return;
+    }
+    notifyListeners();
+  }
+
+  void _aplicarMensaje(String type, Map<String, dynamic> message) {
     switch (type) {
       case 'new_task':
         session.currentTask = Task.fromJson(message);
         break;
       case 'task_list':
         final List<dynamic> tareasJson = message['tasks'] as List<dynamic>;
-        session.tareasPendientes = tareasJson
+        // Se arma la lista entera antes de reemplazar la actual: si una tarea
+        // viene rota, la lista anterior se queda como estaba.
+        final List<Task> tareas = tareasJson
             .map((dynamic tareaJson) =>
                 Task.fromJson(tareaJson as Map<String, dynamic>))
             .toList();
+        session.tareasPendientes = tareas;
         break;
       case 'attack':
         final Attack attack = Attack.fromJson(message);
@@ -86,7 +106,6 @@ class GameProvider extends ChangeNotifier {
       default:
         appLogger.w('Unhandled message type: $type');
     }
-    notifyListeners();
   }
 
   /// Lo que hace el jugador 2 (retrasar, trampa, rescate) o su presencia

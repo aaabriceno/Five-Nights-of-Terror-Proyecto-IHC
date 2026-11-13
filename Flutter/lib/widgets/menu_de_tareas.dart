@@ -42,6 +42,13 @@ class MenuDeTareas extends StatefulWidget {
 }
 
 class _MenuDeTareasState extends State<MenuDeTareas> {
+  // Más grandes que los del tema (16 y 12): la tarjeta se lee de reojo mientras
+  // se vigila la pantalla de la PC, en una tablet apoyada en la mesa.
+  static const TextStyle _estiloNombre = TextStyle(fontSize: 24, fontWeight: FontWeight.w600);
+  static const TextStyle _estiloDetalle = TextStyle(fontSize: 18, color: AppColors.textoSecundario);
+  static const double _ladoDelIcono = 56;
+  static const double _tamanoDelIcono = 30;
+
   Timer? _temporizadorRepintado;
 
   @override
@@ -161,7 +168,7 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
             child: Center(
               child: Text(
                 'Sin tareas pendientes — vigila la pantalla',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: _estiloNombre.copyWith(color: AppColors.textoSecundario),
               ),
             ),
           )
@@ -185,15 +192,15 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.keyboard_double_arrow_down,
-                size: 16,
+                size: 22,
                 color: AppColors.textoSecundario,
               ),
               const SizedBox(width: 6),
-              Text(
+              const Text(
                 'Desliza para ver más tareas',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: _estiloDetalle,
               ),
             ],
           ),
@@ -223,8 +230,8 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: _ladoDelIcono,
+                  height: _ladoDelIcono,
                   decoration: BoxDecoration(
                     color: AppColors.acento.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
@@ -236,14 +243,14 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                       : const Icon(
                           Icons.music_note,
                           color: AppColors.acento,
-                          size: 22,
+                          size: _tamanoDelIcono,
                         ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                const SizedBox(width: 16),
+                const Expanded(
                   child: Text(
                     'Reiniciar Caja Musical',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: _estiloNombre,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -285,8 +292,8 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
               child: Row(
                 children: [
                   Container(
-                    width: 44,
-                    height: 44,
+                    width: _ladoDelIcono,
+                    height: _ladoDelIcono,
                     decoration: BoxDecoration(
                       color: AppColors.acento.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
@@ -294,10 +301,10 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                     child: Icon(
                       _iconoPorTipo(tarea.taskType),
                       color: AppColors.acento,
-                      size: 22,
+                      size: _tamanoDelIcono,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -308,7 +315,7 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                             Expanded(
                               child: Text(
                                 _nombreLegible(tarea.taskType),
-                                style: Theme.of(context).textTheme.titleMedium,
+                                style: _estiloNombre,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -344,12 +351,12 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                               ),
                           ],
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Text(
                           bloqueadaPorWifi
                               ? 'Primero reinicia el WiFi'
                               : '${tarea.duration}s',
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: _estiloDetalle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),

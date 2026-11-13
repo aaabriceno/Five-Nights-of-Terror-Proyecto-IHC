@@ -68,7 +68,7 @@ class _SplashScreenState extends State<SplashScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: estado == ConnectionState.error
-                    ? _sinConexion()
+                    ? _sinConexion(connectionProvider.motivoDeRechazo)
                     : _conectando(estado),
               ),
             ),
@@ -107,22 +107,45 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  Widget _sinConexion() {
+  /// Qué decirle al jugador según lo que pasó: el juego no respondió, o el relay
+  /// lo rechazó (`motivo`). Devuelve título y explicación.
+  static (String, String) textoDelError(String? motivo) {
+    switch (motivo) {
+      case null:
+        return (
+          'No se encontró el juego',
+          'Revisa que el juego esté abierto en la PC y que la IP de Opciones sea la de esa PC.',
+        );
+      case 'ya_hay_jugador1':
+        return (
+          'La PC ya tiene otra tablet',
+          'Hay otra tablet jugando en esa PC. Cierra el juego en esa tablet o espera a que termine su noche, y vuelve a intentar.',
+        );
+      default:
+        return (
+          'La PC no aceptó la tablet',
+          'El juego rechazó la conexión (motivo: $motivo). Reinicia el juego en la PC y vuelve a intentar.',
+        );
+    }
+  }
+
+  Widget _sinConexion(String? motivoDeRechazo) {
+    final (String titulo, String explicacion) = textoDelError(motivoDeRechazo);
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 800),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.portable_wifi_off,
+          Icon(
+            motivoDeRechazo == null ? Icons.portable_wifi_off : Icons.tablet_android,
             size: 96,
             color: AppColors.peligro,
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No se encontró el juego',
+          Text(
+            titulo,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Text(
@@ -133,10 +156,10 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Revisa que el juego esté abierto en la PC y que la IP de Opciones sea la de esa PC.',
+          Text(
+            explicacion,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 24),
+            style: const TextStyle(fontSize: 24),
           ),
           const SizedBox(height: 32),
           Wrap(

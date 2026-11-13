@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Configuración de conexión al servidor, persistida en el dispositivo
+/// Configuración de conexión con la PC, persistida en el dispositivo
 /// (SharedPreferences) para que el jugador pueda cambiar la IP de la PC
 /// desde la pantalla de Opciones sin reinstalar la app. `cargar()` debe
 /// llamarse una vez al inicio (antes de MenuPrincipalScreen) para leer
@@ -16,6 +16,17 @@ class ServerConfig {
   static int port = 8000;
 
   static String get wsUrl => 'ws://$host:$port';
+
+  /// "192.168.1.100:8000": a dónde va a buscar el juego la tablet.
+  static String get direccion => '$host:$port';
+
+  static final RegExp _ipv4 = RegExp(
+    r'^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$',
+  );
+
+  /// True si `texto` es una IPv4 completa (cuatro números de 0 a 255). Los
+  /// espacios alrededor no cuentan.
+  static bool esIpValida(String texto) => _ipv4.hasMatch(texto.trim());
 
   static Future<void> cargar() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
