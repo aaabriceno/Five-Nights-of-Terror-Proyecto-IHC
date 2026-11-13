@@ -36,6 +36,17 @@ void main() {
 
   Future<void> desmontar(WidgetTester tester) => tester.pumpWidget(const SizedBox());
 
+  testWidgets('el nombre y el tiempo de la tarjeta se leen de reojo (≥ 22 y ≥ 18 px)', (tester) async {
+    await montar(tester, 5);
+    final Text nombre = tester.widget<Text>(find.text('Conectar Cables'));
+    expect(nombre.style?.fontSize, greaterThanOrEqualTo(22));
+    final Text tiempo = tester.widget<Text>(find.text('30s'));
+    expect(tiempo.style?.fontSize, greaterThanOrEqualTo(18));
+    final Text caja = tester.widget<Text>(find.text('Reiniciar Caja Musical'));
+    expect(caja.style?.fontSize, greaterThanOrEqualTo(22));
+    await desmontar(tester);
+  });
+
   testWidgets('tarea normal (5 s): sin icono ni texto de urgencia', (tester) async {
     await montar(tester, 5);
     expect(find.byIcon(Icons.priority_high), findsNothing);

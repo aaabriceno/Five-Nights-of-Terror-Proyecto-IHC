@@ -90,6 +90,38 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('si el relay rechaza la tablet (otra tablet ya juega): error con motivo, sin reintentos', (tester) async {
+    conexion.connect();
+    await tester.pump(const Duration(seconds: 1));
+    ws.llega(<String, dynamic>{'type': 'conexion_rechazada', 'motivo': 'ya_hay_jugador1'});
+    await tester.pump();
+    expect(conexion.state, ConnectionState.error);
+    expect(conexion.motivoDeRechazo, 'ya_hay_jugador1');
+    expect(recibidos, isEmpty, reason: 'el rechazo no es un mensaje del juego');
+    expect(ws.desconexiones, greaterThanOrEqualTo(1));
+    await tester.pump(const Duration(seconds: 30));
+    expect(ws.conexiones, 1, reason: 'el relay lo rechazaría otra vez');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('un rechazo durante una reconexión también termina en error, y volver a conectar limpia el motivo', (tester) async {
+    conexion.connect();
+    ws.llega(respuestaDeUnity);
+    await tester.pump();
+    ws.falla();
+    await tester.pump(AppConstants.reconnectDelay + const Duration(milliseconds: 100));
+    expect(conexion.state, ConnectionState.connecting);
+    expect(ws.enviados.last['type'], 'reconnect');
+    ws.llega(<String, dynamic>{'type': 'conexion_rechazada', 'motivo': 'ya_hay_jugador1'});
+    await tester.pump();
+    expect(conexion.state, ConnectionState.error);
+    expect(conexion.motivoDeRechazo, 'ya_hay_jugador1');
+    conexion.connect();
+    expect(conexion.motivoDeRechazo, isNull);
+    conexion.disconnect();
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('si ya estaba conectado y el socket se cae: reconecta (como antes)', (tester) async {
     conexion.connect();
     ws.llega(respuestaDeUnity);

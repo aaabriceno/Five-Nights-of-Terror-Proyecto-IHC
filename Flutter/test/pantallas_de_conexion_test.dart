@@ -77,6 +77,18 @@ void main() {
       await cerrar(tester);
     });
 
+    testWidgets('si la PC ya tiene otra tablet, lo dice con esas palabras', (tester) async {
+      await montar(tester, const SplashScreen());
+      ws.llega(<String, dynamic>{'type': 'conexion_rechazada', 'motivo': 'ya_hay_jugador1'});
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('La PC ya tiene otra tablet'), findsOneWidget);
+      expect(find.textContaining('otra tablet jugando'), findsOneWidget);
+      expect(find.text('No se encontró el juego'), findsNothing);
+      expect(find.widgetWithText(ElevatedButton, 'Reintentar'), findsOneWidget);
+      await cerrar(tester);
+    });
+
     testWidgets('los botones de error son grandes', (tester) async {
       await montar(tester, const SplashScreen());
       await tester.pump(const Duration(seconds: 9));
