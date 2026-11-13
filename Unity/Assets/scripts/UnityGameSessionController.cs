@@ -116,12 +116,26 @@ public class UnityGameSessionController : MonoBehaviour
     /// Los desvíos ocasionales no van aquí: son la sorpresa.
     [Serializable] private class RutaDeAnimatronico { public string animatronico; public string[] puntos; }
 
+    /// Una pieza del plano 2D (piso, muro, tarima, mesa, caja): su rectángulo en
+    /// el plano XZ, en metros. Ver PlanoDelMapa.
+    [Serializable] private class PiezaDelPlano
+    {
+        public string tipo;
+        public string etiqueta;
+        public float x0;
+        public float z0;
+        public float x1;
+        public float z1;
+    }
+
     [Serializable] private class MapaPuntosMessage
     {
         public string type = "mapa_puntos";
         public PuntoDeMapa[] puntos;
         public PuntoDeMapa jugador;
         public RutaDeAnimatronico[] rutas;
+        /// El plano del edificio (salas, pasillos, ductos, muros), sacado de la geometría real.
+        public PiezaDelPlano[] plano;
     }
 
     [Serializable] private class AnimatronicoEnMapa
@@ -256,6 +270,8 @@ public class UnityGameSessionController : MonoBehaviour
     public string actorFreddy = "enemigo1";
     public string actorVixy = "enemigo3";
     public string actorPuppet = "personaje2";
+    /// El objeto de la escena que contiene el modelo del edificio (para el plano del jugador 2).
+    public string objetoDelMapa = "Mapa_V2";
     public Transform jugador;
 
     [Header("Estado de partida")]
@@ -1220,9 +1236,44 @@ public class UnityGameSessionController : MonoBehaviour
             puntos = puntos.ToArray(),
             jugador = jugador == null ? null
                 : new PuntoDeMapa { nombre = "jugador", x = jugador.position.x, z = jugador.position.z },
-            rutas = RutasParaElJugador2()
+            rutas = RutasParaElJugador2(),
+            plano = PlanoDelEdificio()
         });
     }
+
+    private PiezaDelPlano[] planoDelEdificio;
+
+    /// El plano 2D del mapa para el jugador 2, armado una sola vez con la
+    /// geometría que está en la escena: cada muro, piso, tarima, mesa y la caja
+    /// de música, con su caja en el mundo (Renderer.bounds). Los muros del modelo
+    /// son cajas alineadas a los ejes, así que su rectángulo es exacto.
+    private PiezaDelPlano[] PlanoDelEdificio()
+    {
+        if (planoDelEdificio != null) return planoDelEdificio;
+        var piezas = new List<PiezaDelPlano>();
+        GameObject mapa = GameObject.Find(objetoDelMapa);
+        Renderer[] partes = mapa != null ? mapa.GetComponentsInChildren<Renderer>() : FindObjectsOfType<Renderer>();
+        foreach (Renderer parte in partes)
+        {
+            PlanoDelMapa.Pieza pieza = PlanoDelMapa.Clasificar(parte.gameObject.name);
+            if (string.IsNullOrEmpty(pieza.Tipo)) continue;
+            Bounds caja = parte.bounds;
+            PlanoDelMapa.Rectangulo rect = PlanoDelMapa.RectanguloDeCaja(caja.min.x, caja.min.z, caja.max.x, caja.max.z, 0f);
+            piezas.Add(new PiezaDelPlano
+            {
+                tipo = pieza.Tipo, etiqueta = pieza.Etiqueta,
+                x0 = rect.x0, z0 = rect.z0, x1 = rect.x1, z1 = rect.z1
+            });
+        }
+        // Los pisos primero: se dibujan debajo de los muros.
+        piezas.Sort((a, b) => Orden(a.tipo).CompareTo(Orden(b.tipo)));
+        Debug.Log($"[Plano] {piezas.Count} piezas para el plano del jugador 2 (de {partes.Length} objetos del mapa)");
+        planoDelEdificio = piezas.ToArray();
+        return planoDelEdificio;
+    }
+
+    private static int Orden(string tipo) =>
+        tipo == "muro" ? 3 : (tipo == "mesa" || tipo == "caja" || tipo == "tarima") ? 2 : 1;
 
     /// La ruta de cada animatrónico sin su último elemento (la posición del
     /// jugador 1): termina en el punto penúltimo, por donde entra a atacar.
