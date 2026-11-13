@@ -513,9 +513,9 @@ public class UnityGameSessionController : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        DrawRouteGizmos(new Color(1f,.72f,.12f), "P01","P03","P04","P05","P06","P07","J1");
-        DrawRouteGizmos(new Color(.2f,.85f,1f), "P02","P10","P11","P12","V01","V02","V03","V04","J1");
-        DrawRouteGizmos(new Color(1f,.25f,.3f), "P13","P14","P15","P16","V05","V06","V07","V08","J1");
+        DrawRouteGizmos(new Color(1f,.72f,.12f), RecorridosDeAnimatronicos.Ruta("freddy"));
+        DrawRouteGizmos(new Color(.2f,.85f,1f), RecorridosDeAnimatronicos.Ruta("vixy"));
+        DrawRouteGizmos(new Color(1f,.25f,.3f), RecorridosDeAnimatronicos.Ruta("puppet"));
         DrawRouteGizmos(Color.magenta, "P08","P09");
     }
 
@@ -548,7 +548,7 @@ public class UnityGameSessionController : MonoBehaviour
         if (freddyObject != null)
         {
             PatrullaPorPuntos existingPatrol = freddyObject.GetComponent<PatrullaPorPuntos>();
-            Transform[] routeFreddy = FindRoute("P01", "P03", "P04", "P05", "P06", "P07", "J1");
+            Transform[] routeFreddy = FindRoute(RecorridosDeAnimatronicos.Ruta("freddy"));
             if (existingPatrol != null)
             {
                 existingPatrol.controladoPorIAExterna = true;
@@ -557,41 +557,36 @@ public class UnityGameSessionController : MonoBehaviour
                 probabilisticRoute: true, vixyTaskThreshold: false);
             // Ruta fija; de vez en cuando se asoma a un lado del comedor.
             if (freddy != null)
-                freddy.ConfigurarDesvios(Desvios((2, "P08"), (2, "P09")), ProbabilidadDeDesvio);
+                freddy.ConfigurarDesvios(Desvios(RecorridosDeAnimatronicos.Desvios("freddy")), ProbabilidadDeDesvio);
         }
 
         GameObject vixyObject = GameObject.Find(actorVixy);
         if (vixyObject != null)
         {
-            // P10 queda como desvío y no como parte de la ruta: el escenario no
-            // tiene puerta al pasillo izquierdo, así que ir a P10 y volver a P11
-            // son 35 m de ida y vuelta. Con una puerta en el muro oeste del
-            // escenario se puede volver a poner en la ruta.
-            AnimatronicUnityBrain vixy = AttachBrain(vixyObject, "Vixy", FindRoute(
-                "P02", "P11", "P12", "V01", "V02", "V03", "V04", "J1"),
+            // Sin desvíos (ver RecorridosDeAnimatronicos): baja del escenario al
+            // pasillo izquierdo y entra directo al ducto.
+            AttachBrain(vixyObject, "Vixy", FindRoute(RecorridosDeAnimatronicos.Ruta("vixy")),
                 true, false, false, probabilisticRoute: true, vixyTaskThreshold: true);
-            if (vixy != null)
-                vixy.ConfigurarDesvios(Desvios((0, "P10")), ProbabilidadDeDesvio);
         }
 
         GameObject puppetObject = GameObject.Find(actorPuppet);
         if (puppetObject != null)
-            AttachBrain(puppetObject, "Puppet", FindRoute("P13", "P14", "P15", "P16", "V05", "V06", "V07", "V08", "J1"), false, false, true);
+            AttachBrain(puppetObject, "Puppet", FindRoute(RecorridosDeAnimatronicos.Ruta("puppet")), false, false, true);
     }
 
     /// Probabilidad de hacer un desvío en cada tramo que lo tiene. Valor
     /// inicial para ajustar con el profesor.
     private const float ProbabilidadDeDesvio = 0.25f;
 
-    /// Desvíos por nombre de punto: (índice del punto de la ruta tras el que se hace, nombre del punto).
-    private static AnimatronicUnityBrain.DesvioDeRuta[] Desvios(params (int despuesDe, string punto)[] lista)
+    /// Los desvíos con sus puntos de la escena (los que no están en la escena se omiten).
+    private static AnimatronicUnityBrain.DesvioDeRuta[] Desvios(RecorridosDeAnimatronicos.Desvio[] lista)
     {
         List<AnimatronicUnityBrain.DesvioDeRuta> desvios = new List<AnimatronicUnityBrain.DesvioDeRuta>();
-        foreach ((int despuesDe, string punto) in lista)
+        foreach (RecorridosDeAnimatronicos.Desvio desvio in lista)
         {
-            GameObject objeto = GameObject.Find(punto);
+            GameObject objeto = GameObject.Find(desvio.punto);
             if (objeto != null)
-                desvios.Add(new AnimatronicUnityBrain.DesvioDeRuta { despuesDe = despuesDe, punto = objeto.transform });
+                desvios.Add(new AnimatronicUnityBrain.DesvioDeRuta { despuesDe = desvio.despuesDe, punto = objeto.transform });
         }
         return desvios.ToArray();
     }

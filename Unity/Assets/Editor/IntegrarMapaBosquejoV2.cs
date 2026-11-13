@@ -190,7 +190,7 @@ public static class IntegrarMapaBosquejoV2
         GameObject freddy=FindOrMake("enemigo1","Assets/models/enemigo1.obj"); GameObject vixy=FindOrMake("enemigo3","Assets/models/enemigo3.obj"); GameObject puppet=FindOrMake("personaje2","Assets/models/personaje2.obj");
         Place(freddy,new Vector3(16.5f,.64f,24.3f)); Place(vixy,new Vector3(23.5f,.64f,26.3f)); Place(puppet,new Vector3(34,0,25.5f));
         ConfigureActor(freddy,"Freddy",Route("P01","P03","P04","P05","P06","P07","J1"),true,true,false,true,false);
-        ConfigureActor(vixy,"Vixy",Route("P02","P10","P11","P12","V01","V02","V03","V04","J1"),true,false,false,true,true);
+        ConfigureActor(vixy,"Vixy",Route("P02","P11","P12","V01","V02","V03","V04","J1"),true,false,false,true,true);
         ConfigureActor(puppet,"Puppet",Route("P13","P14","P15","P16","V05","V06","V07","V08","J1"),false,false,true,false,false);
 
         FrameOfficeCamera();
