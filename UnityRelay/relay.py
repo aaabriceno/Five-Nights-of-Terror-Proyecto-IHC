@@ -1,7 +1,7 @@
-"""Small WebSocket relay for the Unity-authoritative integration.
+"""Relay WebSocket de la integración con Unity como autoridad del juego.
 
-Run this instead of the original game server. It forwards messages only and
-does not import or change the original backend.
+Solo reenvía mensajes entre la tablet (jugador 1), la página del jugador 2
+(operador) y el juego de Unity. No decide nada del juego.
 """
 
 import asyncio
@@ -18,6 +18,7 @@ PORT = 8000
 tablets = set()
 unity_clients = set()
 operadores = set()
+identidad_de_tablet = {}        # socket -> player_id con el que se anunció
 last_connect_message = None
 
 # Si el jugador 2 se cae a mitad de la partida, tiene este tiempo para volver.
@@ -33,6 +34,17 @@ PING_INTERVALO_S = float(os.environ.get("PING_INTERVALO_S", "5"))
 PING_TIMEOUT_S = float(os.environ.get("PING_TIMEOUT_S", "5"))
 CIERRE_TIMEOUT_S = float(os.environ.get("CIERRE_TIMEOUT_S", "2"))
 
+# El mensaje más grande del juego (task_list, mapa_puntos) pesa menos de 10 kB.
+# Un tope bajo evita que un cliente malicioso o roto llene la memoria del relay
+# con mensajes de 1 MB (el máximo que trae la biblioteca).
+TAMANO_MAXIMO_BYTES = 64 * 1024
+
+# El juego y el relay corren en la misma PC (iniciar.sh): un `unity_connect` que
+# llega desde otra IP es alguien de la red haciéndose pasar por el juego, con lo
+# que podría mandar `attack`, `game_over` o `task_list` falsos a la tablet.
+# UNITY_DESDE_CUALQUIER_IP=1 lo permite, para montajes raros.
+UNITY_DESDE_CUALQUIER_IP = os.environ.get("UNITY_DESDE_CUALQUIER_IP", "") == "1"
+
 # El minimapa, las posiciones, el estado de los jugadores y los rechazos son
 # solo para el jugador 2 (operador): la tablet no los usa, así que no se le
 # reenvían.
@@ -40,6 +52,20 @@ SOLO_PARA_OPERADORES = {
     "estado_mapa", "mapa_puntos", "accion_rechazada",
     "posiciones", "estado_jugador", "estado_operador", "pong_operador",
     "tarea", "tarea_resultado",
+}
+
+# Lo que cada rol puede mandar a Unity. Unity no distingue quién le habla: sin
+# este filtro un operador podía completar las tareas del jugador 1 o darle cuerda
+# a la caja de Puppet, y una tablet colocar trampas. Lo demás se descarta.
+PERMITIDO_DE_TABLET = {
+    "connect", "reconnect", "disconnect",
+    "task_completed", "task_failed",
+    "dar_cuerda_inicio", "dar_cuerda_fin", "camara",
+    "tutorial_abrir", "tutorial_slide", "tutorial_prueba_tarea", "tutorial_cerrar",
+}
+PERMITIDO_DE_OPERADOR = {
+    "operador_connect", "operador_salir", "ping_operador",
+    "accion_operador", "tarea_pedir", "tarea_respuesta",
 }
 
 
@@ -84,8 +110,40 @@ def confirmar_de_inmediato(connection):
         pass
 
 
+def es_de_esta_pc(connection):
+    """True si el cliente se conectó desde esta misma PC (loopback)."""
+    try:
+        direccion = connection.remote_address[0]
+    except (AttributeError, IndexError, TypeError):
+        return False
+    return direccion in ("::1",) or direccion.startswith("127.") or direccion.startswith("::ffff:127.")
+
+
 def aviso(tipo, **campos):
     return json.dumps({"type": tipo, **campos})
+
+
+async def rechazar(socket, motivo):
+    await socket.send(aviso("conexion_rechazada", motivo=motivo))
+    await socket.close()
+
+
+def otra_tablet_jugando(socket, player_id):
+    """True si hay otra tablet conectada con un `player_id` distinto: mientras
+    el jugador 1 juega, nadie más puede mandar un `connect` (reiniciaría su noche
+    o, con modo «salir», cerraría el juego)."""
+    return any(otro is not socket and identidad_de_tablet.get(otro) != player_id for otro in tablets)
+
+
+def soltar_conexiones_viejas(socket, player_id):
+    """La misma tablet volvió por otra conexión (se quedó sin Wi-Fi y regresó,
+    o la app se cerró sin despedirse): la conexión anterior se cierra ya, sin
+    esperar los 12 s del keepalive, y sin que cuente como que el jugador 1 se fue."""
+    for viejo in list(tablets):
+        if viejo is not socket and identidad_de_tablet.get(viejo) == player_id:
+            tablets.discard(viejo)
+            identidad_de_tablet.pop(viejo, None)
+            asyncio.ensure_future(viejo.close(code=1000, reason="la tablet volvió por otra conexión"))
 
 
 async def handle_connection(socket):
@@ -98,9 +156,17 @@ async def handle_connection(socket):
                 message = json.loads(raw)
             except (TypeError, json.JSONDecodeError):
                 continue
+            if not isinstance(message, dict):
+                continue
 
             message_type = message.get("type")
             if message_type == "unity_connect":
+                if role is not None:
+                    continue                      # una tablet o un operador no pasan a ser Unity
+                if not UNITY_DESDE_CUALQUIER_IP and not es_de_esta_pc(socket):
+                    print("Rechazado un unity_connect desde otra IP:", socket.remote_address)
+                    await rechazar(socket, "unity_solo_local")
+                    return
                 role = "unity"
                 unity_clients.add(socket)
                 if last_connect_message is not None:
@@ -112,6 +178,8 @@ async def handle_connection(socket):
                 # Jugador 2: ve el mapa y manda acciones a Unity. No es una
                 # tablet: su anuncio no debe guardarse como `connect`, porque
                 # reiniciaría la partida de un Unity que se abre después.
+                if role not in (None, "operador"):
+                    continue
                 if (operador_perdido_en is not None
                         and time.monotonic() - operador_perdido_en > SEGUNDOS_PARA_VOLVER):
                     await socket.send(aviso("operador_rechazado", motivo="tiempo_agotado"))
@@ -125,31 +193,30 @@ async def handle_connection(socket):
                 print("Operador conectado")
                 continue
 
-            if message_type == "operador_salir":
-                # El jugador 2 se va a propósito: no cuenta como caída.
-                operadores.discard(socket)
-                operador_perdido_en = None
-                role = None
-                continue
-
-            if message_type == "reconnect":
-                # La tablet perdió la conexión y volvió: Unity retoma la noche en
-                # curso (con `connect` la reiniciaría). No se toca el `connect`
-                # guardado ni la ventana del jugador 2.
+            if message_type in ("connect", "reconnect"):
+                if role not in (None, "tablet"):
+                    continue                      # un operador no pasa a ser tablet
+                player_id = message.get("player_id")
+                if otra_tablet_jugando(socket, player_id):
+                    print("Rechazada otra tablet mientras el jugador 1 juega:", player_id)
+                    await rechazar(socket, "ya_hay_jugador1")
+                    return
+                soltar_conexiones_viejas(socket, player_id)
                 role = "tablet"
                 tablets.add(socket)
-                await send_to(unity_clients, raw)
-                await send_to(operadores, aviso("jugador1_volvio"))
-                print("Flutter reconectado; Unity retoma la noche en curso")
-                continue
-
-            if message_type == "connect":
-                role = "tablet"
-                tablets.add(socket)
-                operador_perdido_en = None      # partida nueva: el jugador 2 puede entrar de nuevo
-                last_connect_message = raw
-                await send_to(unity_clients, raw)
-                print("Flutter conectado; inicio de partida enviado a Unity")
+                identidad_de_tablet[socket] = player_id
+                if message_type == "reconnect":
+                    # La tablet perdió la conexión y volvió: Unity retoma la noche en
+                    # curso (con `connect` la reiniciaría). No se toca el `connect`
+                    # guardado ni la ventana del jugador 2.
+                    await send_to(unity_clients, raw)
+                    await send_to(operadores, aviso("jugador1_volvio"))
+                    print("Flutter reconectado; Unity retoma la noche en curso")
+                else:
+                    operador_perdido_en = None      # partida nueva: el jugador 2 puede entrar de nuevo
+                    last_connect_message = raw
+                    await send_to(unity_clients, raw)
+                    print("Flutter conectado; inicio de partida enviado a Unity")
                 continue
 
             if role == "unity":
@@ -158,16 +225,26 @@ async def handle_connection(socket):
                 if message_type not in SOLO_PARA_OPERADORES:
                     await send_to(tablets, raw)
                 await send_to(operadores, raw)
-            elif role in ("tablet", "operador"):
+            elif role == "tablet":
+                if message_type not in PERMITIDO_DE_TABLET:
+                    continue
                 await send_to(unity_clients, raw)
-
-            if message_type == "disconnect":
-                era_tablet = socket in tablets
-                tablets.discard(socket)
-                olvidar_connect_si_no_hay_tablets()
-                role = None
-                if era_tablet:
+                if message_type == "disconnect":
+                    tablets.discard(socket)
+                    identidad_de_tablet.pop(socket, None)
+                    olvidar_connect_si_no_hay_tablets()
+                    role = None
                     await send_to(operadores, aviso("jugador1_salio", motivo="salio"))
+            elif role == "operador":
+                if message_type not in PERMITIDO_DE_OPERADOR:
+                    continue
+                if message_type == "operador_salir":
+                    # El jugador 2 se va a propósito: no cuenta como caída.
+                    operadores.discard(socket)
+                    operador_perdido_en = None
+                    role = None
+                    continue
+                await send_to(unity_clients, raw)
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
@@ -175,6 +252,7 @@ async def handle_connection(socket):
         era_unity = socket in unity_clients
         era_operador = socket in operadores
         tablets.discard(socket)
+        identidad_de_tablet.pop(socket, None)
         unity_clients.discard(socket)
         operadores.discard(socket)
         olvidar_connect_si_no_hay_tablets()
@@ -198,6 +276,11 @@ async def main():
         ping_interval=PING_INTERVALO_S,
         ping_timeout=PING_TIMEOUT_S,
         close_timeout=CIERRE_TIMEOUT_S,
+        # Sin permessage-deflate: el navegador y la tablet lo piden, y comprimir
+        # cada uno de los 30 mensajes por segundo cuesta CPU y tiempo para
+        # ahorrar unos bytes en una red local.
+        compression=None,
+        max_size=TAMANO_MAXIMO_BYTES,
     ):
         print(f"Relay Unity activo en ws://{HOST}:{PORT}")
         await asyncio.Future()

@@ -593,17 +593,32 @@
     const contenedor = $("lista-amenazas");
     for (const a of estadoMapa.animatronicos || []) {
       if ($("amenaza-" + a.nombre)) continue;
+      // Se arma con createElement y textContent, nunca con innerHTML: el nombre
+      // viene por la red y un texto con etiquetas HTML se mostraría tal cual en
+      // vez de ejecutarse en el navegador del jugador 2.
       const fila = document.createElement("div");
       fila.className = "amenaza";
       fila.id = "amenaza-" + a.nombre;
-      fila.innerHTML =
-        `<span class="nombre"><span class="punto" style="background:${COLORES[a.nombre] || "#ccc"}"></span>${NOMBRES[a.nombre] || a.nombre}</span>` +
-        `<button type="button" id="boton-${a.nombre}">Retrasar</button>` +
-        `<span class="detalle" id="detalle-${a.nombre}">–</span>` +
-        `<span class="ruta" id="ruta-${a.nombre}"></span>`;
+      const nombre = document.createElement("span");
+      nombre.className = "nombre";
+      const punto = document.createElement("span");
+      punto.className = "punto";
+      punto.style.background = COLORES[a.nombre] || "#ccc";
+      nombre.append(punto, NOMBRES[a.nombre] || a.nombre);
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.id = "boton-" + a.nombre;
+      boton.textContent = "Retrasar";
+      boton.onclick = () => enviar({ type: "accion_operador", accion: "retrasar", objetivo: a.nombre });
+      const detalle = document.createElement("span");
+      detalle.className = "detalle";
+      detalle.id = "detalle-" + a.nombre;
+      detalle.textContent = "–";
+      const ruta = document.createElement("span");
+      ruta.className = "ruta";
+      ruta.id = "ruta-" + a.nombre;
+      fila.append(nombre, boton, detalle, ruta);
       contenedor.appendChild(fila);
-      $("boton-" + a.nombre).onclick = () =>
-        enviar({ type: "accion_operador", accion: "retrasar", objetivo: a.nombre });
     }
     pintarRutas();
   }
