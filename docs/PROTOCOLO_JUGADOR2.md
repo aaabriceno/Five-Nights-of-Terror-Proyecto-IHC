@@ -21,6 +21,14 @@ Cooperativo asimétrico (idea A). El **jugador 1** es el vigilante (PC con cáma
 - Lo que manda Unity llega a tablets y operadores, **salvo** `estado_mapa`, `mapa_puntos` y `accion_rechazada`, que van solo a operadores (la tablet no los usa).
 - Lo que manda el operador va solo a Unity.
 
+### Reglas de seguridad del relay (2026-11-12)
+
+- **Cada rol manda solo lo suyo.** El relay descarta lo que no corresponde: un operador no puede mandar `task_completed`, `dar_cuerda_inicio`, `tutorial_*` ni `connect`; una tablet no puede mandar `accion_operador`, `tarea_pedir`, `tarea_respuesta` ni `operador_connect`. Antes todo llegaba a Unity, que no distingue quién habla.
+- **`unity_connect` solo desde la misma PC** (loopback): el juego y el relay corren juntos (`iniciar.sh`). Desde otra IP se contesta `conexion_rechazada` con `motivo: "unity_solo_local"` y se cierra. `UNITY_DESDE_CUALQUIER_IP=1` lo desactiva.
+- **Una sola tablet por partida.** Mientras una tablet está conectada, un `connect` o `reconnect` con otro `player_id` recibe `conexion_rechazada` con `motivo: "ya_hay_jugador1"` y no llega a Unity (antes cualquiera podía reiniciar la noche o, con `modo: "salir"`, cerrar el juego). La misma tablet (mismo `player_id`) siempre puede volver: su conexión anterior se cierra al instante, sin avisar al J2 de que el jugador 1 se fue.
+- **Sin compresión** (`permessage-deflate`) y **mensajes de hasta 64 kB** (uno mayor cierra la conexión con 1009).
+- Un rol no cambia: una tablet no pasa a ser Unity ni operador aunque lo anuncie.
+
 ## Mensajes
 
 | Tipo | De → a | Cuándo | Campos |
@@ -48,6 +56,7 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 | `juego_cerrado` | Relay → J2 | Se cerró el Unity | La página muestra «el juego se cerró» |
 | `operador_salir` | J2 → Relay | J2 pulsa «Salir» o «Desconectar» | Salir a propósito no cuenta como caída |
 | `operador_rechazado` | Relay → J2 | J2 intenta volver pasados 15 s de su caída | `motivo: "tiempo_agotado"`; el relay cierra la conexión |
+| `conexion_rechazada` | Relay → tablet o cliente | Otra tablet ya juega (`ya_hay_jugador1`) o alguien de otra IP se anuncia como Unity (`unity_solo_local`) | `motivo`; el relay cierra la conexión. La tablet muestra «La PC ya tiene otra tablet» |
 | `accion_operador` | J2 → Unity | Nuevas acciones | `accion: "trampa"` + `punto`, o `accion: "rescatar_puppet"`; todas con `id` |
 | `tarea_pedir` | J2 → Unity | El jugador 2 abre una tarea de la terminal (reemplaza a `mini_tarea_inicio`) | `tipo`: `"calculo"` o `"circuito"` |
 | `tarea` | Unity → J2 | Unity inventa la tarea según la noche. Pedirla otra vez antes de resolverla devuelve la misma | `id`, `tipo`, `noche`; cálculo: `clase`, `enunciado`, `datos[]`; circuito: `entradas[]`, `puertas[] {id,op,a,b}`, `salida`, `objetivo` |
@@ -172,6 +181,9 @@ Solo para las pruebas automáticas (`pruebas/probar_vixy_y_puppet_con_juego.py`)
 
 - `-prueba-sin-freddy`: Freddy no aparece (así Vixy y Puppet pueden terminar su recorrido sin que él acabe la partida).
 - `-prueba-tareas-cada <s>`: una tarea nueva cada `<s>` segundos en vez de cada 30 (Vixy solo avanza con 6 tareas pendientes en la noche 1, y la noche dura 120 s).
+- `-prueba-posar <Freddy|Vixy|Puppet>`: ese animatrónico se planta a 3,5 m frente al jugador y no se mueve (para fotografiar el ambiente).
+- `-prueba-estatica`: la estática de la pantalla queda a nivel medio, fija.
+- `-sin-ambiente`, `-graficos-alto`, `-graficos-basico`: apagan o fuerzan el ambiente (ver `docs/AMBIENTE_UNITY.md`).
 
 ## Perfil de video y de hardware (2026-11-10)
 
@@ -190,3 +202,7 @@ Los números acordados viven juntos en `Unity/Assets/scripts/PerfilDeVideo.cs` y
 - **Keepalive del relay:** ping cada 5 s, 5 s de espera y 2 s para cerrar (antes 20 + 20 + 10): una tablet o un navegador sin red se dan por perdidos en 12 s como máximo. Se cambia con las variables `PING_INTERVALO_S`, `PING_TIMEOUT_S` y `CIERRE_TIMEOUT_S`.
 - **El relay no espera a ningún cliente** (`broadcast`): uno atascado no atrasa a los demás ni hace que Unity sea dada por perdida.
 - **El relay pide `TCP_QUICKACK`** al recibir cada mensaje (en Linux): el cliente de Unity tiene Nagle encendido y sin esto un mensaje podía esperar hasta 40 ms.
+- **Unity apaga Nagle en su socket** (`AjusteDeSocket.cs`, 2026-11-12): busca por reflexión el `Socket` del `ClientWebSocket` de Mono y le pone `NoDelay = true` al abrir. Así los mensajes de Unity no esperan el ACK anterior tampoco en Windows o macOS, donde `TCP_QUICKACK` no existe. `Player.log` deja `[Red] TCP_NODELAY activado`.
+- **Los mensajes se reparten antes del `Update` del juego** (`DefaultExecutionOrder(-100)` en `UnityWebSocketClient`): hasta un cuadro menos de reacción.
+- Revisión completa de latencia, seguridad e interfaz: `docs/REVISION_LATENCIA_SEGURIDAD_UI.md`.
+- **Tablet por cable USB (2026-11-12):** en redes que aíslan a cada cliente (la de la universidad: PC y tablet en subredes distintas y tráfico entre clientes bloqueado por el punto de acceso) la tablet no llega a la PC por Wi-Fi. `./conectar_tablet_por_usb.sh` hace `adb reverse tcp:8000 tcp:8000`: la tablet se configura con IP `127.0.0.1` y puerto `8000` y llega al relay por el cable. Probado con el juego real (partida iniciada, 60 FPS). La computadora del jugador 2 sigue necesitando una red común con la PC: para la demo, un punto de acceso del celular (5 GHz) al que se conecten los tres equipos.
