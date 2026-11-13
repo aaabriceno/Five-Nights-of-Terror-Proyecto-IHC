@@ -444,10 +444,25 @@ async def principal(captura):
         comprobar("ni quedó una imagen inyectada en la página",
                   navegador.ejecutar("return document.querySelectorAll('#lista-amenazas img').length === 0;"))
 
-        # --- la guía: la ruta de cada animatrónico ---
-        comprobar("el panel muestra la ruta de Freddy como guía",
-                  await esperar(lambda: (navegador.texto("ruta-freddy") or "") == "Ruta: Punto0 → Punto1 → Punto2", 4.0))
-        comprobar("y la de Vixy", (navegador.texto("ruta-vixy") or "") == "Ruta: Punto4 → Punto3")
+        # --- sin guía: el jugador 2 deduce por dónde va cada animatrónico ---
+        # Unity sigue mandando las rutas en `mapa_puntos`, pero la página no las enseña.
+        comprobar("el panel no muestra la ruta de ningún animatrónico",
+                  "Ruta:" not in (navegador.ejecutar(
+                      "var l=document.getElementById('lista-amenazas');return l?l.textContent:'';") or "")
+                  and navegador.ejecutar("return document.querySelectorAll('[id^=\"ruta-\"]').length === 0;"))
+        # Se apunta cada trazo del lienzo. Los animatrónicos se pintan con relleno de su
+        # color, nunca con trazo: un trazo de ese color es una ruta (línea o círculo final).
+        navegador.ejecutar("""
+            window.__trazos = [];
+            var original = CanvasRenderingContext2D.prototype.stroke;
+            CanvasRenderingContext2D.prototype.stroke = function () {
+              window.__trazos.push(String(this.strokeStyle).toLowerCase());
+              return original.apply(this, arguments);
+            };""")
+        await asyncio.sleep(0.6)
+        comprobar("ni el mapa dibuja las rutas (ningún trazo del color de un animatrónico)",
+                  navegador.ejecutar("return window.__trazos.length > 0 && !window.__trazos.some(function (c) {"
+                                     " return ['#6fcf6f', '#ff5a5a', '#d9a066'].indexOf(c) >= 0; });"))
         await asyncio.sleep(0.5)
         if os.environ.get("CAPTURA_PAGINA"):
             navegador.captura(os.environ["CAPTURA_PAGINA"])
