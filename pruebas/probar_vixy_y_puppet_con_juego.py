@@ -230,9 +230,11 @@ async def escenario_vixy():
         print("   última posición de Vixy:", p.ultima_posicion("vixy"), "| fin:", p.fin and (p.fin[0], p.fin[1].get("result")))
         comprobar("Vixy sale de P02", nombres[:1] == ["P02"])
         comprobar("Vixy llega al punto penúltimo V04", llego)
-        # P10 es su desvío; P08 queda a ~1 m del camino que hace por el comedor hacia P11 (no es un desvío).
-        comprobar("sigue su ruta en orden (solo se permiten el desvío a P10 y pasar junto a P08)",
-                  en_orden(p.visitas["vixy"], ruta, permitidos_extra=("P10", "P08")))
+        # P08 queda a ~1 m del camino que hace por el comedor hacia P11 (no es un desvío).
+        comprobar("sigue su ruta en orden (solo se permite pasar junto a P08)",
+                  en_orden(p.visitas["vixy"], ruta, permitidos_extra=("P08",)))
+        # Ya no tiene desvío: antes podía subir hasta P10 (arriba del todo) y bajar otra vez.
+        comprobar("nunca sube a la esquina de arriba del pasillo izquierdo (P10)", "P10" not in nombres)
         comprobar("pasa por todos los puntos de la ruta: P11, P12, V01, V02 y V03",
                   all(n in nombres for n in ["P11", "P12", "V01", "V02", "V03"]))
         t_v04 = next((t for n, t in p.visitas["vixy"] if n == "V04"), p.t())

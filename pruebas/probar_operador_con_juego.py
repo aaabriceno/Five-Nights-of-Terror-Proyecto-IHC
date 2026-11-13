@@ -150,7 +150,7 @@ async def principal():
                           sorted(rutas) == ["freddy", "puppet", "vixy"])
                 comprobar("la ruta de Freddy es la del plano y termina en el punto penúltimo, sin el jugador",
                           rutas.get("freddy") == ["P01", "P03", "P04", "P05", "P06", "P07"])
-                comprobar("la ruta de Vixy va por el pasillo izquierdo hasta el ducto (P10 es solo un desvío)",
+                comprobar("la ruta de Vixy va por el pasillo izquierdo hasta el ducto",
                           rutas.get("vixy") == ["P02", "P11", "P12", "V01", "V02", "V03", "V04"])
                 comprobar("la ruta de Puppet va por el pasillo derecho hasta el ducto",
                           rutas.get("puppet") == ["P13", "P14", "P15", "P16", "V05", "V06", "V07", "V08"])
