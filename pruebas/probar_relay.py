@@ -338,6 +338,143 @@ async def caso_un_cliente_lento_no_frena_a_los_demas():
             await tablet.close()
 
 
+async def caso_sin_compresion_ni_mensajes_gigantes():
+    print("Caso 14: el relay no negocia compresión y corta un mensaje gigante")
+    # El cliente (como el navegador y la tablet) pide permessage-deflate: el relay no debe aceptarlo.
+    async with websockets.connect(URL) as cliente:
+        cabeceras = getattr(cliente, "response", None)
+        cabeceras = cabeceras.headers if cabeceras is not None else getattr(cliente, "response_headers", {})
+        extensiones = cabeceras.get("Sec-WebSocket-Extensions", "") or ""
+        comprobar("la respuesta del relay no acepta permessage-deflate (comprimir 30 mensajes por segundo cuesta CPU y tiempo)",
+                  "permessage-deflate" not in extensiones)
+    async with websockets.connect(URL) as cliente:
+        await cliente.send(json.dumps({"type": "unity_connect"}))
+        codigo = None
+        try:
+            await cliente.send("x" * 200_000)
+            await asyncio.wait_for(cliente.recv(), 2)
+        except websockets.exceptions.ConnectionClosed as cierre:
+            codigo = cierre.rcvd.code if cierre.rcvd else -1
+        except asyncio.TimeoutError:
+            pass
+        comprobar(f"un mensaje de 200 kB cierra la conexión con 1009 (los mensajes del juego pesan menos de 10 kB); código: {codigo}",
+                  codigo == 1009)
+
+
+def ip_de_la_red_local():
+    """Una IP de esta PC que no sea loopback ni de Docker, para conectarse «desde afuera»."""
+    import socket as red
+    try:
+        with red.socket(red.AF_INET, red.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 65530))
+            ip = s.getsockname()[0]
+        return None if ip.startswith("127.") else ip
+    except OSError:
+        return None
+
+
+async def caso_unity_solo_desde_la_misma_pc():
+    print("Caso 15: solo un cliente de la misma PC puede hacerse pasar por Unity")
+    ip = ip_de_la_red_local()
+    if ip is None:
+        print("  (sin red local: no se puede probar desde otra IP)")
+        return
+    async with websockets.connect(f"ws://{ip}:8000") as intruso:
+        await intruso.send(json.dumps({"type": "unity_connect"}))
+        crudo = await recibir_o_nada(intruso)
+        rechazo = json.loads(crudo) if crudo else {}
+        comprobar(f"desde {ip} recibe conexion_rechazada con motivo unity_solo_local",
+                  rechazo.get("type") == "conexion_rechazada" and rechazo.get("motivo") == "unity_solo_local")
+        cerrado = False
+        try:
+            await asyncio.wait_for(intruso.recv(), 2)
+        except websockets.exceptions.ConnectionClosed:
+            cerrado = True
+        except asyncio.TimeoutError:
+            pass
+        comprobar("y el relay le cierra la conexión", cerrado)
+    async with websockets.connect(URL) as unity, websockets.connect(f"ws://{ip}:8000") as tablet:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await tablet.send(CONNECT_TUTORIAL)
+        comprobar("una tablet desde la red local sí entra y Unity recibe su connect",
+                  await recibir_o_nada(unity) == CONNECT_TUTORIAL)
+
+
+async def caso_cada_rol_manda_solo_lo_suyo():
+    print("Caso 16: el relay descarta lo que no corresponde al rol (un operador no resuelve tareas del jugador 1)")
+    async with websockets.connect(URL) as unity, websockets.connect(URL) as tablet, \
+            websockets.connect(URL) as operador:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await tablet.send(CONNECT_TUTORIAL)
+        await operador.send(OPERADOR_CONNECT)
+        await asyncio.sleep(0.3)
+        while await recibir_o_nada(unity, 0.2) is not None:
+            pass
+        for tipo in ("task_completed", "dar_cuerda_inicio", "tutorial_abrir", "connect"):
+            await operador.send(json.dumps({"type": tipo, "task_id": 1, "modo": "nuevo"}))
+        comprobar("Unity no recibe task_completed, dar_cuerda_inicio, tutorial_abrir ni connect de un operador",
+                  await recibir_o_nada(unity, 0.6) is None)
+        await operador.send(ACCION)
+        comprobar("pero sí recibe su accion_operador (el operador sigue siendo operador)",
+                  await recibir_o_nada(unity) == ACCION)
+        for tipo in ("accion_operador", "tarea_pedir", "tarea_respuesta", "operador_connect"):
+            await tablet.send(json.dumps({"type": tipo, "accion": "trampa", "punto": "P01"}))
+        comprobar("Unity no recibe accion_operador, tarea_pedir, tarea_respuesta ni operador_connect de una tablet",
+                  await recibir_o_nada(unity, 0.6) is None)
+        camara = json.dumps({"type": "camara", "direccion": 1})
+        await tablet.send(camara)
+        comprobar("pero sí recibe su camara", await recibir_o_nada(unity) == camara)
+
+
+async def caso_una_sola_tablet_por_partida():
+    print("Caso 17: mientras una tablet juega, otra distinta no puede entrar; la misma tablet sí vuelve")
+    connect_a = json.dumps({"type": "connect", "device": "tablet", "modo": "nuevo", "player_id": "tablet_a"})
+    connect_b = json.dumps({"type": "connect", "device": "tablet", "modo": "salir", "player_id": "tablet_b"})
+    reconnect_a = json.dumps({"type": "reconnect", "device": "tablet", "modo": "nuevo", "player_id": "tablet_a"})
+    camara = json.dumps({"type": "camara", "direccion": -1})
+    async with websockets.connect(URL) as unity, websockets.connect(URL) as tablet_a, \
+            websockets.connect(URL) as operador:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await operador.send(OPERADOR_CONNECT)
+        await recibir_o_nada(unity, 0.5)
+        await tablet_a.send(connect_a)
+        comprobar("Unity recibe el connect de la tablet A", await recibir_o_nada(unity) == connect_a)
+        async with websockets.connect(URL) as tablet_b:
+            await tablet_b.send(connect_b)
+            crudo = await recibir_o_nada(tablet_b)
+            rechazo = json.loads(crudo) if crudo else {}
+            comprobar("la tablet B recibe conexion_rechazada con motivo ya_hay_jugador1 (antes su «salir» cerraba el juego del otro)",
+                      rechazo.get("type") == "conexion_rechazada" and rechazo.get("motivo") == "ya_hay_jugador1")
+            comprobar("Unity no recibe el connect de la tablet B", await recibir_o_nada(unity, 0.5) is None)
+        await tablet_a.send(camara)
+        comprobar("la tablet A sigue jugando", await recibir_o_nada(unity) == camara)
+        async with websockets.connect(URL) as tablet_a2:
+            await tablet_a2.send(reconnect_a)
+            comprobar("la misma tablet (mismo player_id) vuelve con reconnect y Unity lo recibe",
+                      await recibir_o_nada(unity) == reconnect_a)
+            vieja_cerrada = False
+            try:
+                await asyncio.wait_for(tablet_a.recv(), 2)
+            except websockets.exceptions.ConnectionClosed:
+                vieja_cerrada = True
+            except asyncio.TimeoutError:
+                pass
+            comprobar("el relay cierra la conexión vieja de esa tablet (no espera 12 s de keepalive)", vieja_cerrada)
+            avisos = []
+            while (tipo := await tipo_recibido(operador, 0.4)) is not None:
+                avisos.append(tipo)
+            comprobar(f"y no avisa al operador de que el jugador 1 se fue (sigue ahí); recibió {avisos}",
+                      "jugador1_salio" not in avisos)
+            await tablet_a2.send(camara)
+            comprobar("la conexión nueva de la tablet A manda al juego", await recibir_o_nada(unity) == camara)
+            await tablet_a2.send(json.dumps({"type": "disconnect"}))
+            await recibir_o_nada(unity, 0.5)
+            async with websockets.connect(URL) as tablet_b:
+                await tablet_b.send(connect_b)
+                comprobar("cuando la tablet A se despide, otra tablet ya puede entrar",
+                          await recibir_o_nada(unity) == connect_b)
+
+
 async def con_relay(entorno, caso):
     """Corre `caso` con un relay propio (otras esperas de keepalive que el de las demás pruebas)."""
     relay = subprocess.Popen([sys.executable, "-u", str(RAIZ / "UnityRelay" / "relay.py")],
@@ -374,6 +511,10 @@ async def principal():
         await caso_operador_vuelve_dentro_del_tiempo()
         await caso_la_tablet_vuelve_sin_reiniciar_la_noche()
         await caso_una_tablet_muda_se_detecta_pronto()
+        await caso_sin_compresion_ni_mensajes_gigantes()
+        await caso_unity_solo_desde_la_misma_pc()
+        await caso_cada_rol_manda_solo_lo_suyo()
+        await caso_una_sola_tablet_por_partida()
     finally:
         relay.terminate()
         relay.wait()

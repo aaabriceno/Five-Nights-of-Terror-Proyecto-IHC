@@ -47,6 +47,23 @@ public static class PruebaPerfilDeVideo
         Comprobar("sin nombre de tarjeta no se adivina: GPU y el respaldo se ocupa si falla",
             !PerfilDeVideo.MediaPipeDebeUsarLaCpu(null, SinOpciones));
 
+        // --- Nivel gráfico según la tarjeta (los efectos caros solo con tarjeta dedicada) ---
+        Comprobar("una NVIDIA da nivel alto",
+            PerfilDeVideo.NivelGrafico("NVIDIA GeForce RTX 5060 Laptop GPU/PCIe/SSE2", SinOpciones) == PerfilDeVideo.Nivel.Alto);
+        Comprobar("una Radeon RX dedicada da nivel alto",
+            PerfilDeVideo.NivelGrafico("AMD Radeon RX 7600 (radeonsi, navi33)", SinOpciones) == PerfilDeVideo.Nivel.Alto);
+        Comprobar("la Radeon 610M integrada da nivel básico",
+            PerfilDeVideo.NivelGrafico("AMD Radeon 610M (radeonsi, raphael_mendocino, LLVM 20.1.2)", SinOpciones) == PerfilDeVideo.Nivel.Basico);
+        Comprobar("una Intel integrada da nivel básico",
+            PerfilDeVideo.NivelGrafico("Mesa Intel(R) UHD Graphics 620 (KBL GT2)", SinOpciones) == PerfilDeVideo.Nivel.Basico);
+        Comprobar("llvmpipe (sin tarjeta) da nivel básico",
+            PerfilDeVideo.NivelGrafico("llvmpipe (LLVM 20.1.2, 256 bits)", SinOpciones) == PerfilDeVideo.Nivel.Basico);
+        Comprobar("sin nombre de tarjeta, básico", PerfilDeVideo.NivelGrafico(null, SinOpciones) == PerfilDeVideo.Nivel.Basico);
+        Comprobar("-graficos-alto fuerza el nivel alto aunque sea integrada",
+            PerfilDeVideo.NivelGrafico("AMD Radeon 610M", new[] { "juego", "-graficos-alto" }) == PerfilDeVideo.Nivel.Alto);
+        Comprobar("-graficos-basico fuerza el básico aunque sea NVIDIA",
+            PerfilDeVideo.NivelGrafico("NVIDIA GeForce RTX 5060", new[] { "juego", "-graficos-basico" }) == PerfilDeVideo.Nivel.Basico);
+
         Console.WriteLine(fallos == 0 ? "Todas las pruebas pasaron." : fallos + " prueba(s) fallaron.");
         return fallos == 0 ? 0 : 1;
     }

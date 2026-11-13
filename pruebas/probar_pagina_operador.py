@@ -430,6 +430,20 @@ async def principal(captura):
         ORDENES.put_nowait(("raw", {"type": "jugador1_volvio"}))
         comprobar("cuando el jugador 1 vuelve, el aviso desaparece", await esperar(lambda: not js(sin_j1), 4.0))
 
+        # --- un nombre con HTML llegado por la red se muestra como texto, no se ejecuta ---
+        hostil = "<img src=x onerror=\"window.__xss=1\">"
+        ORDENES.put_nowait(("raw", {"type": "estado_mapa", "partida_activa": True, "noche": 2, "hora": "4:00 AM",
+                                    "animatronicos": [{"nombre": "freddy", "x": 1.0, "z": 1.0, "retraso_s": 0, "espera_s": 0},
+                                                      {"nombre": hostil, "x": 2.0, "z": 2.0, "retraso_s": 0, "espera_s": 0}],
+                                    "timestamp": int(time.time() * 1000)}))
+        comprobar("un animatrónico con HTML en el nombre aparece en la lista como texto literal",
+                  await esperar(lambda: hostil in (navegador.ejecutar(
+                      "var l=document.getElementById('lista-amenazas');return l?l.textContent:'';") or ""), 5.0))
+        comprobar("y su HTML no se ejecutó en el navegador del jugador 2 (antes se armaba con innerHTML)",
+                  navegador.ejecutar("return window.__xss === undefined;"))
+        comprobar("ni quedó una imagen inyectada en la página",
+                  navegador.ejecutar("return document.querySelectorAll('#lista-amenazas img').length === 0;"))
+
         # --- la guía: la ruta de cada animatrónico ---
         comprobar("el panel muestra la ruta de Freddy como guía",
                   await esperar(lambda: (navegador.texto("ruta-freddy") or "") == "Ruta: Punto0 → Punto1 → Punto2", 4.0))

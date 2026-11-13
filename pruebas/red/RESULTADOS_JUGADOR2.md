@@ -57,6 +57,23 @@ Decisiones del equipo (ver `PerfilDeVideo.cs` y la sección «Perfil de video y 
 - **MediaPipe con la NVIDIA no puede usar la GPU.** Se probaron el vendor EGL de Mesa (`__EGL_VENDOR_LIBRARY_FILENAMES`) y `EGL_PLATFORM=surfaceless`: con la RTX 5060 dibujando el juego, MediaPipe sigue sin conseguir su contexto (`kGpuService … eglMakeCurrent() returned error`; con surfaceless ni siquiera hay configuración EGL). Por eso el runner reintenta con la CPU (`MediaPipe no pudo usar la GPU (BadStatusException); se reintenta con la CPU`) y la cara se detecta (`[Cara] detectada`). Costo: el proceso del juego usó 60-66 % de **un** núcleo en total con la NVIDIA (juego + detección en CPU).
 - **Sin cámara no se puede comprobar la detección sola:** `mirando_pantalla` sigue siendo `False` si no hay una cara frente a la cámara; por eso se agregó el `[Cara]` al log.
 
+## 2026-11-12 · revisión de red, latencia y seguridad
+
+Mismo comando (`--lanzar --n 200`), misma laptop. El script lanza el juego tal cual (sin `iniciar.sh`), así que abre en la **GPU integrada** a 1920×1080: `Player.log` dice `tarjeta: AMD Radeon 610M … 32 FPS medios`. Cambios medidos: Unity con `TCP_NODELAY` (`[Red] TCP_NODELAY activado` en el log), relay sin `permessage-deflate` y con filtro por rol, mensajes repartidos antes del `Update`.
+
+| Medida | n | media | p50 | p95 | max |
+|---|---|---|---|---|---|
+| Ping (ida y vuelta) | 200 | 12,2 ms | 12,1 ms | 22,9 ms | 26,0 ms |
+| Intervalo entre `posiciones` | 361 | 33,4 ms | 24,7 ms | 48,9 ms | 54,5 ms |
+
+Resultado: **cumple la meta** (p95 = 22,9 ms < 50 ms).
+
+Lectura:
+- A 32 FPS un cuadro dura 31 ms y el ping promedio es medio cuadro (12 ms): el tiempo sigue siendo el cuadro de Unity, no la red. Con la NVIDIA (60 FPS) la medición del 10-11 dio p50 6-8 ms; con la integrada, 12 ms. No es una regresión: es la tarjeta con la que abrió el juego.
+- En Linux el `TCP_NODELAY` de Unity no cambia los números porque el relay ya pedía `TCP_QUICKACK`; lo que corrige es Windows y macOS, donde ese truco no existe y cada mensaje de Unity podía esperar 40 ms. Comprobado con el Mono de Unity (`PruebaAjusteDeSocket`: NoDelay False → True) y con `strace` sobre el juego exportado (`setsockopt(…, TCP_NODELAY, [1])`).
+- Las posiciones siguen a 30/s (361 en 12 s).
+- Seguridad: los 17 casos de `probar_relay.py` (rol, Unity solo local, una tablet por partida, sin compresión, tope de 64 kB), el XSS de la página demostrado y corregido, y las pruebas con el juego real (`probar_operador_con_juego`, `probar_vixy_y_puppet_con_juego`) pasan con el relay nuevo. Detalle en `docs/REVISION_LATENCIA_SEGURIDAD_UI.md`.
+
 ## Pendiente
 
 - Repetir desde la computadora del jugador 2 (otra máquina, misma red): `--host <IP de la laptop> --iniciar-partida` con el juego abierto.
