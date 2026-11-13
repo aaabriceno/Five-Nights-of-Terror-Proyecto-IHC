@@ -183,6 +183,7 @@ Solo para las pruebas automáticas (`pruebas/probar_vixy_y_puppet_con_juego.py`)
 - `-prueba-tareas-cada <s>`: una tarea nueva cada `<s>` segundos en vez de cada 30 (Vixy solo avanza con 6 tareas pendientes en la noche 1, y la noche dura 120 s).
 - `-prueba-posar <Freddy|Vixy|Puppet>`: ese animatrónico se planta a 3,5 m frente al jugador y no se mueve (para fotografiar el ambiente).
 - `-prueba-estatica`: la estática de la pantalla queda a nivel medio, fija.
+- `-prueba-segundos-noche <s>`: la noche dura `<s>` segundos reales (para probar el final sin esperar; lo usa `pruebas/probar_campanas_con_juego.py`).
 - `-sin-ambiente`, `-graficos-alto`, `-graficos-basico`: apagan o fuerzan el ambiente (ver `docs/AMBIENTE_UNITY.md`).
 
 ## Perfil de video y de hardware (2026-11-10)
@@ -215,3 +216,4 @@ La página dibuja el edificio visto desde arriba, como el bosquejo `docs/mapa/bo
 - **Tamaño:** 57 piezas, unos 7 kB.
 - **Sin plano** (un Unity viejo): la página dibuja como antes, con los nodos y sus nombres.
 - **Foto con el juego real:** `UnityRelay/.venv/bin/python pruebas/capturar_mapa_jugador2.py <archivo.png>` (pantalla virtual y Firefox sin ventana).
+- **Si el navegador muestra la versión vieja** (el mapa sin plano): antes la página se servía con `python -m http.server`, que deja al navegador guardar `operador.js` en caché. Desde el 13-11 `iniciar.sh` usa `UnityRelay/servir_pagina.py`, que manda `Cache-Control: no-store`. Con una pestaña abierta desde antes, basta una vez **Ctrl + Shift + R**.
