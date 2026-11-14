@@ -98,6 +98,24 @@ public static class PruebaRutaFija
         r.Reiniciar();
         Comprobar("reiniciar empieza otra vez desde el primer punto", r.Siguiente(0f, () => 0f) == 1);
 
+        // Retroceder: solo lo pide la compuerta cerrada en la cara (paso 7).
+        var atras = new RutaFija(7, 10, new int[0]);
+        Recorrer(atras, 0f, new Random(1));                          // llega al penúltimo (6)
+        int alRetroceder = atras.Retroceder(3);
+        Comprobar("retroceder 3 desde el penúltimo lo deja en el punto 3 (lo devuelve)",
+            alRetroceder == 3 && atras.Posicion == 3);
+        Comprobar("y desde ahí vuelve a avanzar en orden hasta el penúltimo",
+            string.Join(",", Recorrer(atras, 0f, new Random(1))) == "4,5,6");
+        var corta = new RutaFija(7, 10, new int[0]);
+        corta.Siguiente(0f, () => 0f);                               // 1
+        Comprobar("nunca retrocede más allá del primer punto", corta.Retroceder(3) == 0 && corta.Posicion == 0);
+        var enDesvio = new RutaFija(7, 10, new[] { 2 });
+        enDesvio.Siguiente(1f, () => 0f); enDesvio.Siguiente(1f, () => 0f);
+        int desvio = enDesvio.Siguiente(1f, () => 0f);               // desvío 10, después del 2
+        enDesvio.Retroceder(1);
+        Comprobar("retroceder a mitad de un desvío lo cancela y sigue por la ruta",
+            desvio == 10 && enDesvio.Siguiente(0f, () => 0f) == 2);
+
         Console.WriteLine(fallos == 0 ? "\nTodas las pruebas pasaron." : "\n" + fallos + " prueba(s) fallaron.");
         return fallos == 0 ? 0 : 1;
     }

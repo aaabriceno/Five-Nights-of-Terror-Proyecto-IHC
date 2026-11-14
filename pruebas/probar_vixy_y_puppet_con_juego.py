@@ -225,6 +225,25 @@ class Partida:
             maxima = max(maxima, math.hypot(x1 - x0, z1 - z0) / (t1 - t0))
         return maxima
 
+    def retrocedio(self, nombre, desde, hasta):
+        """¿Llegó a `hasta` después de haber estado en `desde`? (la compuerta lo hizo volver)"""
+        visitas = [n for n, _ in self.visitas[nombre]]
+        return any(n == desde and hasta in visitas[i + 1:] for i, n in enumerate(visitas))
+
+    def segundos_en(self, nombre, nodo, desde_t):
+        """Cuánto estuvo a menos de RADIO_DE_LLEGADA_M de `nodo`, desde que llegó después de `desde_t` hasta que se fue."""
+        nx, nz = self.nodos[nodo]
+        llego = None
+        for t, p in self.posiciones:
+            if t < desde_t or nombre not in p:
+                continue
+            cerca = math.hypot(p[nombre][0] - nx, p[nombre][1] - nz) <= RADIO_DE_LLEGADA_M
+            if cerca and llego is None:
+                llego = t
+            elif not cerca and llego is not None:
+                return t - llego
+        return None
+
     def cruzo_la_oficina(self, nombre, hasta_t):
         """¿Pisó el animatrónico la oficina del jugador 1 antes de `hasta_t`?"""
         for t, p in self.posiciones:
@@ -449,7 +468,14 @@ async def escenario_compuerta_vixy():
         comprobar(f"cerrada gasta ~2 % por segundo (en {p.t() - t0:.1f} s bajó {gasto} %)", 8 <= gasto <= 12)
         llego = await p.esperar(lambda: any(n == "V04" for n, _ in p.visitas["vixy"]), 30)
         comprobar("Vixy llega a la boca del ducto (V04)", llego)
-        await asyncio.sleep(12)
+        t_llego = next((t for n, t in p.visitas["vixy"] if n == "V04"), p.t()) - 0.2
+        # Paso 7: la empuja 4 s y, si sigue cerrada, retrocede a la entrada del ducto.
+        volvio = await p.esperar(lambda: p.retrocedio("vixy", "V04", "V01"), 25)
+        empujo = p.segundos_en("vixy", "V04", t_llego)
+        comprobar(f"con la compuerta cerrada en la cara, Vixy la empuja ~4 s (estuvo {empujo if empujo is None else round(empujo, 1)} s en V04) "
+                  f"y retrocede a V01", volvio and empujo is not None and 3.5 <= empujo <= 7)
+        comprobar("al retroceder la luz izquierda baja a amarillo",
+                  await p.esperar(lambda: o().get("luz_izquierda") == "amarillo", 4))
         comprobar("con la compuerta cerrada no ataca aunque tenga las tareas acumuladas", p.fin is None)
 
         antes = o().get("bateria")
@@ -466,7 +492,8 @@ async def escenario_compuerta_vixy():
         despues = [m for _, m in p.oficina[respuestas:]]
         comprobar(f"sin batería no se puede volver a cerrar ({len(despues)} estados después del intento)",
                   p.fin is None and despues and all(m["compuerta_izquierda"] is False for m in despues))
-        await p.esperar(lambda: p.fin is not None, 12)
+        # Puede estar recién retrocedida: vuelve desde V01 (3 avances de 6 s) y ataca desde V04.
+        await p.esperar(lambda: p.fin is not None, 45)
         comprobar(f"abierta la compuerta, Vixy ataca (game_over; atacó {p.atacante})",
                   p.fin is not None and p.fin[1].get("result") == "loss" and p.atacante == "Vixy")
     finally:
@@ -484,10 +511,17 @@ async def escenario_compuerta_puppet():
         await p.compuerta("derecha", True)
         comprobar("la tablet cierra la compuerta derecha",
                   await p.esperar(lambda: o().get("compuerta_derecha") is True, 0.6))
-        await asyncio.sleep(15)
+        t_cerro = p.t()
+        # Paso 7: en la boca (V08) la empuja 4 s y retrocede a la entrada del ducto (V05).
+        volvio = await p.esperar(lambda: p.retrocedio("puppet", "V08", "V05"), 30)
+        empujo = p.segundos_en("puppet", "V08", t_cerro)
+        comprobar(f"con la compuerta cerrada en la cara, Puppet la empuja ~4 s (estuvo {empujo if empujo is None else round(empujo, 1)} s en V08) "
+                  f"y retrocede a V05", volvio and empujo is not None and 3.5 <= empujo <= 7)
+        comprobar("al retroceder la luz derecha baja a amarillo",
+                  await p.esperar(lambda: p.oficina_ahora().get("luz_derecha") == "amarillo", 4))
         d = p.distancia_al_jugador("puppet")
         comprobar(f"con la compuerta cerrada Puppet no entra ni ataca (está a {d:.1f} m del jugador 1)",
-                  p.fin is None and d > 3.0)
+                  p.fin is None and d > 3.0 and not p.cruzo_la_oficina("puppet", p.t()))
         await p.compuerta("derecha", False)
         comprobar("al abrirla Puppet entra y ataca (game_over)",
                   await p.esperar(lambda: p.fin is not None, 25) and p.fin[1].get("result") == "loss"
