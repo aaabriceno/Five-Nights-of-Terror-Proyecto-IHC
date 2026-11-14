@@ -64,6 +64,9 @@ class Partida:
         self.yaw = []                   # (t, camara_yaw)
         self.avisos = []                # (t, tipo) de jugador1_salio / jugador1_volvio
         self.visitas = {"freddy": [], "vixy": [], "puppet": []}
+        self.oficina = []               # (t, mensaje) de estado_oficina que recibe la tablet
+        self.oficina_j2 = []            # (t, mensaje) de estado_oficina que recibe el jugador 2
+        self.atacante = None            # quién mató al jugador 1 (`animatronic` del mensaje attack)
 
     def t(self):
         return round(time.time() - self.t0, 1) if self.t0 else 0.0
@@ -126,6 +129,8 @@ class Partida:
                     self.avisos.append((t, tipo))
                 elif tipo == "efecto":
                     self.efectos.append((t, m))
+                elif tipo == "estado_oficina":
+                    self.oficina_j2.append((t, m))
                 elif tipo == "game_over":
                     self.fin = (t, m)
         except websockets.exceptions.ConnectionClosed:
@@ -137,6 +142,10 @@ class Partida:
                 m = json.loads(crudo)
                 if m.get("type") == "estado_puppet":
                     self.caja.append((self.t(), m["valor_caja_porcentaje"], m.get("segundos_caja"), m.get("multa_factor")))
+                elif m.get("type") == "estado_oficina":
+                    self.oficina.append((self.t(), m))
+                elif m.get("type") == "attack":
+                    self.atacante = m.get("animatronic")
                 elif m.get("type") == "game_over" and self.fin is None:
                     self.fin = (self.t(), m)
         except websockets.exceptions.ConnectionClosed:
@@ -183,6 +192,18 @@ class Partida:
                 proceso.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 proceso.kill()
+
+    def oficina_ahora(self):
+        """El último estado_oficina que recibió la tablet ({} si ninguno)."""
+        return self.oficina[-1][1] if self.oficina else {}
+
+    async def compuerta(self, lado, cerrar):
+        await self.tablet.send(json.dumps({"type": "compuerta", "lado": lado, "cerrar": cerrar}))
+
+    def distancia_al_jugador(self, nombre):
+        x, z = self.ultima_posicion(nombre) or (99.0, 99.0)
+        jx, jz = self.nodos.get("J1", (20.0, 2.5))
+        return math.hypot(x - jx, z - jz)
 
     def ultima_posicion(self, nombre):
         for _, p in reversed(self.posiciones):
@@ -396,7 +417,87 @@ async def escenario_tablet():
         await p.cerrar()
 
 
-ESCENARIOS = {"vixy": escenario_vixy, "rescate": escenario_rescate, "puppet": escenario_puppet, "tablet": escenario_tablet}
+async def escenario_compuerta_vixy():
+    print("== Semáforo y compuerta del ducto izquierdo (Vixy), con la batería ==")
+    p = Partida(["-prueba-sin-freddy", "-prueba-tareas-cada", "1"])
+    try:
+        await p.abrir()
+        # La caja de Puppet siempre llena: aquí solo cuenta Vixy.
+        await p.tablet.send(json.dumps({"type": "dar_cuerda_inicio"}))
+        o = p.oficina_ahora
+        await p.esperar(lambda: bool(p.oficina), 5)
+        comprobar("al empezar: batería 100 %, compuertas abiertas y las dos luces en verde",
+                  o().get("bateria") == 100 and o().get("compuerta_izquierda") is False and o().get("compuerta_derecha") is False
+                  and o().get("luz_izquierda") == "verde" and o().get("luz_derecha") == "verde")
+        comprobar("el jugador 2 también recibe estado_oficina (su copia del semáforo)",
+                  await p.esperar(lambda: bool(p.oficina_j2), 3))
+        amarillo = await p.esperar(lambda: o().get("luz_izquierda") == "amarillo", 60)
+        cerca = min(p.nodos, key=lambda n: math.hypot(p.ultima_posicion("vixy")[0] - p.nodos[n][0],
+                                                      p.ultima_posicion("vixy")[1] - p.nodos[n][1]))
+        comprobar(f"cuando Vixy entra al ducto la luz izquierda pasa a amarillo (a los {p.t()} s, junto a {cerca})",
+                  amarillo and cerca in ("V01", "V02", "P12"))
+        rojo = await p.esperar(lambda: o().get("luz_izquierda") == "rojo", 30)
+        comprobar(f"y a rojo en el último tramo, junto a la oficina (a los {p.t()} s)", rojo)
+        comprobar("la luz derecha sigue en verde (Puppet está en su caja)", o().get("luz_derecha") == "verde")
+
+        await p.compuerta("izquierda", True)
+        comprobar("la tablet cierra la compuerta izquierda y Unity lo confirma al instante",
+                  await p.esperar(lambda: o().get("compuerta_izquierda") is True, 0.6))
+        t0, b0 = p.t(), o().get("bateria")
+        await asyncio.sleep(5)
+        gasto = b0 - o().get("bateria")
+        comprobar(f"cerrada gasta ~2 % por segundo (en {p.t() - t0:.1f} s bajó {gasto} %)", 8 <= gasto <= 12)
+        llego = await p.esperar(lambda: any(n == "V04" for n, _ in p.visitas["vixy"]), 30)
+        comprobar("Vixy llega a la boca del ducto (V04)", llego)
+        await asyncio.sleep(12)
+        comprobar("con la compuerta cerrada no ataca aunque tenga las tareas acumuladas", p.fin is None)
+
+        antes = o().get("bateria")
+        await p.ganar_carga()
+        comprobar(f"un cálculo del jugador 2 recarga 20 % (tenía {antes} %)",
+                  await p.esperar(lambda: o().get("bateria", 0) >= antes + 15, 4))
+
+        vacia = await p.esperar(lambda: o().get("bateria") == 0, 90)
+        comprobar(f"la batería se acaba (a los {p.t()} s)", vacia)
+        comprobar("y la compuerta se abre sola", o().get("compuerta_izquierda") is False)
+        t_intento, respuestas = p.t(), len(p.oficina)
+        await p.compuerta("izquierda", True)
+        await asyncio.sleep(0.6)
+        despues = [m for _, m in p.oficina[respuestas:]]
+        comprobar(f"sin batería no se puede volver a cerrar ({len(despues)} estados después del intento)",
+                  p.fin is None and despues and all(m["compuerta_izquierda"] is False for m in despues))
+        await p.esperar(lambda: p.fin is not None, 12)
+        comprobar(f"abierta la compuerta, Vixy ataca (game_over; atacó {p.atacante})",
+                  p.fin is not None and p.fin[1].get("result") == "loss" and p.atacante == "Vixy")
+    finally:
+        await p.cerrar()
+
+
+async def escenario_compuerta_puppet():
+    print("== Compuerta del ducto derecho: Puppet se queda en la boca hasta que se abre ==")
+    p = Partida(["-prueba-sin-freddy"])
+    try:
+        await p.abrir()
+        o = p.oficina_ahora
+        rojo = await p.esperar(lambda: o().get("luz_derecha") == "rojo", 220)
+        comprobar(f"Puppet sale de la caja y la luz derecha llega a rojo (a los {p.t()} s)", rojo)
+        await p.compuerta("derecha", True)
+        comprobar("la tablet cierra la compuerta derecha",
+                  await p.esperar(lambda: o().get("compuerta_derecha") is True, 0.6))
+        await asyncio.sleep(15)
+        d = p.distancia_al_jugador("puppet")
+        comprobar(f"con la compuerta cerrada Puppet no entra ni ataca (está a {d:.1f} m del jugador 1)",
+                  p.fin is None and d > 3.0)
+        await p.compuerta("derecha", False)
+        comprobar("al abrirla Puppet entra y ataca (game_over)",
+                  await p.esperar(lambda: p.fin is not None, 25) and p.fin[1].get("result") == "loss"
+                  and p.atacante == "Puppet")
+    finally:
+        await p.cerrar()
+
+
+ESCENARIOS = {"vixy": escenario_vixy, "rescate": escenario_rescate, "puppet": escenario_puppet, "tablet": escenario_tablet,
+              "compuerta_vixy": escenario_compuerta_vixy, "compuerta_puppet": escenario_compuerta_puppet}
 
 
 async def principal(nombres):

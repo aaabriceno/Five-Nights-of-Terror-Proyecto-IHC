@@ -295,10 +295,32 @@ async def principal(captura):
                   await esperar(lambda: navegador.ejecutar(
                       "var a=document.getElementById('alerta-puppet');return !!a && a.hidden;"), 8.0))
 
+        # --- ductos: copia del semáforo del jugador 1, sus compuertas y la batería ---
+        ORDENES.put_nowait(("raw", {"type": "estado_oficina", "bateria": 76, "compuerta_izquierda": True,
+                                    "compuerta_derecha": False, "luz_izquierda": "rojo", "luz_derecha": "verde"}))
+        comprobar("el panel del jugador 1 muestra el ducto izquierdo en rojo y con la compuerta cerrada",
+                  await esperar(lambda: (navegador.texto("j1-ducto-izquierdo") or "") == "Rojo · compuerta cerrada", 4.0))
+        comprobar("el derecho en verde y abierto", (navegador.texto("j1-ducto-derecho") or "") == "Verde · abierta")
+        comprobar("y la batería de las compuertas", (navegador.texto("j1-bateria") or "") == "76 %")
+        comprobar("la luz también se ve como color (punto rojo junto al texto)",
+                  navegador.ejecutar("return document.getElementById('j1-ducto-izquierdo').dataset.luz === 'rojo';"))
+        habilitado_ = lambda i: ("var b=document.getElementById('" + i + "');return !!b && !b.disabled;")
+        ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 3, "max_cargas": 3, "trampas": [], "progreso": 0,
+                                    "necesario": 1, "habilidad_puppet": False, "bloqueo_s": 0, "ventana_rescate_s": 0,
+                                    "multa_factor": 1}))
+        comprobar("con las cargas llenas pero batería gastada, Recargar sigue habilitado (también recarga batería)",
+                  await esperar(lambda: (navegador.texto("cargas") or "").startswith("3") and navegador.ejecutar(habilitado_("boton-minitarea")), 4.0))
+        ORDENES.put_nowait(("raw", {"type": "estado_oficina", "bateria": 100, "compuerta_izquierda": False,
+                                    "compuerta_derecha": False, "luz_izquierda": "verde", "luz_derecha": "verde"}))
+        comprobar("con cargas y batería llenas, Recargar se deshabilita",
+                  await esperar(lambda: not navegador.ejecutar(habilitado_("boton-minitarea")), 4.0))
+
         # --- terminal: un cálculo da carga y una ecuación da el rescate (Unity inventa y valida) ---
         ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 1, "max_cargas": 3, "trampas": [], "progreso": 0,
                                     "necesario": 1, "habilidad_puppet": False, "bloqueo_s": 0, "ventana_rescate_s": 0,
                                     "multa_factor": 1}))
+        ORDENES.put_nowait(("raw", {"type": "estado_oficina", "bateria": 60, "compuerta_izquierda": False,
+                                    "compuerta_derecha": False, "luz_izquierda": "verde", "luz_derecha": "verde"}))
         visible_terminal = "var m=document.getElementById('minitarea');return !!m && !m.hidden;"
         oculta_terminal = "var m=document.getElementById('minitarea');return !!m && m.hidden;"
         habilitado = lambda i: ("var b=document.getElementById('" + i + "');return !!b && !b.disabled;")
@@ -346,6 +368,8 @@ async def principal(captura):
         responder("5")
         comprobar("la respuesta correcta llega a Unity",
                   await esperar(lambda: len(RESPUESTAS_DE_TAREA) == 2 and RESPUESTAS_DE_TAREA[1].get("valor") == 5, 3.0))
+        comprobar("el aviso dice lo que ganó: carga de trampa y batería",
+                  await esperar(lambda: (navegador.texto("aviso") or "") == "Correcto: +1 carga de trampa y +20 % de batería", 3.0))
         comprobar("y la terminal se cierra sin bloquearse",
                   await esperar(lambda: navegador.ejecutar(oculta_terminal) and
                                 navegador.ejecutar(habilitado("boton-minitarea")), 3.0))

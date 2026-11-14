@@ -10,12 +10,14 @@ TEMP="$(mktemp -d)"
 trap 'rm -rf "$TEMP"' EXIT
 
 # Cada prueba tiene su propio Main, así que se compila una por una.
-for par in "RecursosDeOperador:PruebaRecursosDeOperador" "TareasDeOperador:PruebaTareasDeOperador" "RescateDePuppet:PruebaRescateDePuppet" "RutaFija:PruebaRutaFija" "ControlDeCamara:PruebaControlDeCamara" "PerfilDeVideo:PruebaPerfilDeVideo" "AjusteDeSocket:PruebaAjusteDeSocket" "AmbienteDelJuego:PruebaAmbienteDelJuego" "PlanoDelMapa:PruebaPlanoDelMapa" "RecorridosDeAnimatronicos:PruebaRecorridosDeAnimatronicos"; do
+for par in "RecursosDeOperador:PruebaRecursosDeOperador" "TareasDeOperador:PruebaTareasDeOperador" "RescateDePuppet:PruebaRescateDePuppet" "RutaFija:PruebaRutaFija" "ControlDeCamara:PruebaControlDeCamara" "PerfilDeVideo:PruebaPerfilDeVideo" "AjusteDeSocket:PruebaAjusteDeSocket" "AmbienteDelJuego:PruebaAmbienteDelJuego" "PlanoDelMapa:PruebaPlanoDelMapa" "RecorridosDeAnimatronicos:PruebaRecorridosDeAnimatronicos" "RecorridosDeAnimatronicos+SemaforoDeDuctos:PruebaSemaforoDeDuctos" "SemaforoDeDuctos+CompuertasDeDuctos:PruebaCompuertasDeDuctos"; do
   regla="${par%%:*}"
   prueba="${par##*:}"
   echo "== $regla =="
-  "$MONO_BIN/mcs" -out:"$TEMP/$prueba.exe" \
-    "$RAIZ/Unity/Assets/scripts/$regla.cs" \
-    "$RAIZ/pruebas/$prueba.cs"
+  # Una prueba puede necesitar varias clases: "A+B" compila A.cs y B.cs.
+  fuentes=()
+  IFS='+' read -ra clases <<< "$regla"
+  for clase in "${clases[@]}"; do fuentes+=("$RAIZ/Unity/Assets/scripts/$clase.cs"); done
+  "$MONO_BIN/mcs" -out:"$TEMP/$prueba.exe" "${fuentes[@]}" "$RAIZ/pruebas/$prueba.cs"
   RAIZ="$RAIZ" "$MONO_BIN/mono" "$TEMP/$prueba.exe"
 done

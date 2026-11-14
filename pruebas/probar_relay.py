@@ -410,9 +410,9 @@ async def caso_cada_rol_manda_solo_lo_suyo():
         await asyncio.sleep(0.3)
         while await recibir_o_nada(unity, 0.2) is not None:
             pass
-        for tipo in ("task_completed", "dar_cuerda_inicio", "tutorial_abrir", "connect"):
-            await operador.send(json.dumps({"type": tipo, "task_id": 1, "modo": "nuevo"}))
-        comprobar("Unity no recibe task_completed, dar_cuerda_inicio, tutorial_abrir ni connect de un operador",
+        for tipo in ("task_completed", "dar_cuerda_inicio", "tutorial_abrir", "connect", "compuerta"):
+            await operador.send(json.dumps({"type": tipo, "task_id": 1, "modo": "nuevo", "lado": "izquierda", "cerrar": True}))
+        comprobar("Unity no recibe task_completed, dar_cuerda_inicio, tutorial_abrir, connect ni compuerta de un operador",
                   await recibir_o_nada(unity, 0.6) is None)
         await operador.send(ACCION)
         comprobar("pero sí recibe su accion_operador (el operador sigue siendo operador)",
@@ -424,6 +424,10 @@ async def caso_cada_rol_manda_solo_lo_suyo():
         camara = json.dumps({"type": "camara", "direccion": 1})
         await tablet.send(camara)
         comprobar("pero sí recibe su camara", await recibir_o_nada(unity) == camara)
+        compuerta = json.dumps({"type": "compuerta", "lado": "izquierda", "cerrar": True})
+        await tablet.send(compuerta)
+        comprobar("y su compuerta (las compuertas de los ductos las cierra el jugador 1)",
+                  await recibir_o_nada(unity) == compuerta)
 
 
 async def caso_una_sola_tablet_por_partida():
