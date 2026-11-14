@@ -60,7 +60,7 @@ SOLO_PARA_OPERADORES = {
 PERMITIDO_DE_TABLET = {
     "connect", "reconnect", "disconnect",
     "task_completed", "task_failed",
-    "dar_cuerda_inicio", "dar_cuerda_fin", "camara", "compuerta",
+    "dar_cuerda_inicio", "dar_cuerda_fin", "camara", "compuerta", "linterna",
     "tutorial_abrir", "tutorial_slide", "tutorial_prueba_tarea", "tutorial_cerrar",
 }
 PERMITIDO_DE_OPERADOR = {
