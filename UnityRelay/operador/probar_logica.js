@@ -33,41 +33,18 @@ for (let i = 0; i < 250; i++) medidor.registrar(5);
 comprobar("guarda como máximo 200 registros", medidor.resumen().n === 200);
 comprobar("medidor vacío no falla", Logica.crearMedidor().resumen().n === 0);
 
-console.log("terminal: circuito lógico (lo que se ve mientras se mueven los interruptores)");
-// (A Y B) O (NO C), con una puerta XOR al final: G1 = A Y B, G2 = NO C, G3 = G1 O G2, G4 = G3 XOR D
-const circuito = {
-  entradas: ["A", "B", "C", "D"],
-  puertas: [
-    { id: "G1", op: "AND", a: "A", b: "B" },
-    { id: "G2", op: "NOT", a: "C", b: "" },
-    { id: "G3", op: "OR", a: "G1", b: "G2" },
-    { id: "G4", op: "XOR", a: "G3", b: "D" },
-  ],
-  salida: "G4",
-  objetivo: true,
-};
-let c = Logica.evaluarCircuito(circuito, [1, 1, 1, 0]);
-comprobar("A=1 B=1 C=1 D=0: G1=1, G2=0, G3=1 y la salida 1",
-  c.valores.G1 === true && c.valores.G2 === false && c.valores.G3 === true && c.salida === true);
-c = Logica.evaluarCircuito(circuito, [0, 0, 1, 0]);
-comprobar("A=0 B=0 C=1 D=0: G1=0, G2=0, G3=0 y la salida 0", c.valores.G3 === false && c.salida === false);
-c = Logica.evaluarCircuito(circuito, [0, 0, 1, 1]);
-comprobar("el XOR con D=1 invierte la salida", c.salida === true);
-comprobar("las entradas también salen en los valores", c.valores.A === false && c.valores.D === true);
-// Solo A=1: G1=0, G2=NO 0=1, G3=1, G4=1 XOR 0=1.
-comprobar("con interruptores de menos no falla (los que faltan valen 0)",
-  Logica.evaluarCircuito(circuito, [1]).salida === true && Logica.evaluarCircuito(circuito, undefined).salida === true);
-comprobar("el foco se enciende cuando la salida es el objetivo",
-  Logica.circuitoResuelto(circuito, [0, 0, 1, 1]) === true && Logica.circuitoResuelto(circuito, [0, 0, 1, 0]) === false);
-comprobar("con objetivo apagado se resuelve con la salida en 0",
-  Logica.circuitoResuelto({ ...circuito, objetivo: false }, [0, 0, 1, 0]) === true);
-comprobar("las puertas se leen en español",
-  Logica.textoDePuerta(circuito.puertas[0]) === "G1 = A Y B" &&
-  Logica.textoDePuerta(circuito.puertas[1]) === "G2 = NO C" &&
-  Logica.textoDePuerta(circuito.puertas[2]) === "G3 = G1 O G2" &&
-  Logica.textoDePuerta(circuito.puertas[3]) === "G4 = G3 O exclusivo D");
+console.log("terminal: título y para qué sirve cada tarea");
+// El jugador 2 tiene que saber por qué resuelve cada cosa, no solo qué resolver.
+const deCalculo = Logica.textoDeTarea("calculo"), deEcuacion = Logica.textoDeTarea("ecuacion");
+comprobar("el cálculo es la recarga de trampa", deCalculo.titulo === "Terminal · recarga de trampa");
+comprobar("y dice que da 1 carga de trampa", deCalculo.porque === "Resuélvelo y ganas 1 carga de trampa.");
+comprobar("la ecuación es el rescate de Puppet", deEcuacion.titulo === "Terminal · rescate de Puppet");
+comprobar("y dice que reinicia la caja de música y salva al jugador 1",
+  deEcuacion.porque === "Resuélvela para reiniciar la caja de música de Puppet: así salvas al jugador 1.");
+comprobar("un tipo desconocido no inventa nada", Logica.textoDeTarea("circuito").titulo === "Terminal" &&
+  Logica.textoDeTarea("circuito").porque === "");
 
-console.log("terminal: lo que se escribe en un cálculo");
+console.log("terminal: lo que se escribe como respuesta");
 comprobar("un número se lee tal cual", Logica.leerRespuesta("42") === 42);
 comprobar("con espacios alrededor también", Logica.leerRespuesta("  7 ") === 7);
 comprobar("ceros a la izquierda no importan", Logica.leerRespuesta("0042") === 42);

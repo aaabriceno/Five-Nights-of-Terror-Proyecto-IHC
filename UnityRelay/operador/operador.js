@@ -378,7 +378,7 @@
     const e = estadoOperador;
     if (!e) return;
     $("cargas").textContent = `${e.cargas} / ${e.max_cargas}`;
-    $("habilidad").textContent = e.habilidad_puppet ? "Lista" : "Resuelve el circuito";
+    $("habilidad").textContent = e.habilidad_puppet ? "Lista" : "Resuelve la ecuación";
     $("habilidad").className = "valor " + (e.habilidad_puppet ? "alerta" : "");
     actualizarBotones();
     if (e.cargas <= 0) salirDelModoTrampa();
@@ -389,7 +389,7 @@
     $("boton-trampa").disabled = !socket || finDePartida || !e || e.cargas <= 0;
     const bloqueada = performance.now() < bloqueadoHasta;
     $("boton-minitarea").disabled = !socket || finDePartida || bloqueada || !!(e && e.cargas >= e.max_cargas);
-    $("boton-circuito").disabled = !socket || finDePartida || bloqueada || !!(e && e.habilidad_puppet);
+    $("boton-ecuacion").disabled = !socket || finDePartida || bloqueada || !!(e && e.habilidad_puppet);
   }
 
   // La terminal se bloquea unos segundos tras un error. La cuenta corre aquí
@@ -400,7 +400,7 @@
     if (bloqueada === terminalBloqueada) return;
     terminalBloqueada = bloqueada;
     $("boton-minitarea").textContent = bloqueada ? "Terminal bloqueada…" : "Recargar (cálculo)";
-    $("boton-circuito").textContent = bloqueada ? "Terminal bloqueada…" : "Desbloquear rescate (circuito)";
+    $("boton-ecuacion").textContent = bloqueada ? "Terminal bloqueada…" : "Desbloquear rescate (ecuación)";
     actualizarBotones();
   }
 
@@ -415,7 +415,7 @@
     if (abierta) {
       const texto = e && e.habilidad_puppet
         ? `Pulsa «Rescatar a Puppet»: te quedan ${restante.toFixed(1)} s`
-        : "Aún no desbloqueaste el rescate: resuelve el circuito de la terminal";
+        : "Aún no desbloqueaste el rescate: resuelve la ecuación de la terminal";
       if ($("alerta-puppet-detalle").textContent !== texto) $("alerta-puppet-detalle").textContent = texto;
     }
     $("boton-rescate").disabled = !socket || finDePartida || !abierta || !(e && e.habilidad_puppet);
@@ -466,9 +466,9 @@
 
   // ------------------------------------------------- terminal: tareas que dan poderes
   // Unity inventa la tarea (`tarea`) y comprueba la respuesta (`tarea_resultado`);
-  // aquí solo se muestra, se mueven los interruptores y se manda lo que el jugador 2 contesta.
+  // aquí solo se muestra y se manda el número que escribe el jugador 2. Las dos
+  // (cálculo y ecuación) se responden con un número en la misma casilla.
   let tareaActual = null;
-  let interruptores = [];
 
   function pedirTarea(tipo) {
     if (!socket || finDePartida) return;
@@ -477,76 +477,27 @@
       return;
     }
     cerrarMiniTarea();
+    const textos = Logica.textoDeTarea(tipo);
     $("minitarea").hidden = false;
-    $("mt-titulo").textContent = "Terminal";
+    $("mt-titulo").textContent = textos.titulo;
+    $("mt-porque").textContent = textos.porque;
     $("mt-enunciado").textContent = "Conectando con la terminal…";
     $("mt-mensaje").textContent = "";
-    $("mt-calculo").hidden = true;
-    $("mt-circuito").hidden = true;
+    $("mt-formulario").hidden = true;
     enviar({ type: "tarea_pedir", tipo });
   }
 
   function mostrarTarea(m) {
     if ($("minitarea").hidden) return;      // la cerró antes de que llegara
     tareaActual = m;
+    const textos = Logica.textoDeTarea(m.tipo);
+    $("mt-titulo").textContent = textos.titulo;
+    $("mt-porque").textContent = textos.porque;
     $("mt-mensaje").textContent = "";
-    const esCalculo = m.tipo === "calculo";
-    $("mt-titulo").textContent = esCalculo ? "Terminal · recarga de trampa" : "Terminal · circuito del rescate";
-    $("mt-calculo").hidden = !esCalculo;
-    $("mt-circuito").hidden = esCalculo;
-    if (esCalculo) {
-      $("mt-enunciado").textContent = m.enunciado;
-      $("mt-respuesta").value = "";
-      $("mt-respuesta").focus();
-      return;
-    }
-    $("mt-enunciado").textContent =
-      `Mueve los interruptores hasta que la salida ${m.salida} quede en ${m.objetivo ? 1 : 0}.`;
-    interruptores = m.entradas.map(() => 0);
-    const lista = $("mt-puertas");
-    lista.textContent = "";
-    for (const p of m.puertas) {
-      const fila = document.createElement("li");
-      fila.dataset.id = p.id;
-      const texto = document.createElement("span");
-      texto.textContent = Logica.textoDePuerta(p);
-      const valor = document.createElement("span");
-      valor.className = "valor-puerta";
-      fila.append(texto, valor);
-      lista.append(fila);
-    }
-    const caja = $("mt-interruptores");
-    caja.textContent = "";
-    m.entradas.forEach((nombre, i) => {
-      const boton = document.createElement("button");
-      boton.type = "button";
-      boton.setAttribute("role", "switch");
-      boton.setAttribute("aria-checked", "false");
-      boton.dataset.indice = String(i);
-      boton.onclick = () => { interruptores[i] = interruptores[i] ? 0 : 1; pintarCircuito(); };
-      caja.append(boton);
-    });
-    pintarCircuito();
-  }
-
-  // Cada puerta y el foco se actualizan al mover un interruptor: así se ve qué pasa.
-  function pintarCircuito() {
-    if (!tareaActual || tareaActual.tipo !== "circuito") return;
-    const { valores, salida } = Logica.evaluarCircuito(tareaActual, interruptores);
-    document.querySelectorAll("#mt-interruptores button").forEach((boton, i) => {
-      boton.setAttribute("aria-checked", interruptores[i] ? "true" : "false");
-      boton.textContent = `${tareaActual.entradas[i]} = ${interruptores[i]}`;
-    });
-    document.querySelectorAll("#mt-puertas li").forEach((fila) => {
-      const v = valores[fila.dataset.id];
-      fila.classList.toggle("encendida", !!v);
-      fila.lastChild.textContent = v ? "1" : "0";
-    });
-    const resuelto = Logica.circuitoResuelto(tareaActual, interruptores);
-    $("mt-foco").classList.toggle("resuelto", resuelto);
-    $("mt-foco").textContent = resuelto
-      ? `Salida ${tareaActual.salida} = ${salida ? 1 : 0}: es lo que se pide. Envíalo.`
-      : `Salida ${tareaActual.salida} = ${salida ? 1 : 0}: se pide ${tareaActual.objetivo ? 1 : 0}.`;
+    $("mt-enunciado").textContent = m.enunciado;
+    $("mt-formulario").hidden = false;
+    $("mt-respuesta").value = "";
+    $("mt-respuesta").focus();
   }
 
   function cerrarMiniTarea() {
@@ -557,7 +508,7 @@
   function resultadoDeTarea(m) {
     cerrarMiniTarea();
     if (m.correcto) {
-      avisar(m.tipo === "calculo" ? "Correcto: +1 carga de trampa" : "Circuito resuelto: rescate de Puppet desbloqueado");
+      avisar(m.tipo === "calculo" ? "Correcto: +1 carga de trampa" : "Ecuación resuelta: rescate de Puppet desbloqueado");
       return;
     }
     bloqueadoHasta = performance.now() + (m.bloqueo_s || 0) * 1000;
@@ -565,21 +516,16 @@
     pintarBloqueo(performance.now());
   }
 
-  $("mt-calculo").onsubmit = (evento) => {
+  $("mt-formulario").onsubmit = (evento) => {
     evento.preventDefault();
-    if (!tareaActual || tareaActual.tipo !== "calculo") return;
+    if (!tareaActual) return;
     const valor = Logica.leerRespuesta($("mt-respuesta").value);
     if (valor === null) { $("mt-mensaje").textContent = "Escribe solo un número entero."; return; }
     enviar({ type: "tarea_respuesta", id: tareaActual.id, valor });
   };
 
-  $("mt-enviar-circuito").onclick = () => {
-    if (!tareaActual || tareaActual.tipo !== "circuito") return;
-    enviar({ type: "tarea_respuesta", id: tareaActual.id, interruptores: interruptores.slice() });
-  };
-
   $("boton-minitarea").onclick = () => pedirTarea("calculo");
-  $("boton-circuito").onclick = () => pedirTarea("circuito");
+  $("boton-ecuacion").onclick = () => pedirTarea("ecuacion");
   $("mt-cerrar").onclick = cerrarMiniTarea;
 
   function pintarLatencia() {

@@ -56,43 +56,21 @@
   }
 
   // ------------------------------------------------------------ terminal (tareas)
-  // Unity inventa la tarea y comprueba la respuesta; aquí solo se calcula lo que
-  // hace falta para dibujarla mientras el jugador 2 mueve los interruptores.
+  // Unity inventa la tarea y comprueba la respuesta; aquí solo se dice qué es y
+  // para qué sirve, porque el jugador 2 tiene que saber por qué la resuelve.
+  const TEXTOS_DE_TAREA = {
+    calculo: { titulo: "Terminal · recarga de trampa", porque: "Resuélvelo y ganas 1 carga de trampa." },
+    ecuacion: {
+      titulo: "Terminal · rescate de Puppet",
+      porque: "Resuélvela para reiniciar la caja de música de Puppet: así salvas al jugador 1.",
+    },
+  };
 
-  // El circuito de una tarea con los interruptores puestos (0 o 1 por entrada,
-  // en el orden de `tarea.entradas`; los que falten valen 0). Devuelve el valor
-  // de cada entrada y puerta y el de la salida.
-  function evaluarCircuito(tarea, interruptores) {
-    const valores = {};
-    tarea.entradas.forEach((nombre, i) => { valores[nombre] = !!(interruptores && interruptores[i]); });
-    for (const p of tarea.puertas) {
-      const a = valores[p.a];
-      switch (p.op) {
-        case "NOT": valores[p.id] = !a; break;
-        case "AND": valores[p.id] = a && valores[p.b]; break;
-        case "OR": valores[p.id] = a || valores[p.b]; break;
-        default: valores[p.id] = a !== valores[p.b]; break;   // XOR
-      }
-    }
-    return { valores, salida: valores[tarea.salida] };
+  function textoDeTarea(tipo) {
+    return TEXTOS_DE_TAREA[tipo] || { titulo: "Terminal", porque: "" };
   }
 
-  // ¿Con esos interruptores la salida es la que pide la tarea?
-  function circuitoResuelto(tarea, interruptores) {
-    return evaluarCircuito(tarea, interruptores).salida === !!tarea.objetivo;
-  }
-
-  // Una puerta como se lee en voz alta: "G1 = A Y B", "G2 = NO C".
-  function textoDePuerta(p) {
-    switch (p.op) {
-      case "NOT": return p.id + " = NO " + p.a;
-      case "AND": return p.id + " = " + p.a + " Y " + p.b;
-      case "OR": return p.id + " = " + p.a + " O " + p.b;
-      default: return p.id + " = " + p.a + " O exclusivo " + p.b;
-    }
-  }
-
-  // Lo que se teclea en un cálculo: un entero sin signo de hasta 6 cifras, o null.
+  // Lo que se teclea como respuesta: un entero sin signo de hasta 6 cifras, o null.
   function leerRespuesta(texto) {
     const limpio = String(texto === undefined || texto === null ? "" : texto).trim();
     if (!/^[0-9]{1,6}$/.test(limpio)) return null;
@@ -160,5 +138,5 @@
     return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
   }
 
-  return { piezasValidas, limitesDelMapa, suavizar, crearMedidor, evaluarCircuito, circuitoResuelto, textoDePuerta, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
+  return { piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
 });
