@@ -173,7 +173,7 @@ Si la otra computadora no abre la página: misma red, firewall (puertos 8000 y 8
 
 ## Cómo se mueven los animatrónicos (2026-11-10)
 
-- **Freddy y Vixy siguen una ruta fija**, punto por punto y en orden: nunca se saltan uno ni retroceden. Freddy: `P01 → P03 → P04 → P05 → P06 → P07`; Vixy: `P02 → P11 → P12 → V01 → V02 → V03 → V04`; Puppet (sin cambios): `P13 → P14 → P15 → P16 → V05 → V06 → V07 → V08`.
+- **Freddy y Vixy siguen una ruta fija**, punto por punto y en orden: nunca se saltan uno, y solo retroceden si les cierran la compuerta del ducto en la cara (ver «Ductos»). Freddy: `P01 → P03 → P04 → P05 → P06 → P07`; Vixy: `P02 → P11 → P12 → V01 → V02 → V03 → V04`; Puppet (sin cambios): `P13 → P14 → P15 → P16 → V05 → V06 → V07 → V08`.
 - **Desvíos ocasionales** (25 % por tramo que lo tiene, `ProbabilidadDeDesvio`): Freddy se asoma a `P08` o `P09` entre `P04` y `P05` (cuesta unos 20 s) y después vuelve a la ruta. Vixy no tiene desvíos (2026-11-13). Es la sorpresa: no sale en la guía del jugador 2.
 - **Tiempo:** Freddy avanza cada 80–120 % del intervalo de la noche (antes era exacto); Vixy sigue dependiendo de las tareas pendientes.
 - **Velocidad al caminar (2026-11-13):** 2 m/s los tres (antes 1,5, el valor de la escena). Está en `RecorridosDeAnimatronicos.VelocidadAlCaminar`. Con tareas cada segundo, Vixy llega al final del ducto en ~44 s (antes ~50 s): la mayor parte del tiempo son las esperas entre pasos, no la caminata.
@@ -186,10 +186,11 @@ Vixy entra por el ducto izquierdo (`V01 → V04`) y Puppet por el derecho (`V05 
 
 - **Semáforo** (`SemaforoDeDuctos.cs`): según el punto de su ruta más cercano a donde está el animatrónico (posición real, no su destino: Puppet adelanta el destino cada segundo). Verde fuera del ducto, amarillo en la primera mitad (`V01-V02` / `V05-V06`), rojo en el último tramo (`V03-V04` / `V07-V08`) o entrando a la oficina. Se ve en la oficina 3D como una lámpara encima de cada boca (pared lateral, a 2,75 m, visible sin girar la cámara; el rojo late) y en la página del jugador 2 como texto y punto de color («Rojo · compuerta cerrada»).
 - **Compuertas** (`CompuertasDeDuctos.cs`): las cierra y abre el jugador 1 con dos botones en la tablet, en la misma fila que la cámara (la izquierda en el extremo izquierdo), con la batería en medio. Cerrada, una placa con franja amarilla tapa la boca: Vixy no ataca desde `V04` y Puppet no pasa de `V08` (si iba entrando, vuelve a la boca). Abierta otra vez, siguen como siempre.
+- **Retroceso** (`RetrocesoPorCompuerta.cs`, 2026-11-13): si el animatrónico está en la boca (`V04` / `V08`) con su compuerta cerrada, la **empuja 4 s** (la placa da golpes hacia la oficina). Si en ese tiempo el jugador 1 la abre, la fase se corta y puede atacar. Si aguanta cerrada, **retrocede 3 puntos**, hasta la entrada del ducto (`V01` / `V05`; la luz baja de rojo a amarillo). Mientras vuelve no avanza ni ataca; al llegar sigue su ruta como siempre (Vixy vuelve a necesitar sus tareas acumuladas para cada avance). Freddy no usa ductos, así que no le afecta.
 - **Batería**: 100 % al empezar cada noche; cada compuerta cerrada gasta **2 %/s** (una sola cerrada dura 50 s; la noche dura 120-165 s, así que hay que cerrarlas cuando la luz está en rojo). En 0 se abren solas y no se pueden cerrar. Un **cálculo** bien resuelto del jugador 2 suma **20 %** (además de su carga de trampa).
 - Lo visual está en `LucesDeDuctos.cs` (medidas del plano real: bocas en x = 17 y x = 23, z de 2 a 4). Capturas: `pruebas/capturar_compuertas.py`.
 - Pruebas con el juego real: `probar_vixy_y_puppet_con_juego.py compuerta_vixy compuerta_puppet`.
-- Pendiente: el tutorial todavía no explica las compuertas; el retroceso al cerrarle la compuerta en la cara es el paso 7.
+- Pendiente: el tutorial todavía no explica las compuertas ni el retroceso.
 
 ## Opciones de prueba del juego
 
