@@ -7,6 +7,7 @@ import '../services/servicio_de_avisos.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/barra_reloj_de_noche.dart';
 import '../widgets/botones_de_camara.dart';
+import '../widgets/compuertas_de_ductos.dart';
 import '../widgets/franja_del_companero.dart';
 import '../widgets/puppet_game_widget.dart';
 import '../widgets/placeholder_game_widget.dart';
@@ -154,12 +155,44 @@ class _GameScreenState extends State<GameScreen> {
               Expanded(child: _buildContenidoPrincipal(game)),
               const SizedBox(height: 12),
               // Siempre a la vista, en el mismo lugar, aunque haya una tarea abierta:
-              // la cámara del juego se mueve desde aquí.
-              BotonesDeCamara(alMirar: game.mirarHacia),
+              // la cámara del juego se mueve desde aquí. Las compuertas van en la
+              // misma fila (cada una en el extremo de su lado, con la batería en
+              // medio) para no quitarle alto a las tareas.
+              _buildFilaDeControles(game),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// Cámara y, si Unity manda `estado_oficina`, las compuertas de los ductos.
+  Widget _buildFilaDeControles(GameProvider game) {
+    final int? bateria = game.session.bateria;
+    if (bateria == null) return BotonesDeCamara(alMirar: game.mirarHacia);
+    return Row(
+      children: <Widget>[
+        BotonDeCompuerta(
+          lado: 'izquierda',
+          cerrada: game.session.compuertaIzquierdaCerrada,
+          bateria: bateria,
+          alCambiar: (bool cerrar) => game.cambiarCompuerta('izquierda', cerrar),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: BotonesDeCamara(
+            alMirar: game.mirarHacia,
+            centro: IndicadorDeBateria(key: const Key('bateria-compuertas'), bateria: bateria),
+          ),
+        ),
+        const SizedBox(width: 16),
+        BotonDeCompuerta(
+          lado: 'derecha',
+          cerrada: game.session.compuertaDerechaCerrada,
+          bateria: bateria,
+          alCambiar: (bool cerrar) => game.cambiarCompuerta('derecha', cerrar),
+        ),
+      ],
     );
   }
 

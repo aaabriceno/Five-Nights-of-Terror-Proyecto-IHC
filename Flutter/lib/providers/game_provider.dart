@@ -92,6 +92,15 @@ class GameProvider extends ChangeNotifier {
       case 'efecto':
         _recibirEfecto(message);
         break;
+      case 'estado_oficina':
+        // Se leen todos antes de asignar: si uno viene roto, nada cambia.
+        final int bateria = (message['bateria'] as int).clamp(0, 100);
+        final bool izquierda = message['compuerta_izquierda'] as bool;
+        final bool derecha = message['compuerta_derecha'] as bool;
+        session.bateria = bateria;
+        session.compuertaIzquierdaCerrada = izquierda;
+        session.compuertaDerechaCerrada = derecha;
+        break;
       case 'game_over':
         ultimaNocheDeGameOver = (message['night'] as int?) ?? session.nocheActual;
         switch (message['result']) {
@@ -166,6 +175,13 @@ class GameProvider extends ChangeNotifier {
   /// órdenes; no hay nada que guardar aquí, la tablet solo avisa.
   void mirarHacia(int direccion) {
     sendToServer?.call({'type': 'camara', 'direccion': direccion});
+  }
+
+  /// El jugador pide cerrar (`cerrar` = true) o abrir la compuerta de un ducto
+  /// (`lado`: 'izquierda' o 'derecha'). Unity decide (sin batería no se cierra)
+  /// y contesta con `estado_oficina`; la tablet no cambia nada por su cuenta.
+  void cambiarCompuerta(String lado, bool cerrar) {
+    sendToServer?.call({'type': 'compuerta', 'lado': lado, 'cerrar': cerrar});
   }
 
   void reportTaskCompleted({

@@ -21,10 +21,14 @@ class BotonesDeCamara extends StatefulWidget {
   final void Function(int direccion) alMirar;
   final Duration repeticion;
 
+  /// Lo que va entre los dos botones (la batería de las compuertas), o nada.
+  final Widget? centro;
+
   const BotonesDeCamara({
     super.key,
     required this.alMirar,
     this.repeticion = const Duration(milliseconds: 150),
+    this.centro,
   });
 
   @override
@@ -69,6 +73,7 @@ class _BotonesDeCamaraState extends State<BotonesDeCamara> {
       children: <Widget>[
         Expanded(child: _boton(clave: 'camara-izquierda', direccion: -1, etiqueta: 'Mirar a la izquierda', icono: Icons.arrow_back_ios_new)),
         const SizedBox(width: 16),
+        if (widget.centro != null) ...<Widget>[widget.centro!, const SizedBox(width: 16)],
         Expanded(child: _boton(clave: 'camara-derecha', direccion: 1, etiqueta: 'Mirar a la derecha', icono: Icons.arrow_forward_ios)),
       ],
     );
@@ -99,15 +104,23 @@ class _BotonesDeCamaraState extends State<BotonesDeCamara> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: color, width: apretado ? 3 : 2),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              if (direccion < 0) Icon(icono, size: 40, color: color),
-              if (direccion < 0) const SizedBox(width: 16),
-              Text(etiqueta, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: color)),
-              if (direccion > 0) const SizedBox(width: 16),
-              if (direccion > 0) Icon(icono, size: 40, color: color),
-            ],
+          // En una tablet más angosta (con las compuertas al lado) el texto se
+          // achica en vez de desbordarse.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (direccion < 0) Icon(icono, size: 40, color: color),
+                  if (direccion < 0) const SizedBox(width: 16),
+                  Text(etiqueta, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: color)),
+                  if (direccion > 0) const SizedBox(width: 16),
+                  if (direccion > 0) Icon(icono, size: 40, color: color),
+                ],
+              ),
+            ),
           ),
         ),
       ),

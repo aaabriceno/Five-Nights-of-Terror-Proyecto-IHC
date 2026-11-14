@@ -44,6 +44,16 @@ class GameSession {
   /// esta partida (entonces no se muestra nada: se juega solo).
   bool? companeroConectado;
 
+  /// Batería de las compuertas de los ductos (0-100), tal cual la manda Unity
+  /// en `estado_oficina`. null mientras no llegue: un Unity sin compuertas no
+  /// la manda y entonces la tablet no muestra los botones.
+  int? bateria;
+
+  /// Si la compuerta de cada ducto está cerrada (Unity decide; la tablet solo
+  /// lo pide con `compuerta` y lo refleja).
+  bool compuertaIzquierdaCerrada;
+  bool compuertaDerechaCerrada;
+
   GameSession({
     required this.playerId,
     this.riesgo = 0,
@@ -63,5 +73,8 @@ class GameSession {
     this.segundosDeCaja,
     this.avisoDeCompanero,
     this.companeroConectado,
+    this.bateria,
+    this.compuertaIzquierdaCerrada = false,
+    this.compuertaDerechaCerrada = false,
   }) : tareasPendientes = tareasPendientes ?? [];
 }
