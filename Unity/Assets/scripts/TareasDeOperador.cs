@@ -6,13 +6,16 @@ using System.Collections.Generic;
 /// ganar sus poderes. Unity es la autoridad (inventa el problema y comprueba la
 /// respuesta); la página solo lo muestra.
 ///
-/// * **Cálculo** (da 1 carga de trampa): pasar un binario o un hexadecimal a
-///   decimal, una operación, una serie o una pregunta de memoria. De 8 a 12 s.
-/// * **Circuito lógico** (da el rescate de Puppet): poner los interruptores para
-///   que la salida de unas puertas Y / O / NO / O exclusivo sea la pedida. De
-///   20 a 30 s.
+/// Son para cualquier persona, no solo para quien estudió computación
+/// (2026-11-13: antes había binario, hexadecimal y circuitos lógicos):
 ///
-/// Los problemas crecen con la noche. Un error bloquea la terminal unos
+/// * **Cálculo** (da 1 carga de trampa): una operación, una serie o un problema
+///   corto de la vida diaria (cuántos minutos faltan, cuánto vuelto te dan).
+/// * **Ecuación** (da el rescate de Puppet): encontrar x, por ejemplo
+///   3x + 5 = 20. De un paso en las noches 1 y 2, de dos pasos en la 3 y la 4,
+///   y con paréntesis desde la 5.
+///
+/// Las dos se responden con un número. Un error bloquea la terminal unos
 /// segundos y se pierde ese problema, así que no se puede probar a ciegas.
 ///
 /// Sin `UnityEngine`, para probarla fuera del editor. El tiempo lo pone quien
@@ -20,7 +23,7 @@ using System.Collections.Generic;
 /// </summary>
 public class TareasDeOperador
 {
-    public enum Tipo { Calculo, Circuito }
+    public enum Tipo { Calculo, Ecuacion }
     public enum ResultadoRespuesta { Correcta, Incorrecta, MuyRapida, SinTarea }
 
     /// Lo que cuesta equivocarse: la terminal no entrega tareas durante este tiempo.
@@ -28,14 +31,10 @@ public class TareasDeOperador
     /// Menos que esto desde que se entrega es imposible de hacer a mano: Unity lo
     /// rechaza para que la página no pueda fingir una tarea.
     public const float MinimoSegundosCalculo = 1.5f;
-    public const float MinimoSegundosCircuito = 3f;
+    public const float MinimoSegundosEcuacion = 3f;
     /// Una tarea abandonada caduca. Mientras no caduca, volver a pedirla da el
     /// mismo problema (cerrar y abrir la ventana no sirve para buscar uno fácil).
     public const float SegundosMaximosDeTarea = 90f;
-
-    /// Una puerta del circuito: `op` es AND, OR, XOR o NOT (esta usa solo `a`);
-    /// `a` y `b` son entradas (A, B...) o la salida de otra puerta (G1, G2...).
-    public class Puerta { public string id; public string op; public string a; public string b; }
 
     public class Tarea
     {
@@ -44,17 +43,10 @@ public class TareasDeOperador
         public int noche;
         public float inicio;
 
-        // Cálculo
-        public string clase;        // binario, hexadecimal, aritmetica, memoria o serie
+        public string clase;        // aritmetica, serie, problema o ecuacion
         public string enunciado;
         public string[] datos;      // lo que pide el enunciado, para quien quiera resolverlo por código
         public int respuesta;
-
-        // Circuito
-        public string[] entradas;
-        public Puerta[] puertas;    // en orden: cada una solo usa entradas o puertas anteriores
-        public string salida;       // la última puerta
-        public bool objetivo;       // el foco debe quedar así
     }
 
     private readonly Random azar;
@@ -85,7 +77,7 @@ public class TareasDeOperador
         if (Pendiente != null && Pendiente.tipo == tipo && !Caducada(Pendiente, ahora)) return Pendiente;
 
         noche = Math.Max(1, Math.Min(6, noche));
-        Tarea tarea = tipo == Tipo.Calculo ? GenerarCalculo(noche) : GenerarCircuito(noche);
+        Tarea tarea = tipo == Tipo.Calculo ? GenerarCalculo(noche) : GenerarEcuacion(noche);
         tarea.id = ++ultimoId;
         tarea.tipo = tipo;
         tarea.noche = noche;
@@ -94,22 +86,17 @@ public class TareasDeOperador
         return tarea;
     }
 
-    /// Comprueba la respuesta: `valor` para un cálculo, `interruptores` (0 o 1 por
-    /// entrada, en el orden de `entradas`) para un circuito. Acertar o fallar
-    /// cierra la tarea; ir demasiado rápido la deja abierta.
-    public ResultadoRespuesta Responder(int id, int valor, int[] interruptores, float ahora)
+    /// Comprueba la respuesta (el número que escribió el jugador 2). Acertar o
+    /// fallar cierra la tarea; ir demasiado rápido la deja abierta.
+    public ResultadoRespuesta Responder(int id, int valor, float ahora)
     {
         if (Pendiente == null || Pendiente.id != id) return ResultadoRespuesta.SinTarea;
         if (Caducada(Pendiente, ahora)) { Pendiente = null; return ResultadoRespuesta.SinTarea; }
 
-        float minimo = Pendiente.tipo == Tipo.Calculo ? MinimoSegundosCalculo : MinimoSegundosCircuito;
+        float minimo = Pendiente.tipo == Tipo.Calculo ? MinimoSegundosCalculo : MinimoSegundosEcuacion;
         if (ahora - Pendiente.inicio < minimo) return ResultadoRespuesta.MuyRapida;
 
-        bool acierto = Pendiente.tipo == Tipo.Calculo
-            ? valor == Pendiente.respuesta
-            : interruptores != null && interruptores.Length == Pendiente.entradas.Length &&
-              SalidaDelCircuito(Pendiente, interruptores) == Pendiente.objetivo;
-
+        bool acierto = valor == Pendiente.respuesta;
         Pendiente = null;
         if (acierto) return ResultadoRespuesta.Correcta;
         bloqueadoHasta = ahora + BloqueoPorErrorSegundos;
@@ -121,9 +108,8 @@ public class TareasDeOperador
     // =========================================================================== cálculo
     private Tarea GenerarCalculo(int noche)
     {
-        var clases = new List<string> { "binario", "aritmetica" };
-        if (noche >= 2) { clases.Add("serie"); clases.Add("memoria"); }
-        if (noche >= 3) clases.Add("hexadecimal");
+        var clases = new List<string> { "aritmetica", "problema" };
+        if (noche >= 2) clases.Add("serie");
         if (clases.Count > 1) clases.Remove(ultimaClase);
         string clase = clases[azar.Next(clases.Count)];
         ultimaClase = clase;
@@ -131,45 +117,12 @@ public class TareasDeOperador
         var t = new Tarea { clase = clase };
         switch (clase)
         {
-            case "binario":
-                {
-                    int bits = noche <= 1 ? 3 : noche <= 3 ? 4 : 5;
-                    int valor = azar.Next(3, 1 << bits);
-                    string binario = Convert.ToString(valor, 2).PadLeft(bits, '0');
-                    t.datos = new[] { binario };
-                    t.respuesta = valor;
-                    t.enunciado = "Pasa " + binario + " de binario a decimal";
-                    break;
-                }
-            case "hexadecimal":
-                {
-                    int valor = azar.Next(0x10, noche <= 3 ? 0x40 : 0x80);
-                    string hexadecimal = Convert.ToString(valor, 16).ToUpperInvariant();
-                    t.datos = new[] { hexadecimal };
-                    t.respuesta = valor;
-                    t.enunciado = "Pasa " + hexadecimal + " de hexadecimal a decimal";
-                    break;
-                }
             case "aritmetica": GenerarAritmetica(t, noche); break;
-            case "memoria":
-                {
-                    if (azar.Next(2) == 0)
-                    {
-                        int bits = azar.Next(3, 7);
-                        t.datos = new[] { "valores", bits.ToString() };
-                        t.respuesta = 1 << bits;
-                        t.enunciado = "¿Cuántos valores distintos se pueden guardar con " + bits + " bits?";
-                    }
-                    else
-                    {
-                        int bytes = azar.Next(2, 10);
-                        t.datos = new[] { "bits", bytes.ToString() };
-                        t.respuesta = 8 * bytes;
-                        t.enunciado = "¿Cuántos bits hay en " + bytes + " bytes?";
-                    }
-                    break;
-                }
             case "serie": GenerarSerie(t, noche); break;
+            default:
+                if (azar.Next(2) == 0) GenerarProblemaDeReloj(t, noche);
+                else GenerarProblemaDeVuelto(t, noche);
+                break;
         }
         return t;
     }
@@ -263,104 +216,86 @@ public class TareasDeOperador
         t.enunciado = "Completa la serie: " + string.Join(", ", datos) + ", ?";
     }
 
-    // =========================================================================== circuito
-    private Tarea GenerarCircuito(int noche)
+    /// "Son las 2:45 AM. ¿Cuántos minutos faltan para las 3:30 AM?" Dentro del
+    /// turno (12:00 a 6:00 AM) y en múltiplos de 5; la espera crece con la noche.
+    private void GenerarProblemaDeReloj(Tarea t, int noche)
     {
-        int nEntradas = noche <= 2 ? 3 : 4;
-        string[] entradas = new[] { "A", "B", "C", "D" };
-        Array.Resize(ref entradas, nEntradas);
-        var binarias = noche >= 3 ? new[] { "AND", "OR", "XOR" } : new[] { "AND", "OR" };
-
-        for (int intento = 0; intento < 400; intento++)
-        {
-            int nPuertas = noche <= 1 ? azar.Next(2, 4) : noche == 2 ? 3 : noche == 3 ? azar.Next(3, 5) : azar.Next(4, 6);
-            var puertas = new List<Puerta>();
-            var sinUsarPuertas = new List<string>();
-            var sinUsarEntradas = new List<string>(entradas);
-            var usadas = new HashSet<string>();
-
-            for (int i = 0; i < nPuertas; i++)
-            {
-                bool ultima = i == nPuertas - 1;
-                string op = !ultima && azar.Next(4) == 0 ? "NOT" : binarias[azar.Next(binarias.Length)];
-                string a = Tomar(sinUsarPuertas, sinUsarEntradas, entradas, puertas, null);
-                string b = op == "NOT" ? null : Tomar(sinUsarPuertas, sinUsarEntradas, entradas, puertas, a);
-                foreach (string operando in new[] { a, b })
-                {
-                    if (operando == null) continue;
-                    sinUsarPuertas.Remove(operando);
-                    sinUsarEntradas.Remove(operando);
-                    usadas.Add(operando);
-                }
-                string id = "G" + (i + 1);
-                puertas.Add(new Puerta { id = id, op = op, a = a, b = b });
-                sinUsarPuertas.Add(id);
-            }
-
-            // Ninguna puerta de adorno: todas menos la última alimentan a otra.
-            if (sinUsarPuertas.Count != 1) continue;
-            int entradasUsadas = 0;
-            foreach (string e in entradas) if (usadas.Contains(e)) entradasUsadas++;
-            if (entradasUsadas < 2) continue;
-
-            bool objetivo = azar.Next(2) == 1;
-            var t = new Tarea { entradas = entradas, puertas = puertas.ToArray(), salida = puertas[puertas.Count - 1].id, objetivo = objetivo };
-            int buenas = 0, total = 1 << nEntradas;
-            for (int m = 0; m < total; m++)
-            {
-                var interruptores = new int[nEntradas];
-                for (int i = 0; i < nEntradas; i++) interruptores[i] = (m >> i) & 1;
-                if (SalidaDelCircuito(t, interruptores) == objetivo) buenas++;
-            }
-            // Con solución, y que acertar a ciegas no sea más probable que fallar.
-            if (buenas >= 1 && buenas <= total / 2) return t;
-        }
-
-        // Respaldo (no debería hacer falta): (A Y B) Y (NO C), solo se enciende con A=1, B=1, C=0.
-        return new Tarea
-        {
-            entradas = new[] { "A", "B", "C" },
-            puertas = new[]
-            {
-                new Puerta { id = "G1", op = "AND", a = "A", b = "B" },
-                new Puerta { id = "G2", op = "NOT", a = "C" },
-                new Puerta { id = "G3", op = "AND", a = "G1", b = "G2" },
-            },
-            salida = "G3",
-            objetivo = true
-        };
+        int maximo = noche <= 2 ? 40 : noche <= 4 ? 70 : 95;
+        int minutos = 5 * azar.Next(2, maximo / 5 + 1);
+        int desde = 5 * azar.Next(0, (6 * 60 - minutos) / 5 + 1);   // minutos pasada la medianoche
+        int hasta = desde + minutos;
+        t.clase = "problema";
+        t.datos = new[] { "reloj", Hora(desde), Hora(hasta) };
+        t.respuesta = minutos;
+        t.enunciado = "Son las " + Hora(desde) + " AM. ¿Cuántos minutos faltan para las " + Hora(hasta) + " AM?";
     }
 
-    /// Prefiere la salida de una puerta que nadie usa aún, luego una entrada sin usar, y al final cualquiera.
-    private string Tomar(List<string> puertasSinUsar, List<string> entradasSinUsar, string[] entradas, List<Puerta> puertas, string excluir)
+    private static string Hora(int minutosDesdeMedianoche)
     {
-        var candidatas = new List<string>();
-        foreach (string s in puertasSinUsar) if (s != excluir) candidatas.Add(s);
-        if (candidatas.Count == 0) foreach (string s in entradasSinUsar) if (s != excluir) candidatas.Add(s);
-        if (candidatas.Count == 0)
-        {
-            foreach (string s in entradas) if (s != excluir) candidatas.Add(s);
-            foreach (Puerta p in puertas) if (p.id != excluir) candidatas.Add(p.id);
-        }
-        return candidatas[azar.Next(candidatas.Count)];
+        int h = minutosDesdeMedianoche / 60;
+        return (h == 0 ? 12 : h) + ":" + (minutosDesdeMedianoche % 60).ToString("00");
     }
 
-    /// Lo que sale de la última puerta con esos interruptores (0 o 1 por entrada).
-    public static bool SalidaDelCircuito(Tarea tarea, int[] interruptores)
+    /// "Compras 3 pilas a 4 soles cada una y pagas con 20 soles. ¿Cuánto vuelto te dan?"
+    private void GenerarProblemaDeVuelto(Tarea t, int noche)
     {
-        var valores = new Dictionary<string, bool>();
-        for (int i = 0; i < tarea.entradas.Length; i++) valores[tarea.entradas[i]] = interruptores[i] != 0;
-        foreach (Puerta p in tarea.puertas)
+        int cantidad = azar.Next(2, noche <= 2 ? 4 : 7);
+        int precio = azar.Next(2, noche <= 2 ? 6 : 10);
+        int gasto = cantidad * precio;
+        int pago = 10;
+        while (pago <= gasto) pago = pago == 10 ? 20 : pago == 20 ? 50 : 100;
+        t.clase = "problema";
+        t.datos = new[] { "vuelto", cantidad.ToString(), precio.ToString(), pago.ToString() };
+        t.respuesta = pago - gasto;
+        t.enunciado = "Compras " + cantidad + " pilas a " + precio + " soles cada una y pagas con " + pago +
+                      " soles. ¿Cuánto vuelto te dan?";
+    }
+
+    // =========================================================================== ecuación
+    /// datos: lineal, a, op, b, c  →  a·x op b = c   |   parentesis, a, op, b, c  →  a(x op b) = c
+    private Tarea GenerarEcuacion(int noche)
+    {
+        int x = azar.Next(2, 16);
+        string forma = "lineal", op = "+";
+        int a, b, c;
+        if (noche <= 2)
         {
-            bool a = valores[p.a];
-            switch (p.op)
+            // Un solo paso: x + 7 = 15, x − 4 = 9 ó 3x = 12.
+            switch (azar.Next(3))
             {
-                case "NOT": valores[p.id] = !a; break;
-                case "AND": valores[p.id] = a && valores[p.b]; break;
-                case "OR": valores[p.id] = a || valores[p.b]; break;
-                default: valores[p.id] = a ^ valores[p.b]; break;   // XOR
+                case 0: a = 1; b = azar.Next(2, 16); c = x + b; break;
+                case 1: a = 1; op = "−"; b = azar.Next(1, x); c = x - b; break;
+                default: a = azar.Next(2, 6); b = 0; x = azar.Next(2, 11); c = a * x; break;
             }
         }
-        return valores[tarea.salida];
+        else if (noche <= 4 || azar.Next(2) == 0)
+        {
+            // Dos pasos: 2x − 4 = 10 ó 3x + 5 = 20.
+            a = azar.Next(2, noche <= 4 ? 5 : 7);
+            x = azar.Next(2, 11);
+            if (azar.Next(2) == 0) { b = azar.Next(2, 13); c = a * x + b; }
+            else { op = "−"; b = azar.Next(1, Math.Min(13, a * x)); c = a * x - b; }
+        }
+        else
+        {
+            // Con paréntesis: 2(x − 3) = 10 ó 3(x + 2) = 21.
+            forma = "parentesis";
+            a = azar.Next(2, 5);
+            if (azar.Next(2) == 0) { b = azar.Next(1, 6); x = azar.Next(b + 1, b + 9); op = "−"; c = a * (x - b); }
+            else { b = azar.Next(1, 6); x = azar.Next(1, 11); c = a * (x + b); }
+        }
+
+        var t = new Tarea { clase = "ecuacion" };
+        t.datos = new[] { forma, a.ToString(), op, b.ToString(), c.ToString() };
+        t.respuesta = x;
+        t.enunciado = "Encuentra x: " + TextoDeEcuacion(forma, a, op, b, c);
+        return t;
+    }
+
+    private static string TextoDeEcuacion(string forma, int a, string op, int b, int c)
+    {
+        if (forma == "parentesis") return a + "(x " + op + " " + b + ") = " + c;
+        string termino = a == 1 ? "x" : a + "x";
+        return b == 0 ? termino + " = " + c : termino + " " + op + " " + b + " = " + c;
     }
 }

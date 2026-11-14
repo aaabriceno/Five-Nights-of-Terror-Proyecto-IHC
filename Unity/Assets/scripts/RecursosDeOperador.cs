@@ -4,7 +4,7 @@ using System.Collections.Generic;
 /// Lo que el jugador 2 (operador) tiene y gasta: cargas de trampa, la
 /// habilidad de rescatar a Puppet y las trampas puestas en el mapa. Las gana
 /// resolviendo las tareas de la terminal (ver TareasDeOperador): un cálculo da
-/// 1 carga y un circuito lógico desbloquea el rescate.
+/// 1 carga y una ecuación desbloquea el rescate.
 /// Vive aparte, sin UnityEngine, para probarla fuera del editor; el tiempo lo
 /// pone quien la llama (p. ej. `Time.time`).
 ///
@@ -18,9 +18,9 @@ public class RecursosDeOperador
     public const float SegundosDeTrampa = 6f;
     public const int CargasIniciales = 1;
     public const int MaxCargas = 3;
-    /// Circuitos lógicos que hacen falta para desbloquear el rescate de Puppet
+    /// Ecuaciones que hacen falta para desbloquear el rescate de Puppet
     /// (antes eran 3 mini-tareas iguales de memoria).
-    public const int CircuitosParaHabilidad = 1;
+    public const int EcuacionesParaHabilidad = 1;
 
     /// Con un segundo jugador que ayuda, los animatrónicos son más agresivos:
     /// el intervalo entre avances se multiplica por este factor (menor = más
@@ -45,10 +45,10 @@ public class RecursosDeOperador
     private readonly HashSet<string> trampas = new HashSet<string>();
 
     public int Cargas { get; private set; }
-    /// Circuitos resueltos hacia el rescate de Puppet (0 hasta CircuitosParaHabilidad).
+    /// Ecuaciones resueltas hacia el rescate de Puppet (0 hasta EcuacionesParaHabilidad).
     public int Progreso { get; private set; }
     public bool CargasLlenas { get { return Cargas >= MaxCargas; } }
-    public bool HabilidadPuppet { get { return Progreso >= CircuitosParaHabilidad; } }
+    public bool HabilidadPuppet { get { return Progreso >= EcuacionesParaHabilidad; } }
     public IReadOnlyCollection<string> Trampas { get { return trampas; } }
 
     public RecursosDeOperador() { Reiniciar(); }
@@ -76,8 +76,8 @@ public class RecursosDeOperador
     /// Un cálculo bien resuelto: 1 carga de trampa (sin pasar del máximo).
     public void GanarCargaPorCalculo() { if (Cargas < MaxCargas) Cargas++; }
 
-    /// Un circuito bien resuelto: acerca (o da) el rescate de Puppet.
-    public void GanarHabilidadPorCircuito() { if (Progreso < CircuitosParaHabilidad) Progreso++; }
+    /// Una ecuación bien resuelta: acerca (o da) el rescate de Puppet.
+    public void GanarHabilidadPorEcuacion() { if (Progreso < EcuacionesParaHabilidad) Progreso++; }
 
     /// Usa la habilidad de rescatar a Puppet: hay que volver a ganarla.
     public bool GastarHabilidadPuppet()

@@ -85,21 +85,16 @@ public class UnityGameSessionController : MonoBehaviour
 
     // Las tareas de la terminal del jugador 2 (ver TareasDeOperador).
     [Serializable] private class TareaPedirMessage { public string type; public string tipo; }
-    [Serializable] private class TareaRespuestaMessage { public string type; public int id; public int valor; public int[] interruptores; }
-    [Serializable] private class PuertaMessage { public string id; public string op; public string a; public string b; }
+    [Serializable] private class TareaRespuestaMessage { public string type; public int id; public int valor; }
     [Serializable] private class TareaMessage
     {
         public string type = "tarea";
         public int id;
-        public string tipo;          // "calculo" o "circuito"
+        public string tipo;          // "calculo" o "ecuacion"
         public int noche;
         public string clase;
         public string enunciado;
         public string[] datos;
-        public string[] entradas;
-        public PuertaMessage[] puertas;
-        public string salida;
-        public bool objetivo;
     }
     [Serializable] private class TareaResultadoMessage
     {
@@ -1376,7 +1371,7 @@ public class UnityGameSessionController : MonoBehaviour
             max_cargas = RecursosDeOperador.MaxCargas,
             trampas = new List<string>(recursos.Trampas).ToArray(),
             progreso = recursos.Progreso,
-            necesario = RecursosDeOperador.CircuitosParaHabilidad,
+            necesario = RecursosDeOperador.EcuacionesParaHabilidad,
             habilidad_puppet = recursos.HabilidadPuppet,
             bloqueo_s = tareas.SegundosDeBloqueo(Time.time),
             ventana_rescate_s = rescate.SegundosRestantes(Time.time),
@@ -1612,12 +1607,12 @@ public class UnityGameSessionController : MonoBehaviour
         if (!partidaActiva) { RechazarTarea("sin_partida"); return; }
         TareasDeOperador.Tipo tipo;
         if (pedido == null || pedido.tipo == "calculo") tipo = TareasDeOperador.Tipo.Calculo;
-        else if (pedido.tipo == "circuito") tipo = TareasDeOperador.Tipo.Circuito;
+        else if (pedido.tipo == "ecuacion") tipo = TareasDeOperador.Tipo.Ecuacion;
         else { RechazarTarea("tarea_desconocida"); return; }
 
         // No tiene sentido ganar lo que ya está lleno o ganado.
         if (tipo == TareasDeOperador.Tipo.Calculo && recursos.CargasLlenas) { RechazarTarea("cargas_llenas"); return; }
-        if (tipo == TareasDeOperador.Tipo.Circuito && recursos.HabilidadPuppet) { RechazarTarea("habilidad_lista"); return; }
+        if (tipo == TareasDeOperador.Tipo.Ecuacion && recursos.HabilidadPuppet) { RechazarTarea("habilidad_lista"); return; }
 
         TareasDeOperador.Tarea tarea = tareas.Pedir(tipo, noche, Time.time);
         if (tarea == null) { RechazarTarea("bloqueado", tareas.SegundosDeBloqueo(Time.time)); return; }
@@ -1625,39 +1620,30 @@ public class UnityGameSessionController : MonoBehaviour
         var mensaje = new TareaMessage
         {
             id = tarea.id,
-            tipo = tipo == TareasDeOperador.Tipo.Calculo ? "calculo" : "circuito",
+            tipo = tipo == TareasDeOperador.Tipo.Calculo ? "calculo" : "ecuacion",
             noche = tarea.noche,
             clase = tarea.clase,
             enunciado = tarea.enunciado,
-            datos = tarea.datos,
-            entradas = tarea.entradas,
-            salida = tarea.salida,
-            objetivo = tarea.objetivo
+            datos = tarea.datos
         };
-        if (tarea.puertas != null)
-        {
-            mensaje.puertas = new PuertaMessage[tarea.puertas.Length];
-            for (int i = 0; i < tarea.puertas.Length; i++)
-                mensaje.puertas[i] = new PuertaMessage { id = tarea.puertas[i].id, op = tarea.puertas[i].op, a = tarea.puertas[i].a, b = tarea.puertas[i].b };
-        }
         Send(mensaje);
     }
 
     /// Unity comprueba la respuesta. Acertar da la carga (cálculo) o el rescate
-    /// (circuito); fallar bloquea la terminal unos segundos.
+    /// (ecuación); fallar bloquea la terminal unos segundos.
     private void AtenderRespuestaDeTarea(TareaRespuestaMessage respuesta)
     {
         if (!partidaActiva) { RechazarTarea("sin_partida"); return; }
         if (respuesta == null) { RechazarTarea("tarea_sin_pedir"); return; }
 
         TareasDeOperador.Tarea tarea = tareas.Pendiente;
-        string tipo = tarea != null && tarea.tipo == TareasDeOperador.Tipo.Circuito ? "circuito" : "calculo";
-        switch (tareas.Responder(respuesta.id, respuesta.valor, respuesta.interruptores, Time.time))
+        string tipo = tarea != null && tarea.tipo == TareasDeOperador.Tipo.Ecuacion ? "ecuacion" : "calculo";
+        switch (tareas.Responder(respuesta.id, respuesta.valor, Time.time))
         {
             case TareasDeOperador.ResultadoRespuesta.SinTarea: RechazarTarea("tarea_sin_pedir"); return;
             case TareasDeOperador.ResultadoRespuesta.MuyRapida: RechazarTarea("tarea_muy_rapida"); return;
             case TareasDeOperador.ResultadoRespuesta.Correcta:
-                if (tipo == "calculo") recursos.GanarCargaPorCalculo(); else recursos.GanarHabilidadPorCircuito();
+                if (tipo == "calculo") recursos.GanarCargaPorCalculo(); else recursos.GanarHabilidadPorEcuacion();
                 Send(new TareaResultadoMessage { id = respuesta.id, tipo = tipo, correcto = true });
                 break;
             default:
