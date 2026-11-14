@@ -44,6 +44,29 @@ comprobar("y dice que reinicia la caja de música y salva al jugador 1",
 comprobar("un tipo desconocido no inventa nada", Logica.textoDeTarea("circuito").titulo === "Terminal" &&
   Logica.textoDeTarea("circuito").porque === "");
 
+console.log("ductos: copia del semáforo del jugador 1 y sus compuertas");
+// El color va también en palabras: no se depende solo del color (WCAG 1.4.1).
+comprobar("rojo y cerrada", Logica.textoDeDucto("rojo", true) === "Rojo · compuerta cerrada");
+comprobar("amarillo y abierta", Logica.textoDeDucto("amarillo", false) === "Amarillo · abierta");
+comprobar("verde y abierta", Logica.textoDeDucto("verde", false) === "Verde · abierta");
+comprobar("una luz desconocida no inventa nada", Logica.textoDeDucto("azul", false) === "–" && Logica.textoDeDucto(undefined, true) === "–");
+
+console.log("recargar: el cálculo da carga y batería");
+comprobar("con cargas y batería llenas no hace falta", Logica.puedeRecargar({ cargas: 3, max_cargas: 3 }, 100) === false);
+comprobar("con cargas llenas pero batería gastada sí", Logica.puedeRecargar({ cargas: 3, max_cargas: 3 }, 80) === true);
+comprobar("con cargas por llenar sí", Logica.puedeRecargar({ cargas: 1, max_cargas: 3 }, 100) === true);
+comprobar("sin dato de batería (Unity viejo) manda solo las cargas",
+  Logica.puedeRecargar({ cargas: 3, max_cargas: 3 }, undefined) === false && Logica.puedeRecargar({ cargas: 2, max_cargas: 3 }, null) === true);
+comprobar("sin estado de recursos todavía no se bloquea", Logica.puedeRecargar(null, 50) === true);
+
+comprobar("el aviso dice lo que se ganó: las dos cosas",
+  Logica.textoDeRecarga({ cargas: 1, max_cargas: 3 }, 60) === "Correcto: +1 carga de trampa y +20 % de batería");
+comprobar("solo batería si las cargas ya estaban llenas",
+  Logica.textoDeRecarga({ cargas: 3, max_cargas: 3 }, 60) === "Correcto: +20 % de batería");
+comprobar("solo la carga si la batería estaba llena o no hay dato",
+  Logica.textoDeRecarga({ cargas: 1, max_cargas: 3 }, 100) === "Correcto: +1 carga de trampa" &&
+  Logica.textoDeRecarga({ cargas: 1, max_cargas: 3 }, undefined) === "Correcto: +1 carga de trampa");
+
 console.log("terminal: lo que se escribe como respuesta");
 comprobar("un número se lee tal cual", Logica.leerRespuesta("42") === 42);
 comprobar("con espacios alrededor también", Logica.leerRespuesta("  7 ") === 7);

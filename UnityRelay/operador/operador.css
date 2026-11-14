@@ -282,3 +282,10 @@ input {
 
 /* los avisos y la mini-tarea van por encima de las líneas de barrido */
 #aviso, #alerta-puppet, #minitarea { z-index: 2; }
+
+/* Copia del semáforo de los ductos: un punto del color junto al texto. */
+.ducto::before { content: ""; display: inline-block; width: .7em; height: .7em; margin-right: .45em; border-radius: 50%; background: var(--suave); vertical-align: -.05em; }
+.ducto[data-luz="verde"]::before { background: #3ddc84; }
+.ducto[data-luz="amarillo"]::before { background: #ffd24a; }
+.ducto[data-luz="rojo"]::before { background: #ff4a4a; box-shadow: 0 0 8px #ff4a4a; }
+.ducto[data-luz="rojo"] { color: #ff8a80; }

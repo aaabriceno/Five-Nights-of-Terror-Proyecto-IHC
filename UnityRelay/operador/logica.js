@@ -70,6 +70,36 @@
     return TEXTOS_DE_TAREA[tipo] || { titulo: "Terminal", porque: "" };
   }
 
+  // ------------------------------------------------------------ ductos
+  // Copia del semáforo que el jugador 1 ve en la oficina: el color va también
+  // en palabras, para no depender solo del color.
+  const LUCES = { verde: "Verde", amarillo: "Amarillo", rojo: "Rojo" };
+
+  function textoDeDucto(luz, cerrada) {
+    if (!LUCES[luz]) return "–";
+    return LUCES[luz] + (cerrada ? " · compuerta cerrada" : " · abierta");
+  }
+
+  // Un cálculo da 1 carga de trampa y 20 % de batería a las compuertas: solo
+  // sobra con las dos cosas llenas. Sin dato de batería (Unity viejo) cuentan
+  // solo las cargas; sin estado de recursos todavía no se bloquea.
+  function puedeRecargar(estadoOperador, bateria) {
+    if (!estadoOperador) return true;
+    if (estadoOperador.cargas < estadoOperador.max_cargas) return true;
+    return typeof bateria === "number" && bateria < 100;
+  }
+
+  // El aviso de un cálculo bien resuelto, según lo que había para ganar
+  // (estado antes de que Unity lo sume).
+  function textoDeRecarga(estadoOperador, bateria) {
+    const partes = [];
+    const cargasPorLlenar = !estadoOperador || estadoOperador.cargas < estadoOperador.max_cargas;
+    const bateriaPorLlenar = typeof bateria === "number" && bateria < 100;
+    if (cargasPorLlenar || !bateriaPorLlenar) partes.push("+1 carga de trampa");
+    if (bateriaPorLlenar) partes.push("+20 % de batería");
+    return "Correcto: " + partes.join(" y ");
+  }
+
   // Lo que se teclea como respuesta: un entero sin signo de hasta 6 cifras, o null.
   function leerRespuesta(texto) {
     const limpio = String(texto === undefined || texto === null ? "" : texto).trim();
@@ -138,5 +168,5 @@
     return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
   }
 
-  return { piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
+  return { textoDeDucto, puedeRecargar, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
 });

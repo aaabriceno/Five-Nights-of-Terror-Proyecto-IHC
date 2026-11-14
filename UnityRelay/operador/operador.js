@@ -55,6 +55,7 @@
   let estadoMapa = { animatronicos: [], recibidoEn: 0 };
   let estadoJugador = null;
   let estadoOperador = null;
+  let estadoOficina = null;            // compuertas, batería y semáforo de los ductos (estado_oficina)
   let bloqueadoHasta = 0;              // hasta cuándo (performance.now) está bloqueada la terminal
   let terminalBloqueada = false;
   let siguienteId = 1;
@@ -246,6 +247,11 @@
         estadoJugador = m;
         pintarJugador1();
         break;
+      case "estado_oficina":
+        estadoOficina = m;
+        pintarOficina();
+        actualizarBotones();
+        break;
       case "estado_operador":
         estadoOperador = m;
         bloqueadoHasta = performance.now() + (m.bloqueo_s || 0) * 1000;
@@ -326,7 +332,8 @@
     puntos = []; plano = []; jugador = null; camaraYaw = null; limites = null;
     $("j1-sin-conexion").hidden = true;
     estadoMapa = { animatronicos: [], recibidoEn: 0 };
-    estadoJugador = null; estadoOperador = null;
+    estadoJugador = null; estadoOperador = null; estadoOficina = null;
+    pintarOficina();
     ventanaDeRescateHasta = 0;
     $("mapa").dataset.estado = "esperando";
     $("noche").textContent = "–"; $("hora").textContent = "–";
@@ -373,6 +380,20 @@
     document.querySelector(".barra-caja").classList.toggle("peligro", !!e.caja_en_peligro);
   }
 
+  // ------------------------------------------------------ ductos del jugador 1
+  // Copia del semáforo que el jugador 1 ve en la oficina, sus compuertas y la
+  // batería (las cierra él desde la tablet; tú puedes recargarla con un cálculo).
+  function pintarOficina() {
+    const o = estadoOficina;
+    for (const [lado, campoLuz, campoCompuerta] of [["izquierdo", "luz_izquierda", "compuerta_izquierda"],
+                                                    ["derecho", "luz_derecha", "compuerta_derecha"]]) {
+      const fila = $("j1-ducto-" + lado);
+      fila.textContent = o ? Logica.textoDeDucto(o[campoLuz], o[campoCompuerta]) : "–";
+      fila.dataset.luz = o ? o[campoLuz] : "";
+    }
+    $("j1-bateria").textContent = o ? `${o.bateria} %` : "–";
+  }
+
   // ------------------------------------------------------ recursos y trampas
   function pintarRecursos() {
     const e = estadoOperador;
@@ -388,7 +409,8 @@
     const e = estadoOperador;
     $("boton-trampa").disabled = !socket || finDePartida || !e || e.cargas <= 0;
     const bloqueada = performance.now() < bloqueadoHasta;
-    $("boton-minitarea").disabled = !socket || finDePartida || bloqueada || !!(e && e.cargas >= e.max_cargas);
+    $("boton-minitarea").disabled = !socket || finDePartida || bloqueada ||
+      !Logica.puedeRecargar(e, estadoOficina ? estadoOficina.bateria : undefined);
     $("boton-ecuacion").disabled = !socket || finDePartida || bloqueada || !!(e && e.habilidad_puppet);
   }
 
@@ -508,7 +530,9 @@
   function resultadoDeTarea(m) {
     cerrarMiniTarea();
     if (m.correcto) {
-      avisar(m.tipo === "calculo" ? "Correcto: +1 carga de trampa" : "Ecuación resuelta: rescate de Puppet desbloqueado");
+      avisar(m.tipo === "calculo"
+        ? Logica.textoDeRecarga(estadoOperador, estadoOficina ? estadoOficina.bateria : undefined)
+        : "Ecuación resuelta: rescate de Puppet desbloqueado");
       return;
     }
     bloqueadoHasta = performance.now() + (m.bloqueo_s || 0) * 1000;
