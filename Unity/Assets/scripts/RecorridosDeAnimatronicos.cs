@@ -18,7 +18,12 @@ public static class RecorridosDeAnimatronicos
         public Desvio(int despuesDe, string punto) { this.despuesDe = despuesDe; this.punto = punto; }
     }
 
-    private static readonly string[] RutaDeFreddy = { "P01", "P03", "P04", "P05", "P06", "P07", "J1" };
+    /// Metros por segundo al caminar entre dos puntos (los tres). Era 1,5 (el
+    /// valor de la escena); se subió a 2 el 2026-11-13 porque iban muy lentos.
+    /// Retrasar del jugador 2 la sigue bajando a la mitad.
+    public const float VelocidadAlCaminar = 2f;
+
+    private static readonly string[] RutaDeFreddy ={ "P01", "P03", "P04", "P05", "P06", "P07", "J1" };
     // Del escenario baja por el comedor al pasillo izquierdo y entra al ducto izquierdo.
     private static readonly string[] RutaDeVixy = { "P02", "P11", "P12", "V01", "V02", "V03", "V04", "J1" };
     private static readonly string[] RutaDePuppet = { "P13", "P14", "P15", "P16", "V05", "V06", "V07", "V08", "J1" };

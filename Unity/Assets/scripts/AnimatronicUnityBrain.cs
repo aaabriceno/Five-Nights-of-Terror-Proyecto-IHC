@@ -131,7 +131,12 @@ public class AnimatronicUnityBrain : MonoBehaviour
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
-        if (agent != null) velocidadBaseDelAgente = agent.speed;
+        // La velocidad sale del código, no de la escena (que tiene 1,5).
+        if (agent != null)
+        {
+            agent.speed = RecorridosDeAnimatronicos.VelocidadAlCaminar;
+            velocidadBaseDelAgente = agent.speed;
+        }
         initialPosition = transform.position;
         initialRotation = transform.rotation;
         if (detectorCabeza == null && usaSeguimientoDeMirada)
