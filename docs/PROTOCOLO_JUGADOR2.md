@@ -23,7 +23,7 @@ Cooperativo asimétrico (idea A). El **jugador 1** es el vigilante (PC con cáma
 
 ### Reglas de seguridad del relay (2026-11-12)
 
-- **Cada rol manda solo lo suyo.** El relay descarta lo que no corresponde: un operador no puede mandar `task_completed`, `dar_cuerda_inicio`, `tutorial_*` ni `connect`; una tablet no puede mandar `accion_operador`, `tarea_pedir`, `tarea_respuesta` ni `operador_connect`. Antes todo llegaba a Unity, que no distingue quién habla.
+- **Cada rol manda solo lo suyo.** El relay descarta lo que no corresponde: un operador no puede mandar `task_completed`, `dar_cuerda_inicio`, `tutorial_*` ni `connect`; una tablet no puede mandar `accion_operador`, `tarea_pedir`, `tarea_respuesta` ni `operador_connect`. La `compuerta` solo la manda la tablet (desde el 2026-11-13, ver «Ductos: semáforo y compuertas»). Antes todo llegaba a Unity, que no distingue quién habla.
 - **`unity_connect` solo desde la misma PC** (loopback): el juego y el relay corren juntos (`iniciar.sh`). Desde otra IP se contesta `conexion_rechazada` con `motivo: "unity_solo_local"` y se cierra. `UNITY_DESDE_CUALQUIER_IP=1` lo desactiva.
 - **Una sola tablet por partida.** Mientras una tablet está conectada, un `connect` o `reconnect` con otro `player_id` recibe `conexion_rechazada` con `motivo: "ya_hay_jugador1"` y no llega a Unity (antes cualquiera podía reiniciar la noche o, con `modo: "salir"`, cerrar el juego). La misma tablet (mismo `player_id`) siempre puede volver: su conexión anterior se cierra al instante, sin avisar al J2 de que el jugador 1 se fue.
 - **Sin compresión** (`permessage-deflate`) y **mensajes de hasta 64 kB** (uno mayor cierra la conexión con 1009).
@@ -64,6 +64,9 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 | `tarea_resultado` | Unity → J2 | Unity comprobó la respuesta | `id`, `tipo`, `correcto`, `bloqueo_s` (lo que falta para pedir otra tarea tras un error) |
 
 - `efecto` gana `tipo` (`ralentizado`, `trampa_colocada`, `trampa_disparada`, `puppet_rescatado`, y desde 2026-11-10 `operador_conectado` y `operador_perdido`) y `id` (el de la acción que lo causó, 0 si fue por una trampa que se disparó). Con `puppet_rescatado` llega además `multa_factor` (cuántas veces más rápido se descarga ahora la caja: 2, luego 4...); en los demás efectos vale 0.
+- `compuerta` (tablet → Unity, 2026-11-13): `lado` `"izquierda"` o `"derecha"` y `cerrar` (true/false). Unity decide: sin batería no se cierra. Siempre contesta con `estado_oficina`.
+- `estado_oficina` (Unity → tablet y jugador 2, 2026-11-13): `bateria` (0-100, entero), `compuerta_izquierda`, `compuerta_derecha` (true = cerrada), `luz_izquierda`, `luz_derecha` (`"verde"`, `"amarillo"` o `"rojo"`). Sale en cada tick (0,5 s) y en cuanto algo cambia.
+- `accion_rechazada` con `motivo: "cargas_llenas"` (2026-11-13): ahora solo cuando las cargas **y** la batería están llenas, porque el cálculo da las dos cosas.
 - `camara` (tablet → Unity, 2026-11-10): `direccion` -1 (izquierda), 1 (derecha) o 0 (soltó). Son los dos botones grandes de la tablet, que se **mantienen apretados**: mientras el dedo siga apoyado la tablet repite la orden cada 0,15 s y Unity gira la cámara del jugador 1 (70°/s, hasta ±75°); al soltar vuelve sola al frente (90°/s). Si pasan 0,5 s sin órdenes Unity da el botón por soltado, así que un «soltar» perdido por la red no deja la cámara girando. Se centra al empezar y al terminar la partida.
 - `posiciones` gana `camara_yaw` (grados; 0 = al frente, negativo = izquierda): la página del jugador 2 lo dibuja como un cono de visión desde J1 y lo escribe en el panel («Cámara: Izquierda 45°»).
 - `mapa_puntos` gana `rutas[] {animatronico, puntos[]}` (2026-11-10): el camino fijo de cada animatrónico, en orden, desde donde nace hasta el punto penúltimo (sin el jugador 1). El jugador 1 no la recibe y los desvíos ocasionales no van en ella. **Desde el 2026-11-13 la página no la muestra** (ni líneas en el mapa ni texto en las tarjetas): el jugador 2 deduce por dónde viene cada animatrónico mirando cómo se mueve y decide ahí dónde poner trampas. Unity la sigue mandando porque la usan las pruebas automáticas.
@@ -176,6 +179,17 @@ Si la otra computadora no abre la página: misma red, firewall (puertos 8000 y 8
 - **Velocidad al caminar (2026-11-13):** 2 m/s los tres (antes 1,5, el valor de la escena). Está en `RecorridosDeAnimatronicos.VelocidadAlCaminar`. Con tareas cada segundo, Vixy llega al final del ducto en ~44 s (antes ~50 s): la mayor parte del tiempo son las esperas entre pasos, no la caminata.
 - `P10` ya no se usa (2026-11-13): primero salió de la ruta de Vixy y luego también de sus desvíos, porque el escenario no tiene puerta al pasillo izquierdo y llegar ahí la hacía subir 35 m hasta la esquina de arriba del mapa y bajar otra vez. Si Marcelo abre una puerta en el muro oeste del escenario, se puede volver a poner. Las rutas están en `RecorridosDeAnimatronicos.cs`.
 - La trampa se ve en el mapa del jugador 1: un disco rojo con una luz que late; desaparece cuando un animatrónico la pisa o termina la partida.
+
+## Ductos: semáforo y compuertas (2026-11-13)
+
+Vixy entra por el ducto izquierdo (`V01 → V04`) y Puppet por el derecho (`V05 → V08`); Freddy no usa ductos.
+
+- **Semáforo** (`SemaforoDeDuctos.cs`): según el punto de su ruta más cercano a donde está el animatrónico (posición real, no su destino: Puppet adelanta el destino cada segundo). Verde fuera del ducto, amarillo en la primera mitad (`V01-V02` / `V05-V06`), rojo en el último tramo (`V03-V04` / `V07-V08`) o entrando a la oficina. Se ve en la oficina 3D como una lámpara encima de cada boca (pared lateral, a 2,75 m, visible sin girar la cámara; el rojo late) y en la página del jugador 2 como texto y punto de color («Rojo · compuerta cerrada»).
+- **Compuertas** (`CompuertasDeDuctos.cs`): las cierra y abre el jugador 1 con dos botones en la tablet, en la misma fila que la cámara (la izquierda en el extremo izquierdo), con la batería en medio. Cerrada, una placa con franja amarilla tapa la boca: Vixy no ataca desde `V04` y Puppet no pasa de `V08` (si iba entrando, vuelve a la boca). Abierta otra vez, siguen como siempre.
+- **Batería**: 100 % al empezar cada noche; cada compuerta cerrada gasta **2 %/s** (una sola cerrada dura 50 s; la noche dura 120-165 s, así que hay que cerrarlas cuando la luz está en rojo). En 0 se abren solas y no se pueden cerrar. Un **cálculo** bien resuelto del jugador 2 suma **20 %** (además de su carga de trampa).
+- Lo visual está en `LucesDeDuctos.cs` (medidas del plano real: bocas en x = 17 y x = 23, z de 2 a 4). Capturas: `pruebas/capturar_compuertas.py`.
+- Pruebas con el juego real: `probar_vixy_y_puppet_con_juego.py compuerta_vixy compuerta_puppet`.
+- Pendiente: el tutorial todavía no explica las compuertas; el retroceso al cerrarle la compuerta en la cara es el paso 7.
 
 ## Opciones de prueba del juego
 
