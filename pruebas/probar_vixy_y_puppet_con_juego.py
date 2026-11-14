@@ -190,6 +190,20 @@ class Partida:
                 return p[nombre]
         return None
 
+    def velocidad_maxima(self, nombre):
+        """Metros por segundo, el máximo medido en tramos de 1 s (lo que camina, sin las paradas)."""
+        muestras = [(t, p[nombre]) for t, p in self.posiciones if nombre in p]
+        maxima, j = 0.0, 0
+        for i, (t0, (x0, z0)) in enumerate(muestras):
+            j = max(j, i)
+            while j < len(muestras) and muestras[j][0] - t0 < 1.0:
+                j += 1
+            if j == len(muestras):
+                break
+            t1, (x1, z1) = muestras[j]
+            maxima = max(maxima, math.hypot(x1 - x0, z1 - z0) / (t1 - t0))
+        return maxima
+
     def cruzo_la_oficina(self, nombre, hasta_t):
         """¿Pisó el animatrónico la oficina del jugador 1 antes de `hasta_t`?"""
         for t, p in self.posiciones:
@@ -235,6 +249,9 @@ async def escenario_vixy():
                   en_orden(p.visitas["vixy"], ruta, permitidos_extra=("P08",)))
         # Ya no tiene desvío: antes podía subir hasta P10 (arriba del todo) y bajar otra vez.
         comprobar("nunca sube a la esquina de arriba del pasillo izquierdo (P10)", "P10" not in nombres)
+        v = p.velocidad_maxima("vixy")
+        print(f"   velocidad máxima de Vixy: {v:.2f} m/s")
+        comprobar("camina a unos 2 m/s (antes 1,5)", 1.8 <= v <= 2.2)
         comprobar("pasa por todos los puntos de la ruta: P11, P12, V01, V02 y V03",
                   all(n in nombres for n in ["P11", "P12", "V01", "V02", "V03"]))
         t_v04 = next((t for n, t in p.visitas["vixy"] if n == "V04"), p.t())

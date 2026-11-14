@@ -21,6 +21,9 @@ public static class PruebaRecorridosDeAnimatronicos
 
     public static int Main()
     {
+        // --- Velocidad (2026-11-13: 1,5 → 2 m/s, todos más rápidos) ---
+        Comprobar("los animatrónicos caminan a 2 m/s", RecorridosDeAnimatronicos.VelocidadAlCaminar == 2f);
+
         // --- Rutas ---
         Comprobar("Freddy: escenario, comedor, pasillo principal y la oficina",
             Igual(RecorridosDeAnimatronicos.Ruta("freddy"), "P01", "P03", "P04", "P05", "P06", "P07", "J1"));
