@@ -276,7 +276,7 @@ async def principal():
             r = await esperar_respuesta(operador, 2)
             comprobar("sin cargas se rechaza (sin_cargas)", r is not None and r.get("motivo") == "sin_cargas")
 
-            # --- terminal: un cálculo da 1 carga y un circuito lógico desbloquea el rescate ---
+            # --- terminal: un cálculo da 1 carga y una ecuación desbloquea el rescate ---
             # Unity inventa el problema y comprueba la respuesta; aquí lo resuelve solucionador_de_tareas.
             def pedir(tipo):
                 return operador.send(json.dumps({"type": "tarea_pedir", "tipo": tipo}))
@@ -294,7 +294,7 @@ async def principal():
             calculo = await esperar_tipo(operador, "tarea")
             comprobar("Unity entrega un cálculo con enunciado, clase y datos de la noche 1",
                       calculo is not None and calculo["tipo"] == "calculo" and calculo["noche"] == 1
-                      and calculo["enunciado"] and calculo["clase"] in ("binario", "aritmetica") and calculo["datos"])
+                      and calculo["enunciado"] and calculo["clase"] in ("aritmetica", "problema") and calculo["datos"])
             await pedir("calculo")
             repetido = await esperar_tipo(operador, "tarea")
             comprobar("pedirlo otra vez da el mismo problema (cerrar y abrir no sirve para buscar uno fácil)",
@@ -325,21 +325,23 @@ async def principal():
             e = await esperar_estado_operador(operador, lambda m: m["cargas"] == 1 and not m["habilidad_puppet"])
             comprobar("y da 1 carga de trampa, sin desbloquear el rescate", e is not None)
 
-            await pedir("circuito")
-            circuito = await esperar_tipo(operador, "tarea")
-            comprobar("Unity entrega un circuito de la noche 1 (3 entradas y puertas encadenadas)",
-                      circuito is not None and circuito["tipo"] == "circuito" and len(circuito["entradas"]) == 3
-                      and len(circuito["puertas"]) >= 2 and circuito["salida"] == circuito["puertas"][-1]["id"])
-            comprobar("el circuito tiene solución", solucion.resolver_circuito(circuito) is not None)
+            await pedir("ecuacion")
+            ecuacion = await esperar_tipo(operador, "tarea")
+            comprobar("Unity entrega una ecuación de un paso en la noche 1 («Encuentra x: …»)",
+                      ecuacion is not None and ecuacion["tipo"] == "ecuacion" and ecuacion["clase"] == "ecuacion"
+                      and ecuacion["enunciado"].startswith("Encuentra x: ") and len(ecuacion["datos"]) == 5)
+            comprobar("ya no trae nada del circuito lógico (ni entradas ni puertas)",
+                      ecuacion is not None and not ecuacion.get("entradas") and not ecuacion.get("puertas"))
             await asyncio.sleep(3.3)
-            await operador.send(json.dumps(solucion.respuesta_para(circuito)))
+            await operador.send(json.dumps(solucion.respuesta_para(ecuacion)))
             resultado = await esperar_tipo(operador, "tarea_resultado")
-            comprobar("resolver el circuito se acepta", resultado is not None and resultado["correcto"] is True)
+            comprobar("resolver la ecuación se acepta", resultado is not None and resultado["correcto"] is True
+                      and resultado["tipo"] == "ecuacion")
             e = await esperar_estado_operador(operador, lambda m: m["habilidad_puppet"] and m["progreso"] == m["necesario"] == 1)
-            comprobar("y desbloquea el rescate de Puppet (1 circuito)", e is not None)
-            await pedir("circuito")
+            comprobar("y desbloquea el rescate de Puppet (1 ecuación)", e is not None)
+            await pedir("ecuacion")
             r = await esperar_tipo(operador, "accion_rechazada")
-            comprobar("con el rescate ya desbloqueado no se pide otro circuito (habilidad_lista)",
+            comprobar("con el rescate ya desbloqueado no se pide otra ecuación (habilidad_lista)",
                       r is not None and r.get("motivo") == "habilidad_lista")
             comprobar("las tareas no llegan a la tablet (son solo del jugador 2)",
                       all(m.get("type") not in ("tarea", "tarea_resultado") for m in await recolectar(tablet, 0.5)))

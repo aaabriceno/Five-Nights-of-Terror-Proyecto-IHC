@@ -36,7 +36,7 @@ public static class PruebaRecursosDeOperador
             r.DispararTrampa("PuntoA") && !r.Trampas.Contains("PuntoA"));
         Comprobar("disparar dos veces la misma devuelve false", !r.DispararTrampa("PuntoA"));
 
-        // Las tareas de la terminal (ver TareasDeOperador): el cálculo da cargas y el circuito, el rescate.
+        // Las tareas de la terminal (ver TareasDeOperador): el cálculo da cargas y la ecuación, el rescate.
         r.Reiniciar();
         Comprobar("al empezar las cargas no están llenas", !r.CargasLlenas);
         r.GanarCargaPorCalculo();
@@ -46,12 +46,12 @@ public static class PruebaRecursosDeOperador
         Comprobar("las cargas nunca pasan del máximo", r.Cargas == RecursosDeOperador.MaxCargas && r.CargasLlenas);
         Comprobar("solo con cálculos no se desbloquea el rescate de Puppet", !r.HabilidadPuppet);
 
-        Comprobar("hace falta 1 circuito para desbloquear el rescate", RecursosDeOperador.CircuitosParaHabilidad == 1);
-        r.GanarHabilidadPorCircuito();
-        Comprobar("un circuito resuelto desbloquea la habilidad de Puppet", r.HabilidadPuppet);
+        Comprobar("hace falta 1 ecuación para desbloquear el rescate", RecursosDeOperador.EcuacionesParaHabilidad == 1);
+        r.GanarHabilidadPorEcuacion();
+        Comprobar("una ecuación resuelta desbloquea la habilidad de Puppet", r.HabilidadPuppet);
         Comprobar("y no toca las cargas", r.Cargas == RecursosDeOperador.MaxCargas);
-        r.GanarHabilidadPorCircuito();
-        Comprobar("otro circuito no acumula más de lo necesario", r.Progreso == RecursosDeOperador.CircuitosParaHabilidad);
+        r.GanarHabilidadPorEcuacion();
+        Comprobar("otra ecuación no acumula más de lo necesario", r.Progreso == RecursosDeOperador.EcuacionesParaHabilidad);
         Comprobar("gastar la habilidad devuelve true", r.GastarHabilidadPuppet());
         Comprobar("tras gastarla no hay habilidad ni progreso", !r.HabilidadPuppet && r.Progreso == 0);
         Comprobar("gastarla sin tenerla devuelve false", !r.GastarHabilidadPuppet());

@@ -153,21 +153,17 @@ async def unity_falso(socket):
             elif mensaje.get("type") == "ping_operador":
                 await enviar({"type": "pong_operador", "t": mensaje["t"]})
             elif mensaje.get("type") == "tarea_pedir":
-                if mensaje.get("tipo") == "circuito":
-                    await enviar({"type": "tarea", "id": 2, "tipo": "circuito", "noche": 2, "clase": "", "enunciado": "",
-                                  "datos": [], "entradas": ["A", "B", "C"], "salida": "G3", "objetivo": True,
-                                  "puertas": [{"id": "G1", "op": "AND", "a": "A", "b": "B"},
-                                              {"id": "G2", "op": "NOT", "a": "C", "b": ""},
-                                              {"id": "G3", "op": "AND", "a": "G1", "b": "G2"}]})
+                if mensaje.get("tipo") == "ecuacion":
+                    await enviar({"type": "tarea", "id": 2, "tipo": "ecuacion", "noche": 2, "clase": "ecuacion",
+                                  "enunciado": "Encuentra x: 2x + 3 = 11", "datos": ["lineal", "2", "+", "3", "11"]})
                 else:
-                    await enviar({"type": "tarea", "id": 1, "tipo": "calculo", "noche": 2, "clase": "binario",
-                                  "enunciado": "Pasa 101 de binario a decimal", "datos": ["101"],
-                                  "entradas": [], "puertas": [], "salida": "", "objetivo": False})
+                    await enviar({"type": "tarea", "id": 1, "tipo": "calculo", "noche": 2, "clase": "aritmetica",
+                                  "enunciado": "Calcula 2 + 3", "datos": ["2", "+", "3"]})
             elif mensaje.get("type") == "tarea_respuesta":
                 RESPUESTAS_DE_TAREA.append(mensaje)
-                circuito = mensaje.get("id") == 2
-                correcto = mensaje.get("interruptores") == [1, 1, 0] if circuito else mensaje.get("valor") == 5
-                await enviar({"type": "tarea_resultado", "id": mensaje.get("id"), "tipo": "circuito" if circuito else "calculo",
+                ecuacion = mensaje.get("id") == 2
+                correcto = mensaje.get("valor") == (4 if ecuacion else 5)
+                await enviar({"type": "tarea_resultado", "id": mensaje.get("id"), "tipo": "ecuacion" if ecuacion else "calculo",
                               "correcto": correcto, "bloqueo_s": 0 if correcto else 3})
                 if not correcto:
                     await enviar({"type": "estado_operador", "cargas": 1, "max_cargas": 3, "trampas": [], "progreso": 0,
@@ -299,7 +295,7 @@ async def principal(captura):
                   await esperar(lambda: navegador.ejecutar(
                       "var a=document.getElementById('alerta-puppet');return !!a && a.hidden;"), 8.0))
 
-        # --- terminal: un cálculo da carga y un circuito da el rescate (Unity inventa y valida) ---
+        # --- terminal: un cálculo da carga y una ecuación da el rescate (Unity inventa y valida) ---
         ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 1, "max_cargas": 3, "trampas": [], "progreso": 0,
                                     "necesario": 1, "habilidad_puppet": False, "bloqueo_s": 0, "ventana_rescate_s": 0,
                                     "multa_factor": 1}))
@@ -309,17 +305,25 @@ async def principal(captura):
         comprobar("con cargas por debajo del máximo, Recargar está habilitado",
                   await esperar(lambda: navegador.ejecutar(habilitado("boton-minitarea")), 4.0))
         comprobar("sin el rescate, Desbloquear rescate está habilitado",
-                  await esperar(lambda: navegador.ejecutar(habilitado("boton-circuito")), 4.0))
+                  await esperar(lambda: navegador.ejecutar(habilitado("boton-ecuacion")), 4.0))
+        comprobar("y el panel dice que el rescate se gana con una ecuación",
+                  (navegador.texto("habilidad") or "") == "Resuelve la ecuación"
+                  and "ecuación" in (navegador.texto("nota-recursos") or "")
+                  and "circuito" not in (navegador.texto("nota-recursos") or "").lower())
         navegador.ejecutar("document.getElementById('boton-minitarea').click();")
         comprobar("Recargar pide un cálculo a Unity", await esperar(lambda: "tarea_pedir" in RECIBIDOS_POR_UNITY, 3.0))
         comprobar("la terminal muestra el problema que inventó Unity",
                   await esperar(lambda: navegador.ejecutar(visible_terminal) and
-                                (navegador.texto("mt-enunciado") or "") == "Pasa 101 de binario a decimal", 3.0))
-        comprobar("un cálculo muestra la casilla de respuesta y no el circuito",
-                  navegador.ejecutar("return !document.getElementById('mt-calculo').hidden && document.getElementById('mt-circuito').hidden;"))
+                                (navegador.texto("mt-enunciado") or "") == "Calcula 2 + 3", 3.0))
+        comprobar("un cálculo muestra la casilla de respuesta",
+                  navegador.ejecutar("return !document.getElementById('mt-formulario').hidden;"))
+        comprobar("y dice para qué sirve: una carga de trampa",
+                  "carga de trampa" in (navegador.texto("mt-porque") or ""))
+        comprobar("ya no queda nada del circuito lógico (ni interruptores ni puertas)",
+                  navegador.ejecutar("return !document.getElementById('mt-circuito') && !document.getElementById('mt-interruptores');"))
         responder = lambda texto: navegador.ejecutar(
             "var i=document.getElementById('mt-respuesta');i.value=arguments[0];"
-            "document.getElementById('mt-calculo').requestSubmit();", [texto])
+            "document.getElementById('mt-formulario').requestSubmit();", [texto])
         if os.environ.get("CAPTURA_TERMINAL"):
             await asyncio.sleep(0.6)             # que termine el fundido de entrada de la ventana
             navegador.captura(os.environ["CAPTURA_TERMINAL"] + "/terminal_calculo.png")
@@ -346,34 +350,28 @@ async def principal(captura):
                   await esperar(lambda: navegador.ejecutar(oculta_terminal) and
                                 navegador.ejecutar(habilitado("boton-minitarea")), 3.0))
 
-        navegador.ejecutar("document.getElementById('boton-circuito').click();")
-        comprobar("el circuito se muestra con sus 3 interruptores y 3 puertas",
-                  await esperar(lambda: navegador.ejecutar(
-                      "return document.querySelectorAll('#mt-interruptores button').length===3 &&"
-                      "document.querySelectorAll('#mt-puertas li').length===3 &&"
-                      "!document.getElementById('mt-circuito').hidden && document.getElementById('mt-calculo').hidden;"), 3.0))
-        comprobar("las puertas se leen en español (G1 = A Y B, G2 = NO C...)",
-                  navegador.ejecutar("return Array.from(document.querySelectorAll('#mt-puertas li span:first-child'))"
-                                     ".map(function(x){return x.textContent;}).join('|');") == "G1 = A Y B|G2 = NO C|G3 = G1 Y G2")
-        comprobar("con todo en 0 el foco dice que aún no es lo que se pide",
-                  "se pide 1" in (navegador.texto("mt-foco") or "") and
-                  not navegador.ejecutar("return document.getElementById('mt-foco').classList.contains('resuelto');"))
+        navegador.ejecutar("document.getElementById('boton-ecuacion').click();")
+        comprobar("Desbloquear rescate muestra la ecuación que inventó Unity, con la misma casilla de respuesta",
+                  await esperar(lambda: navegador.ejecutar(visible_terminal) and
+                                (navegador.texto("mt-enunciado") or "") == "Encuentra x: 2x + 3 = 11" and
+                                navegador.ejecutar("return !document.getElementById('mt-formulario').hidden;"), 3.0))
+        comprobar("el título dice que es el rescate de Puppet",
+                  "rescate de Puppet" in (navegador.texto("mt-titulo") or ""))
+        comprobar("y explica para qué sirve: reiniciar la caja de música y salvar al jugador 1",
+                  "caja de música de Puppet" in (navegador.texto("mt-porque") or "")
+                  and "jugador 1" in (navegador.texto("mt-porque") or ""))
+        comprobar("la casilla empieza vacía (no arrastra la respuesta del cálculo)",
+                  navegador.ejecutar("return document.getElementById('mt-respuesta').value === '';"))
         if os.environ.get("CAPTURA_TERMINAL"):
             await asyncio.sleep(0.6)             # que termine el fundido de entrada de la ventana
-            navegador.captura(os.environ["CAPTURA_TERMINAL"] + "/terminal_circuito_sin_resolver.png")
-        navegador.ejecutar("var b=document.querySelectorAll('#mt-interruptores button');b[0].click();b[1].click();")
-        comprobar("al subir A y B (con C en 0) el circuito queda resuelto y el foco lo dice",
-                  navegador.ejecutar("return document.getElementById('mt-foco').classList.contains('resuelto');"))
-        comprobar("la puerta G1 se enciende al subir A y B",
-                  navegador.ejecutar("return document.querySelector('#mt-puertas li[data-id=G1]').classList.contains('encendida');"))
-        if os.environ.get("CAPTURA_TERMINAL"):
-            await asyncio.sleep(0.6)             # que termine el fundido de entrada de la ventana
-            navegador.captura(os.environ["CAPTURA_TERMINAL"] + "/terminal_circuito_resuelto.png")
-        navegador.ejecutar("document.getElementById('mt-enviar-circuito').click();")
-        comprobar("Enviar manda los interruptores a Unity",
-                  await esperar(lambda: len(RESPUESTAS_DE_TAREA) == 3 and RESPUESTAS_DE_TAREA[2].get("interruptores") == [1, 1, 0]
+            navegador.captura(os.environ["CAPTURA_TERMINAL"] + "/terminal_ecuacion.png")
+        responder("4")
+        comprobar("Enviar manda la x a Unity",
+                  await esperar(lambda: len(RESPUESTAS_DE_TAREA) == 3 and RESPUESTAS_DE_TAREA[2].get("valor") == 4
                                 and RESPUESTAS_DE_TAREA[2].get("id") == 2, 3.0))
-        comprobar("y la terminal se cierra al resolver el circuito", await esperar(lambda: navegador.ejecutar(oculta_terminal), 3.0))
+        comprobar("y la terminal se cierra al resolver la ecuación", await esperar(lambda: navegador.ejecutar(oculta_terminal), 3.0))
+        comprobar("avisando que el rescate quedó desbloqueado",
+                  await esperar(lambda: "Ecuación resuelta" in (navegador.texto("aviso") or ""), 3.0))
 
         # --- fin de la partida: el jugador 2 no se queda con la pantalla congelada ---
         js = lambda codigo: navegador.ejecutar(codigo)
@@ -386,7 +384,7 @@ async def principal(captura):
         comprobar("el fin muestra la duración 2:05 y las tareas",
                   "2:05" in (navegador.texto("fin-estadisticas") or "") and "7" in (navegador.texto("fin-estadisticas") or ""))
         comprobar("terminada la partida, Recargar, Desbloquear rescate y Colocar trampa quedan deshabilitados",
-                  js("return document.getElementById('boton-minitarea').disabled && document.getElementById('boton-circuito').disabled"
+                  js("return document.getElementById('boton-minitarea').disabled && document.getElementById('boton-ecuacion').disabled"
                      " && document.getElementById('boton-trampa').disabled;"))
         comprobar("terminada la partida, los botones Retrasar quedan deshabilitados",
                   js("var b=document.querySelectorAll('#lista-amenazas button');"

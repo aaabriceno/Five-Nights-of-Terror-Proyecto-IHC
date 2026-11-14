@@ -168,8 +168,8 @@ class Partida:
         return await self._resolver_tarea("calculo", 1.7)
 
     async def ganar_rescate(self):
-        """Un circuito bien resuelto: desbloquea el rescate de Puppet."""
-        return await self._resolver_tarea("circuito", 3.2)
+        """Una ecuación bien resuelta: desbloquea el rescate de Puppet."""
+        return await self._resolver_tarea("ecuacion", 3.2)
 
     async def cerrar(self):
         for tarea in getattr(self, "lectores", []):
@@ -252,9 +252,9 @@ async def escenario_rescate():
     p = Partida(["-prueba-sin-freddy"])
     try:
         await p.abrir()
-        # El jugador 2 gana la habilidad de rescatar resolviendo un circuito lógico.
+        # El jugador 2 gana la habilidad de rescatar resolviendo una ecuación.
         await p.ganar_rescate()
-        comprobar("tras resolver un circuito el jugador 2 tiene la habilidad de rescatar",
+        comprobar("tras resolver una ecuación el jugador 2 tiene la habilidad de rescatar",
                   await p.esperar(lambda: p.estado_operador and p.estado_operador[-1][1]["habilidad_puppet"], 3))
         t_vacia = next((t for t, pct, _, _ in p.caja if pct <= 0), None)
         if t_vacia is None:
