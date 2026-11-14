@@ -23,7 +23,7 @@ Cooperativo asimétrico (idea A). El **jugador 1** es el vigilante (PC con cáma
 
 ### Reglas de seguridad del relay (2026-11-12)
 
-- **Cada rol manda solo lo suyo.** El relay descarta lo que no corresponde: un operador no puede mandar `task_completed`, `dar_cuerda_inicio`, `tutorial_*` ni `connect`; una tablet no puede mandar `accion_operador`, `tarea_pedir`, `tarea_respuesta` ni `operador_connect`. La `compuerta` solo la manda la tablet (desde el 2026-11-13, ver «Ductos: semáforo y compuertas»). Antes todo llegaba a Unity, que no distingue quién habla.
+- **Cada rol manda solo lo suyo.** El relay descarta lo que no corresponde: un operador no puede mandar `task_completed`, `dar_cuerda_inicio`, `tutorial_*` ni `connect`; una tablet no puede mandar `accion_operador`, `tarea_pedir`, `tarea_respuesta` ni `operador_connect`. La `compuerta` y la `linterna` solo las manda la tablet (desde el 2026-11-13, ver «Ductos: semáforo y compuertas» y «Linterna»). Antes todo llegaba a Unity, que no distingue quién habla.
 - **`unity_connect` solo desde la misma PC** (loopback): el juego y el relay corren juntos (`iniciar.sh`). Desde otra IP se contesta `conexion_rechazada` con `motivo: "unity_solo_local"` y se cierra. `UNITY_DESDE_CUALQUIER_IP=1` lo desactiva.
 - **Una sola tablet por partida.** Mientras una tablet está conectada, un `connect` o `reconnect` con otro `player_id` recibe `conexion_rechazada` con `motivo: "ya_hay_jugador1"` y no llega a Unity (antes cualquiera podía reiniciar la noche o, con `modo: "salir"`, cerrar el juego). La misma tablet (mismo `player_id`) siempre puede volver: su conexión anterior se cierra al instante, sin avisar al J2 de que el jugador 1 se fue.
 - **Sin compresión** (`permessage-deflate`) y **mensajes de hasta 64 kB** (uno mayor cierra la conexión con 1009).
@@ -65,7 +65,8 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 
 - `efecto` gana `tipo` (`ralentizado`, `trampa_colocada`, `trampa_disparada`, `puppet_rescatado`, y desde 2026-11-10 `operador_conectado` y `operador_perdido`) y `id` (el de la acción que lo causó, 0 si fue por una trampa que se disparó). Con `puppet_rescatado` llega además `multa_factor` (cuántas veces más rápido se descarga ahora la caja: 2, luego 4...); en los demás efectos vale 0.
 - `compuerta` (tablet → Unity, 2026-11-13): `lado` `"izquierda"` o `"derecha"` y `cerrar` (true/false). Unity decide: sin batería no se cierra. Siempre contesta con `estado_oficina`.
-- `estado_oficina` (Unity → tablet y jugador 2, 2026-11-13): `bateria` (0-100, entero), `compuerta_izquierda`, `compuerta_derecha` (true = cerrada), `luz_izquierda`, `luz_derecha` (`"verde"`, `"amarillo"` o `"rojo"`). Sale en cada tick (0,5 s) y en cuanto algo cambia.
+- `linterna` (tablet → Unity, 2026-11-13): `encendida` (true/false). La tablet manda `true` cada ~0,15 s mientras el botón sigue apretado y `false` al soltarlo; Unity la apaga sola a los 0,5 s sin órdenes. Sin batería no se prende.
+- `estado_oficina` (Unity → tablet y jugador 2, 2026-11-13): `bateria` (0-100, entero), `compuerta_izquierda`, `compuerta_derecha` (true = cerrada), `luz_izquierda`, `luz_derecha` (`"verde"`, `"amarillo"` o `"rojo"`), `linterna` (true = prendida). Sale en cada tick (0,5 s) y en cuanto algo cambia.
 - `accion_rechazada` con `motivo: "cargas_llenas"` (2026-11-13): ahora solo cuando las cargas **y** la batería están llenas, porque el cálculo da las dos cosas.
 - `camara` (tablet → Unity, 2026-11-10): `direccion` -1 (izquierda), 1 (derecha) o 0 (soltó). Son los dos botones grandes de la tablet, que se **mantienen apretados**: mientras el dedo siga apoyado la tablet repite la orden cada 0,15 s y Unity gira la cámara del jugador 1 (70°/s, hasta ±75°); al soltar vuelve sola al frente (90°/s). Si pasan 0,5 s sin órdenes Unity da el botón por soltado, así que un «soltar» perdido por la red no deja la cámara girando. Se centra al empezar y al terminar la partida.
 - `posiciones` gana `camara_yaw` (grados; 0 = al frente, negativo = izquierda): la página del jugador 2 lo dibuja como un cono de visión desde J1 y lo escribe en el panel («Cámara: Izquierda 45°»).
@@ -173,7 +174,7 @@ Si la otra computadora no abre la página: misma red, firewall (puertos 8000 y 8
 
 ## Cómo se mueven los animatrónicos (2026-11-10)
 
-- **Freddy y Vixy siguen una ruta fija**, punto por punto y en orden: nunca se saltan uno, y solo retroceden si les cierran la compuerta del ducto en la cara (ver «Ductos»). Freddy: `P01 → P03 → P04 → P05 → P06 → P07`; Vixy: `P02 → P11 → P12 → V01 → V02 → V03 → V04`; Puppet (sin cambios): `P13 → P14 → P15 → P16 → V05 → V06 → V07 → V08`.
+- **Freddy y Vixy siguen una ruta fija**, punto por punto y en orden: nunca se saltan uno, y solo retroceden si les cierran la compuerta del ducto en la cara (ver «Ductos») o, Freddy, si lo alumbra la linterna (ver «Linterna»). Freddy: `P01 → P03 → P04 → P05 → P06 → P07`; Vixy: `P02 → P11 → P12 → V01 → V02 → V03 → V04`; Puppet (sin cambios): `P13 → P14 → P15 → P16 → V05 → V06 → V07 → V08`.
 - **Desvíos ocasionales** (25 % por tramo que lo tiene, `ProbabilidadDeDesvio`): Freddy se asoma a `P08` o `P09` entre `P04` y `P05` (cuesta unos 20 s) y después vuelve a la ruta. Vixy no tiene desvíos (2026-11-13). Es la sorpresa: no sale en la guía del jugador 2.
 - **Tiempo:** Freddy avanza cada 80–120 % del intervalo de la noche (antes era exacto); Vixy sigue dependiendo de las tareas pendientes.
 - **Velocidad al caminar (2026-11-13):** 2 m/s los tres (antes 1,5, el valor de la escena). Está en `RecorridosDeAnimatronicos.VelocidadAlCaminar`. Con tareas cada segundo, Vixy llega al final del ducto en ~44 s (antes ~50 s): la mayor parte del tiempo son las esperas entre pasos, no la caminata.
@@ -191,6 +192,17 @@ Vixy entra por el ducto izquierdo (`V01 → V04`) y Puppet por el derecho (`V05 
 - Lo visual está en `LucesDeDuctos.cs` (medidas del plano real: bocas en x = 17 y x = 23, z de 2 a 4). Capturas: `pruebas/capturar_compuertas.py`.
 - Pruebas con el juego real: `probar_vixy_y_puppet_con_juego.py compuerta_vixy compuerta_puppet`.
 - Pendiente: el tutorial todavía no explica las compuertas ni el retroceso.
+
+## Linterna (2026-11-13)
+
+Decidido con el equipo: la linterna se maneja con **un botón de la tablet** (no con la mirada).
+
+- **Botón**: entre los dos botones de cámara, con la batería adentro (`BotonDeLinterna`, tablet 0.17.0). Se **mantiene apretado**: alumbra mientras el dedo sigue apoyado, como la cámara.
+- **Batería**: la misma de las compuertas; prendida gasta **2 %/s** (lo mismo que una compuerta cerrada). En 0 se apaga y no se prende hasta que el jugador 2 recargue con un cálculo.
+- **Qué alumbra**: hacia donde mira la cámara del jugador 1 (gira con los botones de cámara): un cono de **40°** y **10 m** desde la cámara. En la oficina 3D es un foco blanco cálido colgado de la cámara (`LinternaVisible.cs`).
+- **Ahuyenta a Freddy** (`LinternaDeOficina.cs`): si lo alumbra **2 s seguidos**, Freddy **retrocede 2 puntos** (de `P07` a `P05`, de `P06` a `P04`), donde ya queda fuera de alcance. Si la luz se le va antes, la cuenta vuelve a cero. Mientras retrocede no avanza ni ataca, aunque lo miren. A Vixy y a Puppet no les hace nada: para ellos están las compuertas.
+- Pruebas: `PruebaLinternaDeOficina.cs` y la linterna en `PruebaCompuertasDeDuctos.cs` (Mono); con el juego real `probar_vixy_y_puppet_con_juego.py linterna`; capturas `pruebas/capturar_linterna.py`.
+- Pendiente: el tutorial todavía no explica la linterna.
 
 ## Opciones de prueba del juego
 
