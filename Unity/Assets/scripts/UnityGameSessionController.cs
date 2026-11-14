@@ -184,7 +184,12 @@ public class UnityGameSessionController : MonoBehaviour
         public bool compuerta_derecha;
         public string luz_izquierda;
         public string luz_derecha;
+        public bool linterna;
     }
+
+    /// De la tablet del jugador 1: `encendida` = true repetido mientras mantiene
+    /// apretado el botón de la linterna; false al soltarlo.
+    [Serializable] private class LinternaMessage { public string type; public bool encendida; }
 
     /// De la tablet del jugador 1: -1 mantiene apretado «izquierda», 1 «derecha», 0 soltó.
     [Serializable] private class CamaraMessage { public string type; public int direccion; }
@@ -433,6 +438,9 @@ public class UnityGameSessionController : MonoBehaviour
     private SemaforoDeDuctos.Luz luzDerecha;
     private string estadoOficinaPublicado;
     private LucesDeDuctos lucesDeDuctos;
+    // La linterna solo ahuyenta a Freddy (Vixy y Puppet tienen las compuertas).
+    private AnimatronicUnityBrain brainDeFreddy;
+    private LinternaVisible linternaVisible;
     // Cámara del jugador 1: la mueve desde la tablet (botones izquierda/derecha).
     private readonly ControlDeCamara camara = new ControlDeCamara();
     private Transform camaraDeJuego;
@@ -576,6 +584,7 @@ public class UnityGameSessionController : MonoBehaviour
             }
             AnimatronicUnityBrain freddy = AttachBrain(freddyObject, "Freddy", routeFreddy, true, true, false,
                 probabilisticRoute: true, vixyTaskThreshold: false);
+            brainDeFreddy = freddy;
             // Ruta fija; de vez en cuando se asoma a un lado del comedor.
             if (freddy != null)
                 freddy.ConfigurarDesvios(Desvios(RecorridosDeAnimatronicos.Desvios("freddy")), ProbabilidadDeDesvio);
@@ -720,6 +729,15 @@ public class UnityGameSessionController : MonoBehaviour
                         ActualizarDuctos();
                         // Aunque no se aceptara (sin batería), la tablet necesita el estado real.
                         PublicarEstadoOficina(true);
+                    }
+                    break;
+                case "linterna":
+                    // Llega repetida cada ~0,15 s mientras el dedo sigue apoyado:
+                    // solo se publica si cambió algo (sin batería no se prende).
+                    if (partidaActiva)
+                    {
+                        compuertas.OrdenarLinterna(JsonUtility.FromJson<LinternaMessage>(json).encendida, Time.time);
+                        PublicarEstadoOficina(false);
                     }
                     break;
                 case "tarea_pedir":
@@ -1205,6 +1223,8 @@ public class UnityGameSessionController : MonoBehaviour
         partidaActiva = false;
         foreach (AnimatronicUnityBrain brain in brains) brain.Detener();
         if (lucesDeDuctos != null) lucesDeDuctos.Mostrar(luzIzquierda, luzDerecha, false, false, false);
+        compuertas.OrdenarLinterna(false, Time.time);
+        AlumbrarConLaLinterna(false);
         CentrarCamara();
         QuitarTodasLasTrampas();
         rescate.Reiniciar();
@@ -1397,6 +1417,7 @@ public class UnityGameSessionController : MonoBehaviour
     /// jugador 2.
     private void ActualizarDuctos()
     {
+        compuertas.ActualizarLinterna(Time.time);
         compuertas.Avanzar(Time.deltaTime);
         SemaforoDeDuctos.Luz izquierda = SemaforoDeDuctos.Luz.Verde, derecha = SemaforoDeDuctos.Luz.Verde;
         bool empujaIzquierda = false, empujaDerecha = false;
@@ -1419,7 +1440,25 @@ public class UnityGameSessionController : MonoBehaviour
                 compuertas.EstaCerrada(SemaforoDeDuctos.Derecha), true);
             lucesDeDuctos.FijarEmpujones(empujaIzquierda, empujaDerecha);
         }
+        AlumbrarConLaLinterna(compuertas.LinternaEncendida);
         PublicarEstadoOficina(false);
+    }
+
+    /// La linterna prendida alumbra hacia donde mira la cámara; si cae sobre
+    /// Freddy se lo dice a su cerebro (2 s seguidos y retrocede, ver
+    /// LinternaDeOficina). Apagada no alumbra a nadie.
+    private void AlumbrarConLaLinterna(bool prendida)
+    {
+        Transform ojo = camaraDeJuego != null ? camaraDeJuego : (Camera.main != null ? Camera.main.transform : null);
+        if (linternaVisible == null && ojo != null) linternaVisible = LinternaVisible.Crear(ojo);
+        if (linternaVisible != null) linternaVisible.Mostrar(prendida);
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            bool alumbrado = prendida && brain == brainDeFreddy && ojo != null && brain.gameObject.activeInHierarchy
+                && LinternaDeOficina.Alumbra(ojo.position.x, ojo.position.z, ojo.forward.x, ojo.forward.z,
+                    brain.transform.position.x, brain.transform.position.z);
+            brain.FijarAlumbrado(alumbrado);
+        }
     }
 
     /// `siempre` = false: solo si cambió algo desde lo último que se mandó.
@@ -1431,7 +1470,8 @@ public class UnityGameSessionController : MonoBehaviour
             compuerta_izquierda = compuertas.EstaCerrada(SemaforoDeDuctos.Izquierda),
             compuerta_derecha = compuertas.EstaCerrada(SemaforoDeDuctos.Derecha),
             luz_izquierda = SemaforoDeDuctos.Texto(luzIzquierda),
-            luz_derecha = SemaforoDeDuctos.Texto(luzDerecha)
+            luz_derecha = SemaforoDeDuctos.Texto(luzDerecha),
+            linterna = compuertas.LinternaEncendida
         };
         string json = JsonUtility.ToJson(estado);
         if (!siempre && json == estadoOficinaPublicado) return;

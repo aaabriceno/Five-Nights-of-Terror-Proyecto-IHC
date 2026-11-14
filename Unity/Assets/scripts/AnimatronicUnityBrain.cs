@@ -78,6 +78,10 @@ public class AnimatronicUnityBrain : MonoBehaviour
     // (`retrocediendoHacia` >= 0) no avanza ni ataca.
     private readonly RetrocesoPorCompuerta retroceso = new RetrocesoPorCompuerta();
     private int retrocediendoHacia = -1;
+    // La linterna del jugador 1 lo alumbra (solo a Freddy: lo decide
+    // UnityGameSessionController cada cuadro). 2 s seguidos y retrocede.
+    private readonly LinternaDeOficina linterna = new LinternaDeOficina();
+    private bool alumbrado;
     private readonly Dictionary<string, float> segundosTareaPendiente = new Dictionary<string, float>();
     private readonly HashSet<int> puntosVisitados = new HashSet<int>();
     // Freddy y Vixy siguen su ruta en orden; de vez en cuando hacen un desvío.
@@ -179,6 +183,9 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
     public void FijarCompuertaCerrada(bool cerrada) { compuertaCerrada = cerrada; }
 
+    /// Lo alumbra la linterna del jugador 1 en este cuadro.
+    public void FijarAlumbrado(bool alumbradoAhora) { alumbrado = alumbradoAhora; }
+
     /// Está en la boca del ducto empujando la compuerta cerrada (la placa tiembla).
     public bool EmpujandoLaCompuerta => retroceso.Empujando;
 
@@ -264,6 +271,25 @@ public class AnimatronicUnityBrain : MonoBehaviour
             return;
         }
 
+        // Retrocediendo (por la compuerta o la linterna): hasta llegar no avanza
+        // ni ataca, aunque le abran la compuerta o lo miren (huye: la mirada
+        // no lo congela).
+        if (retrocediendoHacia >= 0)
+        {
+            if (agent != null && agent.isOnNavMesh) agent.isStopped = false;
+            if (!IsAtWaypoint(retrocediendoHacia)) return;
+            retrocediendoHacia = -1;
+            movementClock = 0f;
+        }
+
+        // La linterna lo alumbra 2 s seguidos: retrocede 2 puntos. Va antes de
+        // la mirada, que congela a Freddy justo cuando el jugador lo está viendo.
+        if (linterna.Avanzar(deltaTime, alumbrado))
+        {
+            Retroceder(LinternaDeOficina.PuntosQueRetrocede);
+            return;
+        }
+
         if (detenerseCuandoMira && usaSeguimientoDeMirada && detectorCabeza != null && detectorCabeza.mirandoPC)
         {
             if (agent != null && agent.isOnNavMesh) agent.isStopped = true;
@@ -273,19 +299,10 @@ public class AnimatronicUnityBrain : MonoBehaviour
         if (agent != null && agent.isOnNavMesh && !esperandoAtaquePenultimo)
             agent.isStopped = false;
 
-        // Volviendo a la entrada del ducto tras la compuerta: hasta llegar no
-        // avanza ni ataca, aunque el jugador 1 la abra mientras tanto.
-        if (retrocediendoHacia >= 0)
-        {
-            if (!IsAtWaypoint(retrocediendoHacia)) return;
-            retrocediendoHacia = -1;
-            movementClock = 0f;
-        }
-
         // Le cerraron la compuerta en la cara: la empuja y, si aguanta, retrocede.
         if (retroceso.Avanzar(deltaTime, compuertaCerrada && EnLaBocaDelDucto, compuertaCerrada))
         {
-            RetrocederPorLaCompuerta();
+            Retroceder(RetrocesoPorCompuerta.PuntosQueRetrocede);
             return;
         }
 
@@ -367,6 +384,8 @@ public class AnimatronicUnityBrain : MonoBehaviour
         if (rutaFija != null) rutaFija.Reiniciar();
         retroceso.Reiniciar();
         retrocediendoHacia = -1;
+        linterna.Reiniciar();
+        alumbrado = false;
         variacionDelIntervalo = 1f;
         waypointActivo = -1;
         esperandoAtaquePenultimo = false;
@@ -563,14 +582,16 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
     private int PenultimateWaypointIndex => ruta == null ? -1 : ruta.Length - 2;
 
-    /// La compuerta aguantó la fase: vuelve a la entrada del ducto (3 puntos
-    /// atrás) y desde ahí sigue su ruta como siempre. Vixy además retrocede su
-    /// RutaFija, para que sus siguientes avances partan de ahí.
-    private void RetrocederPorLaCompuerta()
+    /// Vuelve `pasos` puntos de su ruta y desde ahí sigue como siempre: la
+    /// compuerta aguantó la fase (Vixy y Puppet, 3 puntos: a la entrada del
+    /// ducto) o la linterna lo alumbró (Freddy, 2 puntos). Con ruta fija
+    /// (Freddy y Vixy) también retrocede su RutaFija, para que sus siguientes
+    /// avances partan de ahí.
+    private void Retroceder(int pasos)
     {
         int destino = usarRutaProbabilistica
-            ? RutaDeEsteAnimatronico().Retroceder(RetrocesoPorCompuerta.PuntosQueRetrocede)
-            : RetrocesoPorCompuerta.PuntoAlQueVuelve(PenultimateWaypointIndex);
+            ? RutaDeEsteAnimatronico().Retroceder(pasos)
+            : Math.Max(0, Math.Min(indiceRuta, PenultimateWaypointIndex) - pasos);
         esperandoAtaquePenultimo = false;
         indiceRuta = destino;
         movementClock = 0f;
@@ -586,7 +607,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
     }
 
     /// Ruta fija: el siguiente punto de la ruta en orden, o a veces un desvío.
-    /// Nunca se salta un punto (solo retrocede por la compuerta: RetrocederPorLaCompuerta). Si un punto no tiene malla de
+    /// Nunca se salta un punto (solo retrocede por la compuerta o la linterna: Retroceder). Si un punto no tiene malla de
     /// navegación se avisa y se sigue con el siguiente, para no quedarse parado.
     private int SelectNextWaypoint()
     {
