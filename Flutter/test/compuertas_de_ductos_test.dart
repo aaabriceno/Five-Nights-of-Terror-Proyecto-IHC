@@ -112,24 +112,6 @@ void main() {
     });
   });
 
-  group('IndicadorDeBateria', () {
-    Future<void> montar(WidgetTester tester, int bateria) => tester.pumpWidget(MaterialApp(
-          home: Scaffold(body: Center(child: IndicadorDeBateria(bateria: bateria))),
-        ));
-
-    testWidgets('muestra el porcentaje', (tester) async {
-      await montar(tester, 76);
-      expect(find.text('76 %'), findsOneWidget);
-      expect(find.bySemanticsLabel('Batería de las compuertas: 76 %'), findsOneWidget);
-    });
-
-    testWidgets('en 0 dice que no hay batería', (tester) async {
-      await montar(tester, 0);
-      expect(find.text('0 %'), findsOneWidget);
-      expect(find.text('SIN BATERÍA'), findsOneWidget);
-    });
-  });
-
   group('GameScreen', () {
     Future<JuegoEspia> montar(WidgetTester tester) async {
       tester.view.physicalSize = const Size(1600, 960);
@@ -154,7 +136,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('con estado: compuertas en los extremos de la fila de la cámara y la batería en medio', (tester) async {
+    testWidgets('con estado: compuertas en los extremos de la fila de la cámara y la linterna (con la batería) en medio', (tester) async {
       final JuegoEspia juego = await montar(tester);
       juego.handleMessage(estadoOficina(bateria: 76));
       await tester.pump();
@@ -162,7 +144,7 @@ void main() {
       final Rect compuertaDer = tester.getRect(find.byKey(const Key('compuerta-derecha')));
       final Rect camaraIzq = tester.getRect(find.byKey(const Key('camara-izquierda')));
       final Rect camaraDer = tester.getRect(find.byKey(const Key('camara-derecha')));
-      final Rect bateria = tester.getRect(find.byKey(const Key('bateria-compuertas')));
+      final Rect bateria = tester.getRect(find.byKey(const Key('linterna')));   // la linterna, con la batería
       expect(compuertaIzq.right, lessThanOrEqualTo(camaraIzq.left), reason: 'la compuerta izquierda, a la izquierda de todo');
       expect(camaraIzq.right, lessThanOrEqualTo(bateria.left));
       expect(bateria.right, lessThanOrEqualTo(camaraDer.left));

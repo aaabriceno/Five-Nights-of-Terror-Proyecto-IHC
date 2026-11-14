@@ -54,6 +54,10 @@ class GameSession {
   bool compuertaIzquierdaCerrada;
   bool compuertaDerechaCerrada;
 
+  /// Si la linterna está prendida según Unity (`estado_oficina.linterna`). Gasta
+  /// la misma batería; la tablet la pide mientras el botón sigue apretado.
+  bool linternaEncendida;
+
   GameSession({
     required this.playerId,
     this.riesgo = 0,
@@ -76,5 +80,6 @@ class GameSession {
     this.bateria,
     this.compuertaIzquierdaCerrada = false,
     this.compuertaDerechaCerrada = false,
+    this.linternaEncendida = false,
   }) : tareasPendientes = tareasPendientes ?? [];
 }

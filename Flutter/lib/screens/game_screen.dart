@@ -7,6 +7,7 @@ import '../services/servicio_de_avisos.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/barra_reloj_de_noche.dart';
 import '../widgets/botones_de_camara.dart';
+import '../widgets/boton_de_linterna.dart';
 import '../widgets/compuertas_de_ductos.dart';
 import '../widgets/franja_del_companero.dart';
 import '../widgets/puppet_game_widget.dart';
@@ -166,7 +167,8 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Cámara y, si Unity manda `estado_oficina`, las compuertas de los ductos.
+  /// Cámara y, si Unity manda `estado_oficina`, las compuertas de los ductos y
+  /// la linterna (entre los botones de cámara, con la batería).
   Widget _buildFilaDeControles(GameProvider game) {
     final int? bateria = game.session.bateria;
     if (bateria == null) return BotonesDeCamara(alMirar: game.mirarHacia);
@@ -182,7 +184,11 @@ class _GameScreenState extends State<GameScreen> {
         Expanded(
           child: BotonesDeCamara(
             alMirar: game.mirarHacia,
-            centro: IndicadorDeBateria(key: const Key('bateria-compuertas'), bateria: bateria),
+            centro: BotonDeLinterna(
+              bateria: bateria,
+              encendida: game.session.linternaEncendida,
+              alCambiar: game.prenderLinterna,
+            ),
           ),
         ),
         const SizedBox(width: 16),

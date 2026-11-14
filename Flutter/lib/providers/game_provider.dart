@@ -97,9 +97,12 @@ class GameProvider extends ChangeNotifier {
         final int bateria = (message['bateria'] as int).clamp(0, 100);
         final bool izquierda = message['compuerta_izquierda'] as bool;
         final bool derecha = message['compuerta_derecha'] as bool;
+        // Un Unity sin linterna no manda el campo: se toma como apagada.
+        final bool linterna = (message['linterna'] as bool?) ?? false;
         session.bateria = bateria;
         session.compuertaIzquierdaCerrada = izquierda;
         session.compuertaDerechaCerrada = derecha;
+        session.linternaEncendida = linterna;
         break;
       case 'game_over':
         ultimaNocheDeGameOver = (message['night'] as int?) ?? session.nocheActual;
@@ -182,6 +185,13 @@ class GameProvider extends ChangeNotifier {
   /// y contesta con `estado_oficina`; la tablet no cambia nada por su cuenta.
   void cambiarCompuerta(String lado, bool cerrar) {
     sendToServer?.call({'type': 'compuerta', 'lado': lado, 'cerrar': cerrar});
+  }
+
+  /// La linterna: `true` repetido mientras el botón sigue apretado (Unity la
+  /// apaga sola a los 0,5 s sin órdenes), `false` al soltarlo. Unity decide si
+  /// se prende (sin batería no) y lo cuenta en `estado_oficina`.
+  void prenderLinterna(bool encendida) {
+    sendToServer?.call({'type': 'linterna', 'encendida': encendida});
   }
 
   void reportTaskCompleted({

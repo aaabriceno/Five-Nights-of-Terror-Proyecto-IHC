@@ -21,7 +21,7 @@ class BotonesDeCamara extends StatefulWidget {
   final void Function(int direccion) alMirar;
   final Duration repeticion;
 
-  /// Lo que va entre los dos botones (la batería de las compuertas), o nada.
+  /// Lo que va entre los dos botones (la linterna, con la batería), o nada.
   final Widget? centro;
 
   const BotonesDeCamara({
