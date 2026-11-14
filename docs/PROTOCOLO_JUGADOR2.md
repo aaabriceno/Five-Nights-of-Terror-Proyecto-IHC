@@ -58,9 +58,9 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 | `operador_rechazado` | Relay → J2 | J2 intenta volver pasados 15 s de su caída | `motivo: "tiempo_agotado"`; el relay cierra la conexión |
 | `conexion_rechazada` | Relay → tablet o cliente | Otra tablet ya juega (`ya_hay_jugador1`) o alguien de otra IP se anuncia como Unity (`unity_solo_local`) | `motivo`; el relay cierra la conexión. La tablet muestra «La PC ya tiene otra tablet» |
 | `accion_operador` | J2 → Unity | Nuevas acciones | `accion: "trampa"` + `punto`, o `accion: "rescatar_puppet"`; todas con `id` |
-| `tarea_pedir` | J2 → Unity | El jugador 2 abre una tarea de la terminal (reemplaza a `mini_tarea_inicio`) | `tipo`: `"calculo"` o `"circuito"` |
-| `tarea` | Unity → J2 | Unity inventa la tarea según la noche. Pedirla otra vez antes de resolverla devuelve la misma | `id`, `tipo`, `noche`; cálculo: `clase`, `enunciado`, `datos[]`; circuito: `entradas[]`, `puertas[] {id,op,a,b}`, `salida`, `objetivo` |
-| `tarea_respuesta` | J2 → Unity | Contesta (reemplaza a `mini_tarea_fin`) | `id` y `valor` (cálculo) o `interruptores[]` de 0/1 en el orden de `entradas` (circuito) |
+| `tarea_pedir` | J2 → Unity | El jugador 2 abre una tarea de la terminal (reemplaza a `mini_tarea_inicio`) | `tipo`: `"calculo"` o `"ecuacion"` (antes `"circuito"`) |
+| `tarea` | Unity → J2 | Unity inventa la tarea según la noche. Pedirla otra vez antes de resolverla devuelve la misma | `id`, `tipo`, `noche`, `clase`, `enunciado`, `datos[]` (lo mismo para cálculo y ecuación) |
+| `tarea_respuesta` | J2 → Unity | Contesta (reemplaza a `mini_tarea_fin`) | `id` y `valor` (un entero, en los dos tipos) |
 | `tarea_resultado` | Unity → J2 | Unity comprobó la respuesta | `id`, `tipo`, `correcto`, `bloqueo_s` (lo que falta para pedir otra tarea tras un error) |
 
 - `efecto` gana `tipo` (`ralentizado`, `trampa_colocada`, `trampa_disparada`, `puppet_rescatado`, y desde 2026-11-10 `operador_conectado` y `operador_perdido`) y `id` (el de la acción que lo causó, 0 si fue por una trampa que se disparó). Con `puppet_rescatado` llega además `multa_factor` (cuántas veces más rápido se descarga ahora la caja: 2, luego 4...); en los demás efectos vale 0.
@@ -69,7 +69,7 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 - `mapa_puntos` gana `rutas[] {animatronico, puntos[]}` (2026-11-10): el camino fijo de cada animatrónico, en orden, desde donde nace hasta el punto penúltimo (sin el jugador 1). El jugador 1 no la recibe y los desvíos ocasionales no van en ella. **Desde el 2026-11-13 la página no la muestra** (ni líneas en el mapa ni texto en las tarjetas): el jugador 2 deduce por dónde viene cada animatrónico mirando cómo se mueve y decide ahí dónde poner trampas. Unity la sigue mandando porque la usan las pruebas automáticas.
 - **La caja de Puppet (2026-11-10):** dura **30 s cada noche** (ya no baja de noche en noche; antes iba de ~51 s a ~34 s según la noche). Lo único que la acorta son los rescates del jugador 2: cada uno la deja en la mitad (30 s → 15 s → 7,5 s), con **un mínimo de 7,5 s** (`SegundosMinimosDeLaCaja`): más rescates siguen valiendo pero ya no la acortan. Vuelve a 30 s al empezar otra noche o partida. Darle cuerda la llena en 15 s y la multa no lo cambia. Unity lo manda en `segundos_caja` (en `estado_puppet`, `estado_operador` y `efecto puppet_rescatado`), además de `multa_factor`; la tablet y la página dicen los segundos ("La caja dura 15 s"). Con un Unity viejo (sin `segundos_caja`) la tablet cae al texto "×2 más rápida".
 - `estado_puppet` (a la tablet, cada 0,5 s) gana `multa_factor` (1 = sin multa). Es opcional: una tablet o un Unity viejos lo ignoran y la caja se ve a su ritmo.
-- `accion_rechazada` gana `id` y los `motivo` `sin_cargas`, `punto_ocupado`, `punto_invalido`, `sin_habilidad`, `sin_ventana`. Las tareas rechazadas llevan `objetivo: "tarea"` y los `motivo` `cargas_llenas` (no hace falta recargar), `habilidad_lista` (el rescate ya está desbloqueado), `bloqueado` (con `espera_s`), `tarea_desconocida`, `tarea_sin_pedir` (no hay esa tarea abierta o caducó) y `tarea_muy_rapida`. Los mensajes `tarea` y `tarea_resultado` van solo al operador (el relay no se los manda a la tablet). `estado_operador` gana `bloqueo_s`; `necesario` pasa a ser 1 (un circuito).
+- `accion_rechazada` gana `id` y los `motivo` `sin_cargas`, `punto_ocupado`, `punto_invalido`, `sin_habilidad`, `sin_ventana`. Las tareas rechazadas llevan `objetivo: "tarea"` y los `motivo` `cargas_llenas` (no hace falta recargar), `habilidad_lista` (el rescate ya está desbloqueado), `bloqueado` (con `espera_s`), `tarea_desconocida`, `tarea_sin_pedir` (no hay esa tarea abierta o caducó) y `tarea_muy_rapida`. Los mensajes `tarea` y `tarea_resultado` van solo al operador (el relay no se los manda a la tablet). `estado_operador` gana `bloqueo_s`; `necesario` pasa a ser 1 (una ecuación).
 - El relay envía `posiciones`, `estado_jugador`, `estado_operador` y `pong_operador` **solo** a operadores.
 - El `ping_operador` además le dice a Unity que el operador sigue conectado: el relay no avisa cuando un navegador se cae, así que Unity lo da por caído si pasan 6 s sin ping.
 
@@ -91,20 +91,21 @@ Coordenadas `x`, `z` en metros de la escena de Unity (vista desde arriba). El mi
 `Unity/Assets/scripts/RecursosDeOperador.cs`, `RescateDePuppet.cs`, probadas con `pruebas/probar_reglas_de_operador.sh`. Valores iniciales para ajustar con el profesor:
 
 - **Trampa:** empieza con 1 carga (máximo 3). La coloca en un punto de las rutas; el primer animatrónico que pasa a 1,5 m queda **quieto 6 s** y la trampa se gasta. Puppet dentro de su caja no la activa.
-- **Terminal (tareas del jugador 2, 2026-11-10):** reemplaza a la mini-tarea de memoria de símbolos, que era siempre igual y no tenía nada de computación. Unity (`TareasDeOperador.cs`) inventa el problema y comprueba la respuesta; la página solo lo muestra. Un **cálculo** da **1 carga** de trampa y un **circuito lógico** desbloquea el rescate de Puppet. Un error pierde ese problema y **bloquea la terminal 3 s**. Unity rechaza una respuesta antes de 1,5 s (cálculo) o 3 s (circuito): no se puede fingir desde la página. Una tarea abandonada caduca a los 90 s; mientras no caduca, cerrar y volver a abrir da el mismo problema (no sirve para buscar uno fácil). No se pide un cálculo con las cargas llenas ni un circuito con el rescate ya desbloqueado.
-- **Rescate de Puppet:** se desbloquea con **1 circuito lógico** resuelto (antes, 3 mini-tareas). Cuando Puppet sale de su caja se abre una **ventana de 6 s** en la que Puppet se queda quieto. Si J2 rescata dentro de la ventana, Puppet vuelve a su caja, la caja se llena, J1 recibe el aviso y la **caja se descarga al doble de rápido** desde ahí (cada rescate lo multiplica otra vez). Usar el rescate gasta la habilidad.
+- **Terminal (tareas del jugador 2, 2026-11-10; para cualquier persona desde el 2026-11-13):** Unity (`TareasDeOperador.cs`) inventa el problema y comprueba la respuesta; la página solo lo muestra, con una línea que dice para qué sirve. Un **cálculo** da **1 carga** de trampa y una **ecuación** («Encuentra x: 3x + 5 = 20») desbloquea el rescate de Puppet. Los dos se responden con un número en la misma casilla. Antes había binario, hexadecimal, bits y un circuito lógico con puertas Y / O / NO: Marcelo, probándolo, no entendía de qué trataba, y el juego no es solo para gente de computación. Un error pierde ese problema y **bloquea la terminal 3 s**. Unity rechaza una respuesta antes de 1,5 s (cálculo) o 3 s (ecuación): no se puede fingir desde la página. Una tarea abandonada caduca a los 90 s; mientras no caduca, cerrar y volver a abrir da el mismo problema (no sirve para buscar uno fácil). No se pide un cálculo con las cargas llenas ni una ecuación con el rescate ya desbloqueado.
+- **Rescate de Puppet:** se desbloquea con **1 ecuación** resuelta (antes, un circuito lógico; antes aún, 3 mini-tareas). Cuando Puppet sale de su caja se abre una **ventana de 6 s** en la que Puppet se queda quieto. Si J2 rescata dentro de la ventana, Puppet vuelve a su caja, la caja se llena, J1 recibe el aviso y la **caja se descarga al doble de rápido** desde ahí (cada rescate lo multiplica otra vez). Usar el rescate gasta la habilidad.
 - **Más agresividad con dos jugadores:** mientras haya un operador conectado, Freddy avanza con **0,4** veces su intervalo (unos 9 s en vez de 22 s en la noche 1) y Vixy con **0,7**. Puppet no cambia.
 
 ### Ejercicios de la terminal por noche
 
-| Noche | Cálculo (da 1 carga, ~10 s) | Circuito (da el rescate, ~20-30 s) |
+| Noche | Cálculo (da 1 carga, ~10 s) | Ecuación (da el rescate) |
 |---|---|---|
-| 1 | Binario de 3 bits a decimal; suma de dos números de dos cifras o producto de una cifra | 3 entradas (A, B, C), 2-3 puertas Y / O / NO |
-| 2 | Binario de 4 bits; productos de 6 a 12; `a × b + c`; series aritméticas y geométricas; memoria («¿cuántos valores caben en N bits?», «¿cuántos bits hay en K bytes?») | 3 entradas, 3 puertas |
-| 3 | Todo lo anterior y hexadecimal de dos cifras (hasta 3F) | 4 entradas (A-D), 3-4 puertas, aparece la puerta O exclusivo |
-| 4-6 | Binario de 5 bits, hexadecimal hasta 7F, `a × b − c`, series de cuadrados y tipo Fibonacci | 4 entradas, 4-5 puertas |
+| 1 | Suma de dos números de dos cifras o producto de una cifra; problemas: «Son las 2:45 AM. ¿Cuántos minutos faltan para las 3:30 AM?» (hasta 40 min) y «Compras 3 pilas a 4 soles cada una y pagas con 20 soles. ¿Cuánto vuelto te dan?» | Un paso: `x + 7 = 15`, `x − 4 = 9` ó `3x = 12` |
+| 2 | Productos de 6 a 12 y `a × b + c`; series aritméticas y geométricas («2, 4, 8, 16, ?»); los mismos problemas | Un paso |
+| 3 | Igual que la 2, con el reloj hasta 70 min y más pilas en el vuelto | Dos pasos: `2x − 4 = 10`, `3x + 5 = 20` |
+| 4 | `a × b − c`; se añaden las series de cuadrados y tipo Fibonacci | Dos pasos |
+| 5-6 | Igual que la 4, con el reloj hasta 95 min | Dos pasos o con paréntesis: `2(x − 3) = 10` |
 
-Nunca sale la misma clase de cálculo dos veces seguidas. Todo circuito tiene solución y a ciegas se acierta a lo sumo la mitad de las veces (se comprueba en `PruebaTareasDeOperador.cs` con miles de problemas). Para hacer de jugador 2 por código, `pruebas/solucionador_de_tareas.py` resuelve cualquier `tarea` (lo usan las pruebas con el juego real).
+x siempre es un entero de 1 a 20. Nunca sale la misma clase de cálculo dos veces seguidas. Ninguno pide saber computación. `PruebaTareasDeOperador.cs` lo comprueba con miles de problemas, junto con que la respuesta guardada sea la que pide el enunciado. Para hacer de jugador 2 por código, `pruebas/solucionador_de_tareas.py` resuelve cualquier `tarea` (lo usan las pruebas con el juego real).
 
 ## Latencia (medida)
 
@@ -138,7 +139,7 @@ Nunca sale la misma clase de cálculo dos veces seguidas. Todo circuito tiene so
 UnityRelay/.venv/bin/python pruebas/probar_relay.py      # relay, incluye el rol operador
 ./pruebas/probar_freno_de_operador.sh                    # regla de Retrasar
 ./pruebas/probar_reglas_de_operador.sh                   # recursos, tareas de la terminal, rescate de Puppet, ruta, cámara, perfil de video
-node UnityRelay/operador/probar_logica.js                # suavizado, medidor, circuito y respuestas de la página
+node UnityRelay/operador/probar_logica.js                # suavizado, medidor, textos de la terminal y respuestas de la página
 UnityRelay/.venv/bin/python pruebas/probar_pagina_operador.py   # la página en Firefox, con un Unity falso
 UnityRelay/.venv/bin/python pruebas/probar_operador_con_juego.py   # con el juego exportado
 UnityRelay/.venv/bin/python pruebas/medir_latencia_operador.py --lanzar   # latencia contra el juego real
