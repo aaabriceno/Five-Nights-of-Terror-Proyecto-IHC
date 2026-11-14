@@ -66,6 +66,13 @@ public class AnimatronicUnityBrain : MonoBehaviour
     // rescate (ventana) tampoco avanza.
     private float detenidoHasta;
     private bool mantenidoQuieto;
+    // La compuerta del ducto por el que entra este animatrónico (Vixy y Puppet).
+    // Mientras está cerrada y no la pasó, no entra a la oficina ni ataca. La
+    // fija UnityGameSessionController cada cuadro (ver CompuertasDeDuctos).
+    private bool compuertaCerrada;
+    // La compuerta está en la boca del ducto, a ~3 m del jugador 1 (V04 y V08
+    // quedan a 3,7 m): más cerca que esto ya entró a la oficina.
+    private const float DistanciaDeLaCompuertaAlJugador = 3f;
     private readonly Dictionary<string, float> segundosTareaPendiente = new Dictionary<string, float>();
     private readonly HashSet<int> puntosVisitados = new HashSet<int>();
     // Freddy y Vixy siguen su ruta en orden; de vez en cuando hacen un desvío.
@@ -165,6 +172,36 @@ public class AnimatronicUnityBrain : MonoBehaviour
         detenidoHasta = Mathf.Max(detenidoHasta, Time.time + segundos);
     }
 
+    public void FijarCompuertaCerrada(bool cerrada) { compuertaCerrada = cerrada; }
+
+    /// El punto de su ruta más cercano a donde está ahora (por su posición real,
+    /// no por su destino: Puppet fija el destino siguiente cada segundo aunque
+    /// no haya llegado). Con esto se enciende el semáforo de su ducto.
+    public string PuntoMasCercano
+    {
+        get
+        {
+            if (ruta == null) return null;
+            string nombre = null;
+            float mejor = float.MaxValue;
+            foreach (Transform punto in ruta)
+            {
+                if (punto == null) continue;
+                float d = HorizontalDistance(transform.position, punto.position);
+                if (d < mejor) { mejor = d; nombre = punto.name; }
+            }
+            return nombre;
+        }
+    }
+
+    private bool BloqueadoPorCompuerta => compuertaCerrada && !PasoLaCompuerta();
+
+    private bool PasoLaCompuerta()
+    {
+        if (ruta == null || ruta.Length == 0 || ruta[ruta.Length - 1] == null) return false;
+        return HorizontalDistance(transform.position, ruta[ruta.Length - 1].position) < DistanciaDeLaCompuertaAlJugador;
+    }
+
     /// Mantiene al animatrónico quieto mientras sea verdadero (ventana de rescate).
     public void MantenerQuieto(bool quieto) { mantenidoQuieto = quieto; }
 
@@ -244,6 +281,15 @@ public class AnimatronicUnityBrain : MonoBehaviour
                 ? SegundosEntreRevisionesDeVixyEnPenultimo
                 : SegundosEntreAvances);
             return;
+        }
+
+        // Puppet iba de la boca del ducto a la oficina y le cerraron la
+        // compuerta antes de pasarla: vuelve a la boca y espera ahí.
+        if (EsPuppet && BloqueadoPorCompuerta && indiceRuta == ruta.Length - 1)
+        {
+            indiceRuta = ruta.Length - 2;
+            if (agent != null && agent.isOnNavMesh && ruta[indiceRuta] != null)
+                agent.SetDestination(ruta[indiceRuta].position);
         }
 
         // Puppet still attacks on physical arrival. Freddy and Vixy stop at
@@ -390,7 +436,7 @@ public class AnimatronicUnityBrain : MonoBehaviour
         // Vixy solo mata desde el penúltimo punto, nunca a distancia: hasta
         // llegar ahí el jugador siempre puede frenarla resolviendo tareas.
         if (activo && ataqueVixyPorTresTareas && esperandoAtaquePenultimo &&
-            current.Count >= TareasParaAtacar)
+            current.Count >= TareasParaAtacar && !BloqueadoPorCompuerta)
             TriggerAttack("Vixy te alcanzó con las tareas sin resolver");
     }
 
@@ -474,6 +520,8 @@ public class AnimatronicUnityBrain : MonoBehaviour
         }
 
         if (indiceRuta >= ruta.Length - 1) return;
+        // El último paso entra a la oficina: con la compuerta cerrada espera.
+        if (indiceRuta + 1 == ruta.Length - 1 && BloqueadoPorCompuerta) return;
         indiceRuta++;
         Transform next = ruta[indiceRuta];
         if (next == null) return;
@@ -576,7 +624,8 @@ public class AnimatronicUnityBrain : MonoBehaviour
         {
             // Vixy espera en el penúltimo punto hasta que las tareas sin
             // resolver lleguen al umbral; el azar no decide su ataque.
-            if (segundosTareaPendiente.Count >= TareasParaAtacar)
+            // Con la compuerta cerrada no puede salir del ducto: sigue esperando.
+            if (segundosTareaPendiente.Count >= TareasParaAtacar && !BloqueadoPorCompuerta)
                 TriggerAttack(nombreAnimatronico + " te alcanzó con las tareas sin resolver");
             else
                 proximoIntentoPenultimo = Time.time + SegundosEntreRevisionesDeVixyEnPenultimo;

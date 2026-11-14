@@ -169,6 +169,23 @@ public class UnityGameSessionController : MonoBehaviour
 
     [Serializable] private class PingOperadorMessage { public string type; public long t; }
 
+    /// De la tablet del jugador 1: cierra (`cerrar` = true) o abre la compuerta
+    /// de un ducto. `lado`: "izquierda" o "derecha".
+    [Serializable] private class CompuertaMessage { public string type; public string lado; public bool cerrar; }
+
+    /// Las compuertas, su batería y el semáforo de cada ducto. Va a la tablet
+    /// (botones y batería) y al jugador 2 (copia del semáforo). Sale en cada
+    /// tick y en cuanto algo cambia.
+    [Serializable] private class EstadoOficinaMessage
+    {
+        public string type = "estado_oficina";
+        public int bateria;
+        public bool compuerta_izquierda;
+        public bool compuerta_derecha;
+        public string luz_izquierda;
+        public string luz_derecha;
+    }
+
     /// De la tablet del jugador 1: -1 mantiene apretado «izquierda», 1 «derecha», 0 soltó.
     [Serializable] private class CamaraMessage { public string type; public int direccion; }
 
@@ -409,6 +426,13 @@ public class UnityGameSessionController : MonoBehaviour
     private readonly TareasDeOperador tareas = new TareasDeOperador(new System.Random());
     private readonly PresenciaDeOperador presencia = new PresenciaDeOperador();
     private readonly RescateDePuppet rescate = new RescateDePuppet();
+    // Ductos: compuertas con batería (las cierra el jugador 1) y su semáforo.
+    private readonly CompuertasDeDuctos compuertas = new CompuertasDeDuctos();
+    private readonly Dictionary<AnimatronicUnityBrain, string> ductoDe = new Dictionary<AnimatronicUnityBrain, string>();
+    private SemaforoDeDuctos.Luz luzIzquierda;
+    private SemaforoDeDuctos.Luz luzDerecha;
+    private string estadoOficinaPublicado;
+    private LucesDeDuctos lucesDeDuctos;
     // Cámara del jugador 1: la mueve desde la tablet (botones izquierda/derecha).
     private readonly ControlDeCamara camara = new ControlDeCamara();
     private Transform camaraDeJuego;
@@ -434,6 +458,7 @@ public class UnityGameSessionController : MonoBehaviour
         reproductorDeJumpscare = gameObject.AddComponent<ReproductorDeJumpscare>();
         if (jugador == null && Camera.main != null) jugador = Camera.main.transform;
         ConfigureSceneActors();
+        lucesDeDuctos = LucesDeDuctos.Crear();
     }
 
     private void Start()
@@ -497,6 +522,7 @@ public class UnityGameSessionController : MonoBehaviour
         }
         RevisarTrampas();
         GestionarRescateDePuppet();
+        ActualizarDuctos();
         PublicarAlJugador2EnCadaCuadro();
         tickClock += Time.deltaTime;
         while (tickClock >= TickSeconds)
@@ -596,6 +622,7 @@ public class UnityGameSessionController : MonoBehaviour
             probabilisticRoute, vixyTaskThreshold);
         brain.alAtacarJugador.AddListener(OnAnimatronicAttack);
         if (!brains.Contains(brain)) brains.Add(brain);
+        ductoDe[brain] = SemaforoDeDuctos.LadoDeRuta(RecorridosDeAnimatronicos.Ruta(role));
         return brain;
     }
 
@@ -684,6 +711,16 @@ public class UnityGameSessionController : MonoBehaviour
                     break;
                 case "camara":
                     if (partidaActiva) camara.Ordenar(JsonUtility.FromJson<CamaraMessage>(json).direccion, Time.time);
+                    break;
+                case "compuerta":
+                    if (partidaActiva)
+                    {
+                        CompuertaMessage orden = JsonUtility.FromJson<CompuertaMessage>(json);
+                        compuertas.Fijar(orden.lado, orden.cerrar);
+                        ActualizarDuctos();
+                        // Aunque no se aceptara (sin batería), la tablet necesita el estado real.
+                        PublicarEstadoOficina(true);
+                    }
                     break;
                 case "tarea_pedir":
                     AtenderPedidoDeTarea(JsonUtility.FromJson<TareaPedirMessage>(json));
@@ -821,6 +858,8 @@ public class UnityGameSessionController : MonoBehaviour
         freno.Reiniciar();
         recursos.Reiniciar();
         tareas.Reiniciar();
+        compuertas.Reiniciar();
+        estadoOficinaPublicado = null;
         CentrarCamara();
         QuitarTodasLasTrampas();
         rescate.Reiniciar();
@@ -907,6 +946,7 @@ public class UnityGameSessionController : MonoBehaviour
 
         PublishState();
         PublishPuppetState();
+        PublicarEstadoOficina(true);
         PublicarEstadoDelMapa();
         PublicarEstadoJugador();
         PublicarEstadoOperador();
@@ -1164,6 +1204,7 @@ public class UnityGameSessionController : MonoBehaviour
         if (!partidaActiva) return;
         partidaActiva = false;
         foreach (AnimatronicUnityBrain brain in brains) brain.Detener();
+        if (lucesDeDuctos != null) lucesDeDuctos.Mostrar(luzIzquierda, luzDerecha, false, false, false);
         CentrarCamara();
         QuitarTodasLasTrampas();
         rescate.Reiniciar();
@@ -1348,6 +1389,49 @@ public class UnityGameSessionController : MonoBehaviour
                 : new PuntoDeMapa { nombre = "jugador", x = jugador.position.x, z = jugador.position.z },
             camara_yaw = Mathf.Round(camara.Yaw * 10f) / 10f
         });
+    }
+
+    /// Cada cuadro de la partida: gasta la batería, les dice a Vixy y a Puppet si
+    /// su compuerta está cerrada, enciende el semáforo según dónde están y lo
+    /// muestra en la oficina. Si algo cambió, avisa enseguida a la tablet y al
+    /// jugador 2.
+    private void ActualizarDuctos()
+    {
+        compuertas.Avanzar(Time.deltaTime);
+        SemaforoDeDuctos.Luz izquierda = SemaforoDeDuctos.Luz.Verde, derecha = SemaforoDeDuctos.Luz.Verde;
+        foreach (AnimatronicUnityBrain brain in brains)
+        {
+            string lado;
+            if (!ductoDe.TryGetValue(brain, out lado) || lado == null) continue;
+            brain.FijarCompuertaCerrada(compuertas.EstaCerrada(lado));
+            if (!brain.gameObject.activeInHierarchy) continue;
+            SemaforoDeDuctos.Luz luz = SemaforoDeDuctos.LuzDe(lado, brain.PuntoMasCercano);
+            if (lado == SemaforoDeDuctos.Izquierda) izquierda = SemaforoDeDuctos.LaPeor(izquierda, luz);
+            else derecha = SemaforoDeDuctos.LaPeor(derecha, luz);
+        }
+        luzIzquierda = izquierda;
+        luzDerecha = derecha;
+        if (lucesDeDuctos != null)
+            lucesDeDuctos.Mostrar(luzIzquierda, luzDerecha, compuertas.EstaCerrada(SemaforoDeDuctos.Izquierda),
+                compuertas.EstaCerrada(SemaforoDeDuctos.Derecha), true);
+        PublicarEstadoOficina(false);
+    }
+
+    /// `siempre` = false: solo si cambió algo desde lo último que se mandó.
+    private void PublicarEstadoOficina(bool siempre)
+    {
+        var estado = new EstadoOficinaMessage
+        {
+            bateria = Mathf.CeilToInt(compuertas.Bateria),
+            compuerta_izquierda = compuertas.EstaCerrada(SemaforoDeDuctos.Izquierda),
+            compuerta_derecha = compuertas.EstaCerrada(SemaforoDeDuctos.Derecha),
+            luz_izquierda = SemaforoDeDuctos.Texto(luzIzquierda),
+            luz_derecha = SemaforoDeDuctos.Texto(luzDerecha)
+        };
+        string json = JsonUtility.ToJson(estado);
+        if (!siempre && json == estadoOficinaPublicado) return;
+        estadoOficinaPublicado = json;
+        Send(estado);
     }
 
     private void PublicarEstadoJugador()
@@ -1611,7 +1695,8 @@ public class UnityGameSessionController : MonoBehaviour
         else { RechazarTarea("tarea_desconocida"); return; }
 
         // No tiene sentido ganar lo que ya está lleno o ganado.
-        if (tipo == TareasDeOperador.Tipo.Calculo && recursos.CargasLlenas) { RechazarTarea("cargas_llenas"); return; }
+        // El cálculo da una carga y batería: solo sobra si las dos están llenas.
+        if (tipo == TareasDeOperador.Tipo.Calculo && recursos.CargasLlenas && compuertas.BateriaLlena) { RechazarTarea("cargas_llenas"); return; }
         if (tipo == TareasDeOperador.Tipo.Ecuacion && recursos.HabilidadPuppet) { RechazarTarea("habilidad_lista"); return; }
 
         TareasDeOperador.Tarea tarea = tareas.Pedir(tipo, noche, Time.time);
@@ -1643,7 +1728,13 @@ public class UnityGameSessionController : MonoBehaviour
             case TareasDeOperador.ResultadoRespuesta.SinTarea: RechazarTarea("tarea_sin_pedir"); return;
             case TareasDeOperador.ResultadoRespuesta.MuyRapida: RechazarTarea("tarea_muy_rapida"); return;
             case TareasDeOperador.ResultadoRespuesta.Correcta:
-                if (tipo == "calculo") recursos.GanarCargaPorCalculo(); else recursos.GanarHabilidadPorEcuacion();
+                if (tipo == "calculo")
+                {
+                    recursos.GanarCargaPorCalculo();
+                    compuertas.Recargar(CompuertasDeDuctos.RecargaPorCalculo);
+                    PublicarEstadoOficina(true);
+                }
+                else recursos.GanarHabilidadPorEcuacion();
                 Send(new TareaResultadoMessage { id = respuesta.id, tipo = tipo, correcto = true });
                 break;
             default:
