@@ -29,6 +29,8 @@ public sealed class LucesDeDuctos : MonoBehaviour
     private Lampara derecha;
     private GameObject compuertaIzquierda;
     private GameObject compuertaDerecha;
+    private bool empujandoIzquierda;
+    private bool empujandoDerecha;
 
     private sealed class Lampara
     {
@@ -58,6 +60,16 @@ public sealed class LucesDeDuctos : MonoBehaviour
         Pintar(derecha, luzDerecha, encendidas);
         compuertaIzquierda.SetActive(encendidas && cerradaIzquierda);
         compuertaDerecha.SetActive(encendidas && cerradaDerecha);
+        if (!encendidas) FijarEmpujones(false, false);
+    }
+
+    /// Un animatrónico empuja la compuerta cerrada de ese lado (la fase antes
+    /// de retroceder, ver RetrocesoPorCompuerta): la placa da golpes hacia la
+    /// oficina, para que el jugador 1 sepa que está ahí y que debe aguantar.
+    public void FijarEmpujones(bool izquierda, bool derecha)
+    {
+        empujandoIzquierda = izquierda;
+        empujandoDerecha = derecha;
     }
 
     private void Update()
@@ -67,6 +79,17 @@ public sealed class LucesDeDuctos : MonoBehaviour
         foreach (Lampara l in new[] { izquierda, derecha })
             if (l != null && l.encendida && l.estado == SemaforoDeDuctos.Luz.Rojo)
                 l.luz.intensity = 1f + 2f * latido;
+        // Golpes: ~3 por segundo, la placa se abomba hasta 6 cm hacia dentro.
+        Golpear(compuertaIzquierda, CompuertaIzquierda, empujandoIzquierda, +1f);
+        Golpear(compuertaDerecha, CompuertaDerecha, empujandoDerecha, -1f);
+    }
+
+    /// `haciaDentro`: +1 si la oficina queda hacia +x (compuerta izquierda), -1 si no.
+    private static void Golpear(GameObject placa, Vector3 reposo, bool empujando, float haciaDentro)
+    {
+        if (placa == null || !placa.activeSelf) return;
+        float golpe = empujando ? Mathf.Abs(Mathf.Sin(Time.time * 9f)) * 0.06f : 0f;
+        placa.transform.position = reposo + new Vector3(haciaDentro * golpe, 0f, 0f);
     }
 
     private static void Pintar(Lampara l, SemaforoDeDuctos.Luz estado, bool encendida)

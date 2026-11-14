@@ -1399,6 +1399,7 @@ public class UnityGameSessionController : MonoBehaviour
     {
         compuertas.Avanzar(Time.deltaTime);
         SemaforoDeDuctos.Luz izquierda = SemaforoDeDuctos.Luz.Verde, derecha = SemaforoDeDuctos.Luz.Verde;
+        bool empujaIzquierda = false, empujaDerecha = false;
         foreach (AnimatronicUnityBrain brain in brains)
         {
             string lado;
@@ -1406,14 +1407,18 @@ public class UnityGameSessionController : MonoBehaviour
             brain.FijarCompuertaCerrada(compuertas.EstaCerrada(lado));
             if (!brain.gameObject.activeInHierarchy) continue;
             SemaforoDeDuctos.Luz luz = SemaforoDeDuctos.LuzDe(lado, brain.PuntoMasCercano);
-            if (lado == SemaforoDeDuctos.Izquierda) izquierda = SemaforoDeDuctos.LaPeor(izquierda, luz);
-            else derecha = SemaforoDeDuctos.LaPeor(derecha, luz);
+            bool empuja = brain.EmpujandoLaCompuerta;
+            if (lado == SemaforoDeDuctos.Izquierda) { izquierda = SemaforoDeDuctos.LaPeor(izquierda, luz); empujaIzquierda |= empuja; }
+            else { derecha = SemaforoDeDuctos.LaPeor(derecha, luz); empujaDerecha |= empuja; }
         }
         luzIzquierda = izquierda;
         luzDerecha = derecha;
         if (lucesDeDuctos != null)
+        {
             lucesDeDuctos.Mostrar(luzIzquierda, luzDerecha, compuertas.EstaCerrada(SemaforoDeDuctos.Izquierda),
                 compuertas.EstaCerrada(SemaforoDeDuctos.Derecha), true);
+            lucesDeDuctos.FijarEmpujones(empujaIzquierda, empujaDerecha);
+        }
         PublicarEstadoOficina(false);
     }
 

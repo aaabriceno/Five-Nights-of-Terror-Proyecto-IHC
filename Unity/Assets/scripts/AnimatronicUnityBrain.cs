@@ -73,6 +73,11 @@ public class AnimatronicUnityBrain : MonoBehaviour
     // La compuerta está en la boca del ducto, a ~3 m del jugador 1 (V04 y V08
     // quedan a 3,7 m): más cerca que esto ya entró a la oficina.
     private const float DistanciaDeLaCompuertaAlJugador = 3f;
+    // En la boca con la compuerta cerrada la empuja 4 s y, si aguanta, vuelve a
+    // la entrada del ducto (ver RetrocesoPorCompuerta). Mientras vuelve
+    // (`retrocediendoHacia` >= 0) no avanza ni ataca.
+    private readonly RetrocesoPorCompuerta retroceso = new RetrocesoPorCompuerta();
+    private int retrocediendoHacia = -1;
     private readonly Dictionary<string, float> segundosTareaPendiente = new Dictionary<string, float>();
     private readonly HashSet<int> puntosVisitados = new HashSet<int>();
     // Freddy y Vixy siguen su ruta en orden; de vez en cuando hacen un desvío.
@@ -174,6 +179,12 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
     public void FijarCompuertaCerrada(bool cerrada) { compuertaCerrada = cerrada; }
 
+    /// Está en la boca del ducto empujando la compuerta cerrada (la placa tiembla).
+    public bool EmpujandoLaCompuerta => retroceso.Empujando;
+
+    /// En su penúltimo punto: para Vixy y Puppet, la boca del ducto.
+    private bool EnLaBocaDelDucto => ruta != null && ruta.Length >= 2 && IsAtWaypoint(PenultimateWaypointIndex);
+
     /// El punto de su ruta más cercano a donde está ahora (por su posición real,
     /// no por su destino: Puppet fija el destino siguiente cada segundo aunque
     /// no haya llegado). Con esto se enciende el semáforo de su ducto.
@@ -262,6 +273,22 @@ public class AnimatronicUnityBrain : MonoBehaviour
         if (agent != null && agent.isOnNavMesh && !esperandoAtaquePenultimo)
             agent.isStopped = false;
 
+        // Volviendo a la entrada del ducto tras la compuerta: hasta llegar no
+        // avanza ni ataca, aunque el jugador 1 la abra mientras tanto.
+        if (retrocediendoHacia >= 0)
+        {
+            if (!IsAtWaypoint(retrocediendoHacia)) return;
+            retrocediendoHacia = -1;
+            movementClock = 0f;
+        }
+
+        // Le cerraron la compuerta en la cara: la empuja y, si aguanta, retrocede.
+        if (retroceso.Avanzar(deltaTime, compuertaCerrada && EnLaBocaDelDucto, compuertaCerrada))
+        {
+            RetrocederPorLaCompuerta();
+            return;
+        }
+
         if (esperandoAtaquePenultimo)
         {
             // El reloj de espera usa Time.time: se atrasa lo que se ralentizó.
@@ -338,6 +365,8 @@ public class AnimatronicUnityBrain : MonoBehaviour
         puntosVisitados.Clear();
         posicionesDeRutaNavMesh.Clear();
         if (rutaFija != null) rutaFija.Reiniciar();
+        retroceso.Reiniciar();
+        retrocediendoHacia = -1;
         variacionDelIntervalo = 1f;
         waypointActivo = -1;
         esperandoAtaquePenultimo = false;
@@ -534,8 +563,30 @@ public class AnimatronicUnityBrain : MonoBehaviour
 
     private int PenultimateWaypointIndex => ruta == null ? -1 : ruta.Length - 2;
 
+    /// La compuerta aguantó la fase: vuelve a la entrada del ducto (3 puntos
+    /// atrás) y desde ahí sigue su ruta como siempre. Vixy además retrocede su
+    /// RutaFija, para que sus siguientes avances partan de ahí.
+    private void RetrocederPorLaCompuerta()
+    {
+        int destino = usarRutaProbabilistica
+            ? RutaDeEsteAnimatronico().Retroceder(RetrocesoPorCompuerta.PuntosQueRetrocede)
+            : RetrocesoPorCompuerta.PuntoAlQueVuelve(PenultimateWaypointIndex);
+        esperandoAtaquePenultimo = false;
+        indiceRuta = destino;
+        movementClock = 0f;
+        Transform punto = PuntoDeRuta(destino);
+        if (punto == null || !EnsureAgentOnNavMesh()) return;
+        if (usarRutaProbabilistica) waypointActivo = destino;
+        agent.isStopped = false;
+        Vector3 posicion = posicionesDeRutaNavMesh.TryGetValue(destino, out Vector3 ajustada) ? ajustada : punto.position;
+        if (agent.SetDestination(posicion))
+            retrocediendoHacia = destino;
+        else
+            Debug.LogWarning($"{nombreAnimatronico}: no se pudo calcular una ruta de vuelta a {punto.name}.");
+    }
+
     /// Ruta fija: el siguiente punto de la ruta en orden, o a veces un desvío.
-    /// Nunca se salta un punto ni retrocede. Si un punto no tiene malla de
+    /// Nunca se salta un punto (solo retrocede por la compuerta: RetrocederPorLaCompuerta). Si un punto no tiene malla de
     /// navegación se avisa y se sigue con el siguiente, para no quedarse parado.
     private int SelectNextWaypoint()
     {

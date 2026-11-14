@@ -5,7 +5,8 @@ using System.Collections.Generic;
 /// El recorrido de un animatrónico: una ruta fija (los puntos principales, en
 /// orden, hasta el punto penúltimo) con desvíos ocasionales. Cada animatrónico
 /// tiene su camino y el jugador 2 puede aprenderlo; el azar solo mete algún
-/// desvío entre dos puntos, nunca se salta un punto ni retrocede.
+/// desvío entre dos puntos, nunca se salta un punto. Solo retrocede cuando se
+/// lo pide `Retroceder` (la compuerta del ducto cerrada en la cara).
 ///
 /// Sin `UnityEngine`, para probarla fuera del editor. Trabaja con números:
 /// los puntos principales son 0..n-1 (el n-1 es el penúltimo) y cada desvío
@@ -71,6 +72,16 @@ public class RutaFija
     /// El desvío elegido no se puede recorrer (sin malla de navegación): se
     /// queda en el punto en que estaba y la siguiente llamada sigue la ruta.
     public void AbandonarDesvio() { desvioEnCurso = -1; }
+
+    /// Le cerraron la compuerta en la cara: vuelve `pasos` puntos principales
+    /// atrás (nunca antes del primero) y cancela el desvío que llevara.
+    /// Devuelve el punto al que vuelve; desde ahí `Siguiente` sigue en orden.
+    public int Retroceder(int pasos)
+    {
+        desvioEnCurso = -1;
+        posicion = Math.Max(0, posicion - Math.Max(0, pasos));
+        return posicion;
+    }
 
     private int Avanzar()
     {
