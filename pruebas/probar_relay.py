@@ -410,9 +410,10 @@ async def caso_cada_rol_manda_solo_lo_suyo():
         await asyncio.sleep(0.3)
         while await recibir_o_nada(unity, 0.2) is not None:
             pass
-        for tipo in ("task_completed", "dar_cuerda_inicio", "tutorial_abrir", "connect", "compuerta"):
-            await operador.send(json.dumps({"type": tipo, "task_id": 1, "modo": "nuevo", "lado": "izquierda", "cerrar": True}))
-        comprobar("Unity no recibe task_completed, dar_cuerda_inicio, tutorial_abrir, connect ni compuerta de un operador",
+        for tipo in ("task_completed", "dar_cuerda_inicio", "tutorial_abrir", "connect", "compuerta", "linterna"):
+            await operador.send(json.dumps({"type": tipo, "task_id": 1, "modo": "nuevo", "lado": "izquierda", "cerrar": True,
+                                            "encendida": True}))
+        comprobar("Unity no recibe task_completed, dar_cuerda_inicio, tutorial_abrir, connect, compuerta ni linterna de un operador",
                   await recibir_o_nada(unity, 0.6) is None)
         await operador.send(ACCION)
         comprobar("pero sí recibe su accion_operador (el operador sigue siendo operador)",
@@ -428,6 +429,10 @@ async def caso_cada_rol_manda_solo_lo_suyo():
         await tablet.send(compuerta)
         comprobar("y su compuerta (las compuertas de los ductos las cierra el jugador 1)",
                   await recibir_o_nada(unity) == compuerta)
+        linterna = json.dumps({"type": "linterna", "encendida": True})
+        await tablet.send(linterna)
+        comprobar("y su linterna (la prende el jugador 1 con un botón de la tablet)",
+                  await recibir_o_nada(unity) == linterna)
 
 
 async def caso_una_sola_tablet_por_partida():

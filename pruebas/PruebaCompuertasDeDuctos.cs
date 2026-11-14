@@ -71,6 +71,40 @@ public static class PruebaCompuertasDeDuctos
         Comprobar("Reiniciar abre las dos y llena la batería",
             !c.EstaCerrada("izquierda") && !c.EstaCerrada("derecha") && c.Bateria == 100f);
 
+        // --- La linterna (paso 8): misma batería, se mantiene apretada en la tablet ---
+        Comprobar("la linterna gasta 2 % por segundo, como una compuerta", CompuertasDeDuctos.ConsumoDeLinterna == 2f);
+        var l = new CompuertasDeDuctos();
+        Comprobar("al empezar la linterna está apagada", !l.LinternaEncendida);
+        Comprobar("prenderla se acepta", l.OrdenarLinterna(true, 0f) && l.LinternaEncendida);
+        l.Avanzar(10f);
+        Comprobar("prendida 10 s gasta 20 % (con las compuertas abiertas)", Cerca(l.Bateria, 80f));
+        l.Fijar("izquierda", true);
+        l.Avanzar(5f);
+        Comprobar("linterna y una compuerta juntas gastan 4 % por segundo", Cerca(l.Bateria, 60f));
+        l.Fijar("izquierda", false);
+        l.ActualizarLinterna(0.4f);
+        Comprobar("sigue prendida mientras llegan órdenes (la tablet repite cada 0,15 s)", l.LinternaEncendida);
+        l.OrdenarLinterna(true, 0.3f);
+        l.ActualizarLinterna(0.7f);
+        Comprobar("cada orden nueva le da otros 0,5 s", l.LinternaEncendida);
+        l.ActualizarLinterna(0.81f);
+        Comprobar("0,5 s sin órdenes la apaga (un «soltar» perdido o la tablet caída)", !l.LinternaEncendida);
+        l.OrdenarLinterna(true, 1f);
+        l.OrdenarLinterna(false, 1.1f);
+        Comprobar("soltar el botón la apaga al instante", !l.LinternaEncendida);
+        l.Avanzar(10f);
+        Comprobar("apagada no gasta", Cerca(l.Bateria, 60f));
+
+        var s = new CompuertasDeDuctos();
+        s.OrdenarLinterna(true, 0f);
+        Comprobar("prendida todo el tiempo dura 50 s y al acabarse avisa", !s.Avanzar(49.9f) && s.Avanzar(0.2f));
+        Comprobar("sin batería la linterna se apaga sola", !s.LinternaEncendida && s.SinBateria);
+        Comprobar("y no se puede volver a prender", !s.OrdenarLinterna(true, 51f) && !s.LinternaEncendida);
+        s.Recargar(CompuertasDeDuctos.RecargaPorCalculo);
+        Comprobar("con la recarga del jugador 2 se puede prender otra vez", s.OrdenarLinterna(true, 52f));
+        s.Reiniciar();
+        Comprobar("Reiniciar (noche nueva) la apaga", !s.LinternaEncendida && s.Bateria == 100f);
+
         Console.WriteLine(fallos == 0 ? "Todas las pruebas pasaron." : fallos + " prueba(s) fallaron.");
         return fallos == 0 ? 0 : 1;
     }

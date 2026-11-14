@@ -4,6 +4,7 @@ Tres escenarios, cada uno con su propio arranque del juego:
   vixy     Vixy recorre su ruta fija (con tareas cada 1 s para que se mueva, y sin Freddy).
   rescate  La caja dura 30 s; cada rescate del jugador 2 la deja en la mitad (15 s, 7,5 s).
   puppet   Puppet sale de la caja y recorre su ruta fija hasta el jugador 1.
+  linterna Con la linterna prendida (botón mantenido en la tablet), alumbrar a Freddy 2 s lo hace retroceder.
   tablet   La tablet se cae con la cuerda de la caja y la cámara apretadas: Unity las suelta;
            al volver con `reconnect` la noche sigue (no se reinicia).
 
@@ -530,8 +531,50 @@ async def escenario_compuerta_puppet():
         await p.cerrar()
 
 
+async def escenario_linterna():
+    print("== Linterna: alumbrar a Freddy en el pasillo lo hace retroceder ==")
+    # Noche larga: Freddy tarda ~100 s en llegar a P06 (avanza cada ~22 s sin que lo miren).
+    p = Partida(["-prueba-segundos-noche", "400"])
+    try:
+        await p.abrir()
+        await p.tablet.send(json.dumps({"type": "dar_cuerda_inicio"}))   # Puppet quieto en su caja
+        o = p.oficina_ahora
+        await p.esperar(lambda: bool(p.oficina), 5)
+        comprobar("al empezar la linterna está apagada", o().get("linterna") is False)
+        llego = await p.esperar(lambda: any(n == "P06" for n, _ in p.visitas["freddy"]), 220)
+        comprobar(f"Freddy llega al pasillo del frente (P06, a los {p.t()} s)", llego)
+
+        async def mantener_apretada(segundos):          # como el dedo apoyado: repite cada 0,15 s
+            fin = time.time() + segundos
+            while time.time() < fin:
+                await p.tablet.send(json.dumps({"type": "linterna", "encendida": True}))
+                await asyncio.sleep(0.15)
+
+        b0 = o().get("bateria")
+        dedo = asyncio.ensure_future(mantener_apretada(8))
+        comprobar("la tablet la prende y Unity lo confirma", await p.esperar(lambda: o().get("linterna") is True, 0.6))
+        await asyncio.sleep(1.2)
+        comprobar("antes de 2 s de luz Freddy no retrocede", not p.retrocedio("freddy", "P06", "P05"))
+        volvio = await p.esperar(lambda: p.retrocedio("freddy", "P06", "P05"), 8)
+        comprobar(f"alumbrado ~2 s, Freddy retrocede por el pasillo (pasa por P05; está a "
+                  f"{p.distancia_al_jugador('freddy'):.1f} m del jugador 1)", volvio)
+        await dedo
+        gasto = b0 - o().get("bateria", b0)
+        comprobar(f"prendida ~8 s gasta ~2 % por segundo (bajó {gasto} %)", 13 <= gasto <= 19)
+        await p.tablet.send(json.dumps({"type": "linterna", "encendida": False}))
+        comprobar("al soltar el botón se apaga", await p.esperar(lambda: o().get("linterna") is False, 0.6))
+        await p.tablet.send(json.dumps({"type": "linterna", "encendida": True}))   # una orden y nada más
+        await p.esperar(lambda: o().get("linterna") is True, 0.6)
+        comprobar("si dejan de llegar órdenes (tablet caída) se apaga sola en ~0,5 s",
+                  await p.esperar(lambda: o().get("linterna") is False, 1.5))
+        comprobar("Freddy no atacó", p.fin is None)
+    finally:
+        await p.cerrar()
+
+
 ESCENARIOS = {"vixy": escenario_vixy, "rescate": escenario_rescate, "puppet": escenario_puppet, "tablet": escenario_tablet,
-              "compuerta_vixy": escenario_compuerta_vixy, "compuerta_puppet": escenario_compuerta_puppet}
+              "compuerta_vixy": escenario_compuerta_vixy, "compuerta_puppet": escenario_compuerta_puppet,
+              "linterna": escenario_linterna}
 
 
 async def principal(nombres):
