@@ -18,7 +18,7 @@ public static class PruebaCompuertasDeDuctos
     {
         // --- Los números acordados ---
         Comprobar("la batería empieza en 100 %", CompuertasDeDuctos.BateriaInicial == 100f);
-        Comprobar("cada compuerta cerrada gasta 2 % por segundo", CompuertasDeDuctos.ConsumoPorSegundo == 2f);
+        Comprobar("cada compuerta cerrada gasta 3 % por segundo (2026-11-17: antes 2)", CompuertasDeDuctos.ConsumoPorSegundo == 3f);
         Comprobar("un cálculo del jugador 2 recarga 20 %", CompuertasDeDuctos.RecargaPorCalculo == 20f);
 
         // --- Cerrar y abrir ---
@@ -37,18 +37,18 @@ public static class PruebaCompuertasDeDuctos
         Comprobar("con las dos abiertas no se gasta batería", c.Bateria == 100f);
         c.Fijar("izquierda", true);
         c.Avanzar(10f);
-        Comprobar("una compuerta cerrada 10 s gasta 20 %", Cerca(c.Bateria, 80f));
+        Comprobar("una compuerta cerrada 10 s gasta 30 %", Cerca(c.Bateria, 70f));
         c.Fijar("derecha", true);
         c.Avanzar(10f);
-        Comprobar("las dos cerradas 10 s gastan 40 %", Cerca(c.Bateria, 40f));
+        Comprobar("las dos cerradas 10 s gastan 60 %", Cerca(c.Bateria, 10f));
         c.Avanzar(-5f);
-        Comprobar("un tiempo negativo no cambia nada", Cerca(c.Bateria, 40f));
+        Comprobar("un tiempo negativo no cambia nada", Cerca(c.Bateria, 10f));
         Comprobar("con batería a medias no está llena", !c.BateriaLlena);
 
         // --- Se acaba ---
         c = new CompuertasDeDuctos();
         c.Fijar("derecha", true);
-        Comprobar("una compuerta cerrada todo el tiempo dura 50 s", !c.Avanzar(49.9f) && c.EstaCerrada("derecha"));
+        Comprobar("una compuerta cerrada todo el tiempo dura 33 s", !c.Avanzar(33.2f) && c.EstaCerrada("derecha"));
         Comprobar("al llegar a 0 avisa una vez que se acabó", c.Avanzar(0.2f));
         Comprobar("la batería queda en 0, no negativa", c.Bateria == 0f && c.SinBateria);
         Comprobar("y las compuertas se abren solas", !c.EstaCerrada("derecha") && !c.EstaCerrada("izquierda"));
@@ -72,15 +72,15 @@ public static class PruebaCompuertasDeDuctos
             !c.EstaCerrada("izquierda") && !c.EstaCerrada("derecha") && c.Bateria == 100f);
 
         // --- La linterna (paso 8): misma batería, se mantiene apretada en la tablet ---
-        Comprobar("la linterna gasta 2 % por segundo, como una compuerta", CompuertasDeDuctos.ConsumoDeLinterna == 2f);
+        Comprobar("la linterna gasta 3 % por segundo, como una compuerta", CompuertasDeDuctos.ConsumoDeLinterna == 3f);
         var l = new CompuertasDeDuctos();
         Comprobar("al empezar la linterna está apagada", !l.LinternaEncendida);
         Comprobar("prenderla se acepta", l.OrdenarLinterna(true, 0f) && l.LinternaEncendida);
         l.Avanzar(10f);
-        Comprobar("prendida 10 s gasta 20 % (con las compuertas abiertas)", Cerca(l.Bateria, 80f));
+        Comprobar("prendida 10 s gasta 30 % (con las compuertas abiertas)", Cerca(l.Bateria, 70f));
         l.Fijar("izquierda", true);
         l.Avanzar(5f);
-        Comprobar("linterna y una compuerta juntas gastan 4 % por segundo", Cerca(l.Bateria, 60f));
+        Comprobar("linterna y una compuerta juntas gastan 6 % por segundo", Cerca(l.Bateria, 40f));
         l.Fijar("izquierda", false);
         l.ActualizarLinterna(0.4f);
         Comprobar("sigue prendida mientras llegan órdenes (la tablet repite cada 0,15 s)", l.LinternaEncendida);
@@ -93,11 +93,11 @@ public static class PruebaCompuertasDeDuctos
         l.OrdenarLinterna(false, 1.1f);
         Comprobar("soltar el botón la apaga al instante", !l.LinternaEncendida);
         l.Avanzar(10f);
-        Comprobar("apagada no gasta", Cerca(l.Bateria, 60f));
+        Comprobar("apagada no gasta", Cerca(l.Bateria, 40f));
 
         var s = new CompuertasDeDuctos();
         s.OrdenarLinterna(true, 0f);
-        Comprobar("prendida todo el tiempo dura 50 s y al acabarse avisa", !s.Avanzar(49.9f) && s.Avanzar(0.2f));
+        Comprobar("prendida todo el tiempo dura 33 s y al acabarse avisa", !s.Avanzar(33.2f) && s.Avanzar(0.2f));
         Comprobar("sin batería la linterna se apaga sola", !s.LinternaEncendida && s.SinBateria);
         Comprobar("y no se puede volver a prender", !s.OrdenarLinterna(true, 51f) && !s.LinternaEncendida);
         s.Recargar(CompuertasDeDuctos.RecargaPorCalculo);

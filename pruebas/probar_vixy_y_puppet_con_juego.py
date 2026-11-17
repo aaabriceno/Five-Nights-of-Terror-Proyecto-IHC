@@ -66,6 +66,7 @@ class Partida:
         self.avisos = []                # (t, tipo) de jugador1_salio / jugador1_volvio
         self.visitas = {"freddy": [], "vixy": [], "puppet": []}
         self.oficina = []               # (t, mensaje) de estado_oficina que recibe la tablet
+        self.efectos_tablet = []        # (t, mensaje) de los efecto que recibe la tablet
         self.oficina_j2 = []            # (t, mensaje) de estado_oficina que recibe el jugador 2
         self.atacante = None            # quién mató al jugador 1 (`animatronic` del mensaje attack)
 
@@ -145,6 +146,8 @@ class Partida:
                     self.caja.append((self.t(), m["valor_caja_porcentaje"], m.get("segundos_caja"), m.get("multa_factor")))
                 elif m.get("type") == "estado_oficina":
                     self.oficina.append((self.t(), m))
+                elif m.get("type") == "efecto":
+                    self.efectos_tablet.append((self.t(), m))
                 elif m.get("type") == "attack":
                     self.atacante = m.get("animatronic")
                 elif m.get("type") == "game_over" and self.fin is None:
@@ -460,7 +463,7 @@ async def escenario_compuerta_vixy():
         t0, b0 = p.t(), o().get("bateria")
         await asyncio.sleep(5)
         gasto = b0 - o().get("bateria")
-        comprobar(f"cerrada gasta ~2 % por segundo (en {p.t() - t0:.1f} s bajó {gasto} %)", 8 <= gasto <= 12)
+        comprobar(f"cerrada gasta ~3 % por segundo (en {p.t() - t0:.1f} s bajó {gasto} %)", 12 <= gasto <= 18)
         llego = await p.esperar(lambda: any(n == "V04" for n, _ in p.visitas["vixy"]), 30)
         comprobar("Vixy llega a la boca del ducto (V04)", llego)
         t_llego = next((t for n, t in p.visitas["vixy"] if n == "V04"), p.t()) - 0.2
@@ -481,6 +484,10 @@ async def escenario_compuerta_vixy():
         vacia = await p.esperar(lambda: o().get("bateria") == 0, 90)
         comprobar(f"la batería se acaba (a los {p.t()} s)", vacia)
         comprobar("y la compuerta se abre sola", o().get("compuerta_izquierda") is False)
+        aviso = lambda efectos: any(m.get("tipo") == "bateria_agotada" for _, m in efectos)
+        comprobar("la tablet recibe el aviso «bateria_agotada»", await p.esperar(lambda: aviso(p.efectos_tablet), 2))
+        comprobar("el jugador 2 también (para que recargue con un cálculo)", aviso(p.efectos))
+        comprobar("el aviso llega una sola vez", sum(1 for _, m in p.efectos_tablet if m.get("tipo") == "bateria_agotada") == 1)
         t_intento, respuestas = p.t(), len(p.oficina)
         await p.compuerta("izquierda", True)
         await asyncio.sleep(0.6)
@@ -554,7 +561,7 @@ async def escenario_linterna():
                   f"{p.distancia_al_jugador('freddy'):.1f} m del jugador 1)", volvio)
         await dedo
         gasto = b0 - o().get("bateria", b0)
-        comprobar(f"prendida ~8 s gasta ~2 % por segundo (bajó {gasto} %)", 13 <= gasto <= 19)
+        comprobar(f"prendida ~8 s gasta ~3 % por segundo (bajó {gasto} %)", 20 <= gasto <= 28)
         await p.tablet.send(json.dumps({"type": "linterna", "encendida": False}))
         comprobar("al soltar el botón se apaga", await p.esperar(lambda: o().get("linterna") is False, 0.6))
         await p.tablet.send(json.dumps({"type": "linterna", "encendida": True}))   # una orden y nada más
