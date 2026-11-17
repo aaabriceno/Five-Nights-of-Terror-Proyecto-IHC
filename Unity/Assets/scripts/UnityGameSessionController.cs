@@ -300,10 +300,11 @@ public class UnityGameSessionController : MonoBehaviour
     /// Lo consulta la pantalla de espera para saber si debe taparlo todo.
     public bool PartidaActiva => partidaActiva;
 
-    /// Resultado de la partida que acaba de terminar ("win", "loss" o
-    /// "final_victory"), o vacío si no hay ninguno pendiente de mostrar. Se
-    /// limpia cuando la tablet avisa que volvió a su menú, no por tiempo:
-    /// la pantalla del final queda a la vista mientras el jugador decide.
+    /// Resultado de la partida que acaba de terminar ("win", "loss",
+    /// "final_victory" o "conexion_perdida"), o vacío si no hay ninguno
+    /// pendiente de mostrar. Se limpia cuando la tablet avisa que volvió a su
+    /// menú (o empieza otra partida), no por tiempo: la pantalla del final
+    /// queda a la vista mientras el jugador decide.
     public string ResultadoDeLaUltimaPartida { get; private set; } = string.Empty;
 
     public int NocheDeLaUltimaPartida { get; private set; }
@@ -664,13 +665,13 @@ public class UnityGameSessionController : MonoBehaviour
             switch (header.type)
             {
                 case "connect": StartGame(JsonUtility.FromJson<ConnectMessage>(json)); break;
-                case "reconnect": ReconectarTablet(JsonUtility.FromJson<ConnectMessage>(json)); break;
                 case "tablet_caida":
-                    // La tablet se quedó sin conexión (lo avisa el relay): nadie va a
-                    // mandar el «soltar» de la cuerda ni de la cámara.
+                    // La tablet se quedó sin conexión (lo avisa el relay). El que
+                    // tiene que sobrevivir es el jugador 1: sin él la noche termina,
+                    // y la tablet no puede volver a esta partida (2026-11-17).
                     windingPuppet = false;
-                    CentrarCamara();
-                    AmbienteDelJuego.PedirEstatica(Time.time, 1f);
+                    EnTutorial = false;
+                    if (partidaActiva) FinishGame(false, false, null, conexionPerdida: true);
                     break;
                 case "task_completed":
                 case "task_failed": ResolveTask(JsonUtility.FromJson<TaskResultMessage>(json), header.type == "task_failed"); break;
@@ -792,25 +793,6 @@ public class UnityGameSessionController : MonoBehaviour
             tarea_completada = tutorialTareaCompletada,
             camara_disponible = TutorialCamaraDisponible
         });
-    }
-
-    /// La tablet perdió la conexión (Wi-Fi) y volvió: se retoma la noche en
-    /// curso en vez de reiniciarla, y se le manda el estado para que su pantalla
-    /// se ponga al día. Sin partida en curso (Unity se reinició o la noche ya
-    /// terminó) no hay nada que retomar: se empieza como con `connect`.
-    private void ReconectarTablet(ConnectMessage message)
-    {
-        if (!partidaActiva)
-        {
-            StartGame(message);
-            return;
-        }
-        windingPuppet = false;
-        CentrarCamara();
-        presencia.OlvidarCambio();      // la tablet vuelve a saber si hay compañero
-        PublishState();
-        PublishPuppetState();
-        PublishTaskList();
     }
 
     private void StartGame(ConnectMessage message)
@@ -1217,7 +1199,10 @@ public class UnityGameSessionController : MonoBehaviour
         Destroy(overlay, visibleDuration);
     }
 
-    private void FinishGame(bool won, bool died, string attacker)
+    /// `conexionPerdida`: la tablet se quedó sin red a mitad de la noche. No
+    /// cuenta como derrota ni como victoria: se guarda la misma noche para
+    /// «Continuar» y el resultado es "conexion_perdida".
+    private void FinishGame(bool won, bool died, string attacker, bool conexionPerdida = false)
     {
         if (!partidaActiva) return;
         partidaActiva = false;
@@ -1237,7 +1222,7 @@ public class UnityGameSessionController : MonoBehaviour
             gestorSonido.ReproducirMusicaMenu();
         }
 
-        string result = died ? "loss" : "win";
+        string result = conexionPerdida ? "conexion_perdida" : died ? "loss" : "win";
         string key = "ihc_next_night_" + playerId;
         if (won && noche >= MaxNight)
         {

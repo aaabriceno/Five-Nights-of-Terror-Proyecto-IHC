@@ -74,6 +74,11 @@ public class PantallaDeResultado : MonoBehaviour
                 subtitulo.text = "Sobreviviste las seis noches";
                 AplicarFondo(RutaImagenTurnoCompleto);
                 break;
+            case "conexion_perdida":
+                titulo.text = "CONEXIÓN PERDIDA";
+                subtitulo.text = $"La tablet se desconectó: la noche {noche} terminó";
+                AplicarFondo(null);
+                break;
             default:
                 titulo.text = $"NOCHE {noche}";
                 subtitulo.text = "No sobreviviste";
@@ -85,7 +90,7 @@ public class PantallaDeResultado : MonoBehaviour
 
     private void AplicarFondo(string ruta)
     {
-        Texture2D imagen = Resources.Load<Texture2D>(ruta);
+        Texture2D imagen = ruta != null ? Resources.Load<Texture2D>(ruta) : null;
         if (imagen != null)
         {
             fondo.texture = imagen;
