@@ -443,14 +443,17 @@ async def principal(captura):
         comprobar("el panel del jugador 1 dice hacia dónde mira su cámara",
                   await esperar(lambda: (navegador.texto("j1-camara") or "") == "Izquierda 45°", 4.0))
 
-        # --- el jugador 1 pierde el Wi-Fi un momento: no es el fin de la partida ---
-        sin_j1 = "var r=document.getElementById('j1-sin-conexion');return !!r && !r.hidden;"
+        # --- el jugador 1 pierde la conexión: la partida terminó y no hay vuelta (2026-11-17) ---
         ORDENES.put_nowait(("raw", {"type": "jugador1_salio", "motivo": "conexion_perdida"}))
-        comprobar("si el jugador 1 pierde la conexión, la página lo avisa sin dar la partida por terminada",
-                  await esperar(lambda: js(sin_j1) and not js(visible)
-                                and "SIN CONEXI" in (navegador.texto("j1-sin-conexion") or "").upper(), 4.0))
-        ORDENES.put_nowait(("raw", {"type": "jugador1_volvio"}))
-        comprobar("cuando el jugador 1 vuelve, el aviso desaparece", await esperar(lambda: not js(sin_j1), 4.0))
+        comprobar("si el jugador 1 pierde la conexión, la página tapa el monitor: «se desconectó»",
+                  await esperar(lambda: js(visible) and "DESCONECT" in (navegador.texto("fin-titulo") or "").upper(), 4.0))
+        comprobar("y ya no queda el aviso de «esperando que vuelva»",
+                  navegador.ejecutar("return document.getElementById('j1-sin-conexion') === null;"))
+        ORDENES.put_nowait(("raw", {"type": "game_over", "result": "conexion_perdida", "night": 2,
+                                    "final_stats": {"duration": 95, "tasks_completed": 3, "tasks_failed": 0}}))
+        comprobar("el game_over de Unity («conexion_perdida») lo explica en el detalle",
+                  await esperar(lambda: js(visible) and "DESCONECT" in (navegador.texto("fin-detalle") or "").upper(), 4.0))
+        navegador.ejecutar("document.getElementById('fin-esperar').click();")
 
         # --- un nombre con HTML llegado por la red se muestra como texto, no se ejecuta ---
         hostil = "<img src=x onerror=\"window.__xss=1\">"

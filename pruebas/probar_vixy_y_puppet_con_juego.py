@@ -5,8 +5,8 @@ Tres escenarios, cada uno con su propio arranque del juego:
   rescate  La caja dura 30 s; cada rescate del jugador 2 la deja en la mitad (15 s, 7,5 s).
   puppet   Puppet sale de la caja y recorre su ruta fija hasta el jugador 1.
   linterna Con la linterna prendida (botón mantenido en la tablet), alumbrar a Freddy 2 s lo hace retroceder.
-  tablet   La tablet se cae con la cuerda de la caja y la cámara apretadas: Unity las suelta;
-           al volver con `reconnect` la noche sigue (no se reinicia).
+  tablet   La tablet se cae a mitad de la noche: Unity la termina («conexion_perdida»),
+           avisa al jugador 2, y un `reconnect` ya no la retoma.
 
 El juego se abre en una pantalla virtual (Xvfb) para no tocar tu escritorio. Usa las
 opciones de prueba del juego (-prueba-sin-freddy, -prueba-tareas-cada): sin ellas el
@@ -379,60 +379,54 @@ async def escenario_puppet():
 
 
 async def escenario_tablet():
-    print("== La tablet se cae y vuelve: la cuerda y la cámara se sueltan y la noche sigue ==")
+    print("== La tablet se cae: la noche termina (conexión perdida) y no se puede volver a ella ==")
     p = Partida(["-prueba-sin-freddy"])
     try:
         await p.abrir()
-        caja = lambda: p.estado_jugador[-1][1]["caja_pct"] if p.estado_jugador else None
-        await p.esperar(lambda: p.t() >= 10, 20)
-        comprobar(f"sin darle cuerda la caja baja (a los 10 s va en {caja()} %)", caja() is not None and caja() < 80)
+        await p.esperar(lambda: p.t() >= 8, 15)
         # El jugador 1 aprieta la cuerda y la cámara, y se queda sin Wi-Fi sin soltarlas.
         await p.tablet.send(json.dumps({"type": "dar_cuerda_inicio"}))
-
-        async def mantener_la_camara():              # como el dedo apoyado: repite la orden hasta que se cae
-            while True:
-                await p.tablet.send(json.dumps({"type": "camara", "direccion": -1}))
-                await asyncio.sleep(0.15)
-
-        camara = asyncio.ensure_future(mantener_la_camara())
-        await p.esperar(lambda: (caja() or 0) >= 85, 12)
-        comprobar(f"dándole cuerda la caja sube (va en {caja()} %)", (caja() or 0) >= 85)
-        yaw = p.yaw[-1][1] if p.yaw else 0
-        comprobar(f"la cámara está girada a la izquierda (va en {yaw}°)", yaw < -30)
-        caja_al_caer = caja()
+        await p.tablet.send(json.dumps({"type": "camara", "direccion": -1}))
+        await asyncio.sleep(0.3)
+        comprobar("antes de caerse la noche sigue en curso (sin game_over)", p.fin is None)
         t_caida = p.t()
-        camara.cancel()
-        await p.tablet.close()                       # se cae sin soltar nada
-        await p.esperar(lambda: any(t > t_caida and y == 0 for t, y in p.yaw), 4)
-        comprobar("Unity centra la cámara al caerse la tablet", any(t > t_caida and y == 0 for t, y in p.yaw))
-        await asyncio.sleep(4)
-        comprobar(f"y suelta la cuerda: la caja ya no se queda llena (de {caja_al_caer} % a {caja()} %)",
-                  caja() is not None and caja() <= caja_al_caer - 8)
-        comprobar("el jugador 2 se entera (jugador1_salio)", any(a == "jugador1_salio" for _, a in p.avisos))
-        # Pasa un rato con la tablet caída: la noche sigue corriendo.
-        await p.esperar(lambda: (caja() or 100) <= 55, 20)
-        caja_antes = caja()
-        # La tablet vuelve: lo que manda la app tras una caída es `reconnect`.
+        await p.tablet.close()                       # se cae sin despedirse
+        await p.esperar(lambda: p.fin is not None, 5)
+        resultado = p.fin[1].get("result") if p.fin else None
+        demora = round(p.fin[0] - t_caida, 1) if p.fin else None
+        comprobar(f"Unity termina la noche con game_over «conexion_perdida» (llegó {resultado!r} a los {demora} s)",
+                  resultado == "conexion_perdida")
+        comprobar("el jugador 2 se entera de que el jugador 1 se fue (jugador1_salio)",
+                  any(a == "jugador1_salio" for _, a in p.avisos))
+        # La tablet intenta volver con el reconnect de antes: ya no hay partida que retomar.
         tablet = await websockets.connect(URL, ping_interval=None, max_queue=None)
         await tablet.send(json.dumps({"type": "reconnect", "device": "tablet", "player_id": "prueba_vp", "modo": "nuevo"}))
         recibidos = {}
-        fin = time.time() + 3
-        while time.time() < fin:
+        limite = time.time() + 3
+        while time.time() < limite:
             try:
                 m = json.loads(await asyncio.wait_for(tablet.recv(), 0.5))
             except asyncio.TimeoutError:
                 continue
+            except websockets.exceptions.ConnectionClosed:
+                break
             recibidos.setdefault(m.get("type"), m)
+        comprobar(f"un reconnect no revive la noche ni empieza otra (recibió {sorted(recibidos)})",
+                  "night_status" not in recibidos and "task_list" not in recibidos)
+        comprobar("y el jugador 2 no recibe jugador1_volvio", not any(a == "jugador1_volvio" for _, a in p.avisos))
+        # Desde el menú, «Nuevo juego» manda connect: eso sí empieza una noche nueva.
+        await tablet.send(json.dumps({"type": "connect", "device": "tablet", "player_id": "prueba_vp", "modo": "nuevo"}))
+        hora = ""
+        limite = time.time() + 4
+        while time.time() < limite and not hora:
+            try:
+                m = json.loads(await asyncio.wait_for(tablet.recv(), 0.5))
+            except asyncio.TimeoutError:
+                continue
+            if m.get("type") == "night_status":
+                hora = m.get("in_game_time", "")
         await tablet.close()
-        comprobar("al volver, Unity le manda a la tablet el estado: night_status, task_list y estado_puppet",
-                  all(t in recibidos for t in ("night_status", "task_list", "estado_puppet")))
-        hora = recibidos.get("night_status", {}).get("in_game_time", "")
-        comprobar(f"la noche sigue donde iba (son las {hora}, no las 12:00 AM de una noche nueva)", hora and not hora.startswith("12:0"))
-        pct = recibidos.get("estado_puppet", {}).get("valor_caja_porcentaje", 100)
-        comprobar(f"la caja de Puppet sigue donde iba ({pct} % y no el 100 % de una noche nueva; antes de volver: {caja_antes} %)",
-                  pct <= (caja_antes or 100) + 3)
-        await asyncio.sleep(0.5)
-        comprobar("el jugador 2 se entera de que volvió (jugador1_volvio)", any(a == "jugador1_volvio" for _, a in p.avisos))
+        comprobar(f"con un connect nuevo empieza otra noche desde las 12 (son las {hora!r})", hora.startswith("12:0"))
     finally:
         await p.cerrar()
 
