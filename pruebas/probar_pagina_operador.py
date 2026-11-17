@@ -262,6 +262,19 @@ async def principal(captura):
                                 "ms" in (navegador.texto("latencia") or ""), 8.0))
         errores = navegador.ejecutar("return (window.__errores || []).length;")
         comprobar(f"sin errores de JavaScript, aunque posiciones llegó antes que el mapa (errores: {errores})", errores == 0)
+
+        # --- «Cómo jugar»: aparece la primera vez, se cierra y se puede volver a abrir (2026-11-17) ---
+        abierto = lambda: navegador.ejecutar("var c=document.getElementById('como-jugar');return !!c && !c.hidden;")
+        comprobar("la primera vez se abre «Cómo jugar» y explica las trampas y la terminal",
+                  abierto() and all(p in (navegador.texto("como-jugar") or "").upper() for p in ("TRAMPA", "TERMINAL", "15 S")))
+        navegador.ejecutar("document.getElementById('cj-entendido').click();")
+        comprobar("«Entendido» lo cierra", not abierto())
+        comprobar("y la página recuerda que ya lo viste",
+                  navegador.ejecutar("try { return localStorage.getItem('fnot_como_jugar_visto') === '1'; } catch (e) { return false; }"))
+        navegador.ejecutar("document.getElementById('ayuda').click();")
+        comprobar("el botón «? Cómo jugar» de la barra lo vuelve a abrir", abierto())
+        navegador.ejecutar("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));")
+        comprobar("Escape también lo cierra", not abierto())
         comprobar("el mapa deja de mostrar la espera cuando llega mapa_puntos",
                   await esperar(lambda: navegador.ejecutar(
                       "var m=document.getElementById('mapa');return !!m && m.dataset.estado==='listo';")))
