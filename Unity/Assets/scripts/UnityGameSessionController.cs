@@ -1420,7 +1420,7 @@ public class UnityGameSessionController : MonoBehaviour
     private void ActualizarDuctos()
     {
         compuertas.ActualizarLinterna(Time.time);
-        compuertas.Avanzar(Time.deltaTime);
+        if (compuertas.Avanzar(Time.deltaTime)) AvisarBateriaAgotada();
         SemaforoDeDuctos.Luz izquierda = SemaforoDeDuctos.Luz.Verde, derecha = SemaforoDeDuctos.Luz.Verde;
         bool empujaIzquierda = false, empujaDerecha = false;
         foreach (AnimatronicUnityBrain brain in brains)
@@ -1570,6 +1570,23 @@ public class UnityGameSessionController : MonoBehaviour
         avisoDeOperador = texto;
         AmbienteDelJuego.PedirEstatica(Time.time, 0.8f);   // la pantalla «pierde señal» un instante
         avisoDeOperadorHasta = Time.time + 3f;
+    }
+
+    /// La batería llegó a 0: las compuertas ya se abrieron y la linterna se
+    /// apagó (CompuertasDeDuctos.Avanzar), y no se pueden usar hasta que el
+    /// jugador 2 recargue con un cálculo o empiece otra noche. Se avisa en la
+    /// PC, en la tablet (con vibración) y al jugador 2, una sola vez.
+    private void AvisarBateriaAgotada()
+    {
+        const string aviso = "Sin batería: se abrieron las compuertas y se apagó la linterna";
+        AvisarAlJugador1(aviso);
+        Send(new EfectoMessage
+        {
+            animatronic = string.Empty,
+            tipo = "bateria_agotada",
+            segundos = 0f,
+            message = aviso
+        });
     }
 
     /// El jugador 1 debe saber si tiene compañero: con él, Freddy y Vixy

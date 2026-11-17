@@ -18,14 +18,15 @@ using System;
 public class CompuertasDeDuctos
 {
     public const float BateriaInicial = 100f;
-    /// Por cada compuerta cerrada: una sola cerrada todo el tiempo dura 50 s, y
+    /// Por cada compuerta cerrada: una sola cerrada todo el tiempo dura 33 s, y
     /// una noche dura de 120 a 165 s, así que no alcanza para tenerlas siempre
-    /// cerradas: hay que cerrarlas cuando el semáforo está en rojo.
-    public const float ConsumoPorSegundo = 2f;
+    /// cerradas: hay que cerrarlas cuando el semáforo está en rojo. (2026-11-17:
+    /// subió de 2 a 3 % por segundo, a pedido del usuario: se gastaba muy lento.)
+    public const float ConsumoPorSegundo = 3f;
     /// Lo que suma un cálculo bien resuelto del jugador 2.
     public const float RecargaPorCalculo = 20f;
     /// La linterna prendida gasta lo mismo que una compuerta cerrada.
-    public const float ConsumoDeLinterna = 2f;
+    public const float ConsumoDeLinterna = 3f;
     public const float SegundosSinOrdenParaApagar = 0.5f;
 
     private bool cerradaIzquierda;
