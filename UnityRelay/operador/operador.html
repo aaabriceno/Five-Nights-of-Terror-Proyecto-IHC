@@ -125,16 +125,39 @@
       <section class="panel conexion" aria-labelledby="titulo-conexion">
         <h2 id="titulo-conexion">Conexión</h2>
         <div class="campos">
-          <label>IP del juego <input id="host" size="14" autocomplete="off"></label>
-          <label>Puerto <input id="puerto" value="8000" size="5" inputmode="numeric"></label>
           <button id="conectar" type="button">Conectar</button>
+          <button id="volver-al-menu" type="button">Menú</button>
         </div>
       </section>
 
     </aside>
   </main>
 
-  <!-- Se abre solo la primera vez que alguien entra a la página; después, con «? Cómo jugar». -->
+  <!-- Menú del jugador 2 (2026-11-17): lo primero que se ve, como el de la tablet.
+       Con «?auto=1» en la dirección no aparece y la página entra directo. -->
+  <div id="menu" hidden role="dialog" aria-modal="true" aria-labelledby="menu-titulo">
+    <div class="menu-caja">
+      <div class="rec" aria-hidden="true"><span class="punto-rec"></span>REC · CAM 00</div>
+      <h2 id="menu-titulo">FIVE NIGHTS OF TERROR</h2>
+      <p class="menu-sub">JUGADOR 2 · SALA DE CONTROL</p>
+      <div class="menu-opciones">
+        <button type="button" id="menu-como-jugar">Cómo jugar</button>
+        <button type="button" id="menu-entrar">Entrar a la sala de control</button>
+        <button type="button" id="menu-opciones" aria-expanded="false" aria-controls="menu-panel-opciones">Opciones</button>
+        <button type="button" id="menu-salir">Salir</button>
+      </div>
+      <div id="menu-panel-opciones" hidden>
+        <p class="nota">La IP es la de la computadora donde corre el juego (la muestra al iniciarlo).</p>
+        <div class="campos">
+          <label>IP del juego <input id="host" size="14" autocomplete="off"></label>
+          <label>Puerto <input id="puerto" value="8000" size="5" inputmode="numeric"></label>
+        </div>
+      </div>
+      <p id="menu-nota" class="nota" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <!-- «Cómo jugar»: desde el menú o con «? Cómo jugar» en la barra. -->
   <div id="como-jugar" hidden role="dialog" aria-modal="true" aria-labelledby="cj-titulo">
     <div class="cj-caja">
       <h2 id="cj-titulo">CÓMO JUGAR · SALA DE CONTROL</h2>

@@ -347,6 +347,7 @@
   $("fin-salir").onclick = () => {
     reiniciarVista();
     desconectarAPropósito();
+    mostrarMenu(true);
   };
 
   function avisar(texto) {
@@ -839,26 +840,56 @@
   pintarFecha();
 
   // ------------------------------------------------------ cómo jugar (2026-11-17)
-  // Se abre solo la primera vez; después, con «? Cómo jugar». Si el navegador no
-  // deja guardar (modo privado), se abre cada vez: mejor de más que de menos.
-  const CLAVE_COMO_JUGAR = "fnot_como_jugar_visto";
+  // Se abre desde el menú o con «? Cómo jugar» en la barra.
   function mostrarComoJugar(ver) {
     $("como-jugar").hidden = !ver;
     if (ver) $("cj-entendido").focus();
-    else $("ayuda").focus();
+    else ($("menu").hidden ? $("ayuda") : $("menu-como-jugar")).focus();
   }
   $("ayuda").onclick = () => mostrarComoJugar(true);
-  $("cj-entendido").onclick = () => {
-    try { localStorage.setItem(CLAVE_COMO_JUGAR, "1"); } catch (e) { /* sin almacenamiento */ }
-    mostrarComoJugar(false);
-  };
+  $("cj-entendido").onclick = () => mostrarComoJugar(false);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$("como-jugar").hidden) $("cj-entendido").click();
   });
-  let yaLoVio = false;
-  try { yaLoVio = localStorage.getItem(CLAVE_COMO_JUGAR) === "1"; } catch (e) { /* sin almacenamiento */ }
-  if (!yaLoVio) mostrarComoJugar(true);
+
+  // ------------------------------------------------------------ menú (2026-11-17)
+  // Lo primero que ve el jugador 2, como el menú de la tablet. Entrar conecta;
+  // «Menú» en la sala y «Salir» al terminar la partida vuelven aquí.
+  function pintarNotaDelMenu() {
+    $("menu-nota").textContent = `Juego: ${$("host").value}:${$("puerto").value}`;
+  }
+  function mostrarMenu(ver) {
+    $("menu").hidden = !ver;
+    if (ver) { pintarNotaDelMenu(); $("menu-entrar").focus(); }
+  }
+  $("menu-como-jugar").onclick = () => mostrarComoJugar(true);
+  $("menu-entrar").onclick = () => {
+    mostrarMenu(false);
+    if (!socket && !caidaEn) { quiereConexion = true; conectar(); }
+  };
+  $("menu-opciones").onclick = () => {
+    const ver = $("menu-panel-opciones").hidden;
+    $("menu-panel-opciones").hidden = !ver;
+    $("menu-opciones").setAttribute("aria-expanded", String(ver));
+    if (ver) $("host").focus();
+  };
+  $("host").addEventListener("input", pintarNotaDelMenu);
+  $("puerto").addEventListener("input", pintarNotaDelMenu);
+  $("menu-salir").onclick = () => {
+    if (socket || caidaEn) desconectarAPropósito();
+    window.close();
+    // El navegador no deja cerrar una pestaña que no abrió un script: se avisa.
+    setTimeout(() => {
+      $("menu-nota").textContent = "Saliste de la sala de control. Ya puedes cerrar esta pestaña.";
+    }, 200);
+  };
+  $("volver-al-menu").onclick = () => {
+    if (socket || caidaEn) desconectarAPropósito();
+    reiniciarVista();
+    mostrarMenu(true);
+  };
 
   requestAnimationFrame(cuadro);
   if (parametros.get("auto")) $("conectar").click();
+  else mostrarMenu(true);
 })();
