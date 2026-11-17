@@ -4,7 +4,11 @@ import '../config/server_config.dart';
 import '../providers/connection_provider.dart';
 import '../models/task.dart';
 import '../utils/colors.dart';
+import '../widgets/boton_de_linterna.dart';
+import '../widgets/botones_de_camara.dart';
 import '../widgets/cable_game_widget.dart';
+import '../widgets/compuertas_de_ductos.dart';
+import '../widgets/puppet_game_widget.dart';
 import 'menu_principal_screen.dart';
 
 /// Mando a distancia del tutorial. El contenido se ve en la pantalla de la
@@ -17,6 +21,11 @@ import 'menu_principal_screen.dart';
 /// El total de diapositivas lo informa Unity (mensaje `tutorial_estado`), no
 /// está escrito acá: agregar una diapositiva es poner el archivo en
 /// `Resources/tutorial/`, sin tocar la app.
+///
+/// Las dos últimas son la práctica (2026-11-17): primero los controles de la
+/// partida (los mismos botones, en el mismo lugar), después una tarea y la
+/// mirada. Las órdenes son las de una partida; Unity marca cada paso y la
+/// tablet muestra la misma lista que la PC.
 class TutorialScreen extends StatefulWidget {
   const TutorialScreen({super.key});
 
@@ -33,6 +42,21 @@ class _TutorialScreenState extends State<TutorialScreen> {
   bool _camaraDisponible = true;
   bool _tareaFallida = false;
   int _intento = 0;
+
+  // Práctica de los controles: lo que Unity ya confirmó...
+  bool _camaraProbada = false;
+  bool _linternaProbada = false;
+  bool _compuertaProbada = false;
+  bool _cuerdaProbada = false;
+  // ...y cómo se ven los botones mientras se prueban (no hay partida en Unity).
+  bool _compuertaIzquierdaCerrada = false;
+  bool _compuertaDerechaCerrada = false;
+  bool _linternaEncendida = false;
+
+  bool get _esPracticaDeControles => _total >= 2 && _indice == _total - 2;
+  bool get _esPracticaDeTarea => _total >= 1 && _indice == _total - 1;
+  bool get _controlesListos =>
+      _camaraProbada && _linternaProbada && _compuertaProbada && _cuerdaProbada;
 
   /// `main.dart` deja `onMessage` apuntando a GameProvider una sola vez al
   /// arrancar la app. Mientras dura el tutorial lo desviamos hacia acá, y
@@ -88,6 +112,12 @@ class _TutorialScreenState extends State<TutorialScreen> {
         _miradaCompleta = mensaje['mirada_completada'] == true;
         _tareaCompleta = _tareaCompleta || mensaje['tarea_completada'] == true;
         _camaraDisponible = mensaje['camara_disponible'] != false;
+        // Unity manda siempre los cuatro y es quien manda: si reinicia la
+        // práctica (tutorial_abrir al reintentar), la lista vuelve a cero.
+        _camaraProbada = mensaje['camara'] == true;
+        _linternaProbada = mensaje['linterna'] == true;
+        _compuertaProbada = mensaje['compuerta'] == true;
+        _cuerdaProbada = mensaje['cuerda'] == true;
       });
       return;
     }
@@ -131,9 +161,122 @@ class _TutorialScreenState extends State<TutorialScreen> {
     }
   }
 
+  void _enviar(Map<String, dynamic> orden) =>
+      context.read<ConnectionProvider>().sender(orden);
+
+  /// Práctica 1: la lista de lo que falta, la caja de Puppet y, abajo, la
+  /// misma barra de botones que en la partida.
+  Widget _panelDeControles() {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 28,
+          runSpacing: 8,
+          children: [
+            _paso(_camaraProbada, 'Girar la cámara'),
+            _paso(_linternaProbada, 'Prender la linterna'),
+            _paso(_compuertaProbada, 'Cerrar una compuerta'),
+            _paso(_cuerdaProbada, 'Dar cuerda a la caja'),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // La caja de la partida necesita ~550 px de alto: aquí comparte la
+        // pantalla con la lista y los botones, así que se achica si no cabe.
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: 900,
+              height: 600,
+              child: PuppetGameWidget(
+                enPeligro: false,
+                valorCajaPorcentaje: 60,
+                alEmpezarASostener: () =>
+                    _enviar({'type': 'dar_cuerda_inicio'}),
+                alSoltar: () => _enviar({'type': 'dar_cuerda_fin'}),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: <Widget>[
+            BotonDeCompuerta(
+              lado: 'izquierda',
+              cerrada: _compuertaIzquierdaCerrada,
+              bateria: 100,
+              alCambiar: (bool cerrar) =>
+                  _cambiarCompuerta('izquierda', cerrar),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: BotonesDeCamara(
+                alMirar: (int direccion) =>
+                    _enviar({'type': 'camara', 'direccion': direccion}),
+                centro: BotonDeLinterna(
+                  bateria: 100,
+                  encendida: _linternaEncendida,
+                  alCambiar: (bool encender) {
+                    if (encender != _linternaEncendida) {
+                      setState(() => _linternaEncendida = encender);
+                    }
+                    _enviar({'type': 'linterna', 'encendida': encender});
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            BotonDeCompuerta(
+              lado: 'derecha',
+              cerrada: _compuertaDerechaCerrada,
+              bateria: 100,
+              alCambiar: (bool cerrar) => _cambiarCompuerta('derecha', cerrar),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _cambiarCompuerta(String lado, bool cerrar) {
+    setState(() {
+      if (lado == 'izquierda') {
+        _compuertaIzquierdaCerrada = cerrar;
+      } else {
+        _compuertaDerechaCerrada = cerrar;
+      }
+    });
+    _enviar({'type': 'compuerta', 'lado': lado, 'cerrar': cerrar});
+  }
+
+  Widget _paso(bool hecho, String texto) {
+    return Text(
+      '${hecho ? '✓' : '○'} $texto',
+      style: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.bold,
+        color: hecho ? AppColors.exito : AppColors.textoSecundario,
+      ),
+    );
+  }
+
+  /// Práctica 2: los cables y la mirada.
   Widget _panelDePrueba() {
     return Column(
       children: [
+        if (!_controlesListos) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Te faltan controles: vuelve a la Práctica 1 con «Anterior».',
+            style: TextStyle(
+              color: AppColors.advertencia,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
         const SizedBox(height: 12),
         Text(
           _miradaCompleta
@@ -222,6 +365,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
     final bool conectado = conexion == ConnectionState.connected;
     final bool sinJuego = conexion == ConnectionState.error;
     final bool perdida = sinJuego && proveedor.conexionPerdida;
+    // En la práctica los controles necesitan el espacio: sin icono ni subtítulo.
+    final bool enPractica =
+        conectado && (_esPracticaDeControles || _esPracticaDeTarea);
 
     return Scaffold(
       appBar: AppBar(
@@ -239,12 +385,14 @@ class _TutorialScreenState extends State<TutorialScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.desktop_windows,
-              size: 64,
-              color: AppColors.acento.withValues(alpha: 0.7),
-            ),
-            const SizedBox(height: 16),
+            if (!enPractica) ...[
+              Icon(
+                Icons.desktop_windows,
+                size: 64,
+                color: AppColors.acento.withValues(alpha: 0.7),
+              ),
+              const SizedBox(height: 16),
+            ],
             Text(
               conectado
                   ? 'Mira la pantalla de la computadora'
@@ -256,18 +404,19 @@ class _TutorialScreenState extends State<TutorialScreen> {
               style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            Text(
-              conectado
-                  ? 'Usa los botones de abajo para avanzar'
-                  : (perdida
-                        ? 'Revisa que la tablet y la PC sigan en la misma red Wi-Fi.'
-                        : sinJuego
-                        ? 'Revisa que el juego esté abierto y que la IP de Opciones sea la de la PC.'
-                        : 'Buscando el juego en ${ServerConfig.host}:${ServerConfig.port}'),
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
+            if (!enPractica) const SizedBox(height: 8),
+            if (!enPractica)
+              Text(
+                conectado
+                    ? 'Usa los botones de abajo para avanzar'
+                    : (perdida
+                          ? 'Revisa que la tablet y la PC sigan en la misma red Wi-Fi.'
+                          : sinJuego
+                          ? 'Revisa que el juego esté abierto y que la IP de Opciones sea la de la PC.'
+                          : 'Buscando el juego en ${ServerConfig.host}:${ServerConfig.port}'),
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
             if (sinJuego) ...[
               const SizedBox(height: 12),
               ElevatedButton(
@@ -280,8 +429,10 @@ class _TutorialScreenState extends State<TutorialScreen> {
               _total > 0 ? '${_indice + 1} de $_total' : '—',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
-            if (_indice == 2 && _total >= 3)
+            if (_esPracticaDeTarea)
               Expanded(child: _panelDePrueba())
+            else if (_esPracticaDeControles)
+              Expanded(child: _panelDeControles())
             else
               const Spacer(),
             const SizedBox(height: 16),
@@ -302,7 +453,10 @@ class _TutorialScreenState extends State<TutorialScreen> {
                     ? _boton(
                         icono: Icons.check,
                         etiqueta: 'Terminar',
-                        alTocar: _miradaCompleta && _tareaCompleta
+                        alTocar:
+                            _miradaCompleta &&
+                                _tareaCompleta &&
+                                _controlesListos
                             ? _cerrarTutorial
                             : null,
                       )
