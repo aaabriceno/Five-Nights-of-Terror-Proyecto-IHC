@@ -104,6 +104,20 @@ void main() {
       expect(pedidos, isEmpty);
     });
 
+    testWidgets('sin batería, tocarla avisa por qué no funciona', (tester) async {
+      int avisos = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: BotonDeCompuerta(
+                lado: 'izquierda', cerrada: false, bateria: 0, alCambiar: (_) {}, alTocarSinBateria: () => avisos++),
+          ),
+        ),
+      ));
+      await tester.tap(find.byKey(const Key('compuerta-izquierda')));
+      expect(avisos, 1);
+    });
+
     testWidgets('es grande, como los botones de cámara (se acierta sin mirar)', (tester) async {
       await montar(tester, cerrada: false, bateria: 80);
       final Size tamano = tester.getSize(find.byKey(const Key('compuerta-izquierda')));
@@ -153,6 +167,23 @@ void main() {
       expect(camaraIzq.width, greaterThanOrEqualTo(240), reason: 'los botones de cámara siguen siendo grandes');
       expect(find.text('76 %'), findsOneWidget);
       expect(tester.takeException(), isNull, reason: 'sin desbordes');
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('sin batería, tocar una compuerta o la linterna lo explica en pantalla', (tester) async {
+      final JuegoEspia juego = await montar(tester);
+      juego.handleMessage(estadoOficina(bateria: 0));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('compuerta-derecha')));
+      await tester.pump();
+      expect(find.textContaining('Sin batería'), findsOneWidget);
+      expect(find.textContaining('cálculo'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      final TestGesture dedo = await tester.startGesture(tester.getCenter(find.byKey(const Key('linterna'))));
+      await tester.pump();
+      await dedo.up();
+      await tester.pump();
+      expect(find.textContaining('Sin batería'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 

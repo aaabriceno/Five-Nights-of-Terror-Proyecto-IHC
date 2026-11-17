@@ -126,7 +126,12 @@ class _Aviso extends StatelessWidget {
         ),
         child: Row(
           children: <Widget>[
-            Icon(aviso.esMalaNoticia ? Icons.person_off : Icons.people, size: 36, color: color),
+            Icon(
+                aviso.tipo == 'bateria_agotada'
+                    ? Icons.battery_alert
+                    : (aviso.esMalaNoticia ? Icons.person_off : Icons.people),
+                size: 36,
+                color: color),
             const SizedBox(width: 16),
             Expanded(
               child: Column(

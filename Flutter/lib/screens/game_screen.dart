@@ -190,6 +190,7 @@ class _GameScreenState extends State<GameScreen> {
           bateria: bateria,
           alCambiar: (bool cerrar) =>
               game.cambiarCompuerta('izquierda', cerrar),
+          alTocarSinBateria: _avisarSinBateria,
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -199,6 +200,7 @@ class _GameScreenState extends State<GameScreen> {
               bateria: bateria,
               encendida: game.session.linternaEncendida,
               alCambiar: game.prenderLinterna,
+              alTocarSinBateria: _avisarSinBateria,
             ),
           ),
         ),
@@ -208,9 +210,27 @@ class _GameScreenState extends State<GameScreen> {
           cerrada: game.session.compuertaDerechaCerrada,
           bateria: bateria,
           alCambiar: (bool cerrar) => game.cambiarCompuerta('derecha', cerrar),
+          alTocarSinBateria: _avisarSinBateria,
         ),
       ],
     );
+  }
+
+  /// Tocar una compuerta o la linterna sin batería no hace nada: se explica
+  /// por qué y cómo se recupera, en grande para leerlo de reojo.
+  void _avisarSinBateria() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          duration: Duration(seconds: 3),
+          content: Text(
+            'Sin batería: las compuertas y la linterna no funcionan hasta que '
+            'tu compañero resuelva un cálculo o empiece otra noche.',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
   }
 
   static const double _alturaDeLaBarra = 88;

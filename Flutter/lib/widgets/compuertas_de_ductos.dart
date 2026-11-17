@@ -19,12 +19,16 @@ class BotonDeCompuerta extends StatelessWidget {
   /// true = pide cerrarla, false = pide abrirla.
   final void Function(bool cerrar) alCambiar;
 
+  /// Se tocó sin batería: la pantalla explica por qué no se cierra.
+  final VoidCallback? alTocarSinBateria;
+
   const BotonDeCompuerta({
     super.key,
     required this.lado,
     required this.cerrada,
     required this.bateria,
     required this.alCambiar,
+    this.alTocarSinBateria,
   });
 
   static const double ancho = 190;
@@ -49,7 +53,11 @@ class BotonDeCompuerta extends StatelessWidget {
         key: Key('compuerta-$lado'),
         behavior: HitTestBehavior.opaque,
         onPointerDown: (_) {
-          if (!_sinBateria) alCambiar(!cerrada);
+          if (_sinBateria) {
+            alTocarSinBateria?.call();
+          } else {
+            alCambiar(!cerrada);
+          }
         },
         child: Container(
           width: ancho,

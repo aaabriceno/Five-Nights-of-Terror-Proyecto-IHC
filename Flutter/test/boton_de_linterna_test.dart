@@ -103,6 +103,24 @@ void main() {
       expect(pedidos, isEmpty);
     });
 
+    testWidgets('sin batería, apretarla avisa por qué no se prende', (tester) async {
+      int avisos = 0;
+      final List<bool> pedidos = <bool>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: BotonDeLinterna(
+                bateria: 0, encendida: false, alCambiar: pedidos.add, alTocarSinBateria: () => avisos++),
+          ),
+        ),
+      ));
+      final TestGesture dedo = await tester.startGesture(tester.getCenter(find.byKey(const Key('linterna'))));
+      await tester.pump(const Duration(milliseconds: 400));
+      await dedo.up();
+      expect(avisos, 1, reason: 'una vez por toque, no cada 0,15 s');
+      expect(pedidos, isEmpty);
+    });
+
     testWidgets('si se acaba la batería con el dedo apoyado deja de pedirla', (tester) async {
       await montar(tester, bateria: 2);
       final TestGesture dedo = await tester.startGesture(tester.getCenter(find.byKey(const Key('linterna'))));

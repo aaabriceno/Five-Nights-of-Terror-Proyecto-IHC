@@ -23,11 +23,15 @@ class BotonDeLinterna extends StatefulWidget {
   final void Function(bool encender) alCambiar;
   final Duration repeticion;
 
+  /// Se apretó sin batería: la pantalla explica por qué no se prende.
+  final VoidCallback? alTocarSinBateria;
+
   const BotonDeLinterna({
     super.key,
     required this.bateria,
     required this.encendida,
     required this.alCambiar,
+    this.alTocarSinBateria,
     this.repeticion = const Duration(milliseconds: 150),
   });
 
@@ -46,7 +50,10 @@ class _BotonDeLinternaState extends State<BotonDeLinterna> {
   bool get _sinBateria => widget.bateria <= 0;
 
   void _apoyar(int puntero) {
-    if (_sinBateria) return;
+    if (_sinBateria) {
+      widget.alTocarSinBateria?.call();
+      return;
+    }
     _punteros.add(puntero);
     if (_apoyada) return;
     setState(() {

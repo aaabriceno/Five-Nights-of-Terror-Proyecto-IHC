@@ -37,7 +37,7 @@ class AvisoDeCompanero {
 
   /// Los avisos que dejan al jugador 1 en peor situación (se cayó el
   /// compañero) se pintan distinto a los que lo ayudan.
-  bool get esMalaNoticia => tipo == 'operador_perdido';
+  bool get esMalaNoticia => tipo == 'operador_perdido' || tipo == 'bateria_agotada';
 
   /// Interpreta un mensaje `efecto`. Devuelve null si el tipo no se conoce y
   /// Unity tampoco mandó un texto: mejor no mostrar nada que algo sin sentido.
@@ -93,6 +93,13 @@ class AvisoDeCompanero {
         return crear('Tu compañero se conectó', detalle: 'Freddy y Vixy avanzan más rápido');
       case 'operador_perdido':
         return crear('Tu compañero se desconectó', detalle: 'Freddy y Vixy vuelven a su ritmo normal');
+      // No lo hace el compañero, pero es lo que él puede arreglar (2026-11-17).
+      case 'bateria_agotada':
+        return crear(
+          'Sin batería',
+          detalle: 'Se abrieron las compuertas y se apagó la linterna. '
+              'Tu compañero puede recargarla con un cálculo.',
+        );
     }
     if (texto.isEmpty) return null;
     return crear(texto);

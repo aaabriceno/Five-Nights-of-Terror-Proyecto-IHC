@@ -88,6 +88,9 @@ class ServicioDeAvisos {
   /// ...y uno largo cuando se cae, porque desde ese momento estás solo.
   static const List<int> patronDeCompaneroPerdido = <int>[0, 500];
 
+  /// Se acabó la batería (compuertas abiertas, linterna apagada): dos largos.
+  static const List<int> patronDeBateriaAgotada = <int>[0, 400, 150, 400];
+
   /// Tras un rescate la tablet aún puede tener, un instante, el estado viejo
   /// de la caja en peligro: durante este tiempo no se vuelve a vibrar por ella.
   static const Duration silencioTrasUnRescate = Duration(seconds: 2);
@@ -181,6 +184,7 @@ class ServicioDeAvisos {
     final List<int>? patron = switch (tipo) {
       'puppet_rescatado' => patronDeRescate,
       'operador_perdido' => patronDeCompaneroPerdido,
+      'bateria_agotada' => patronDeBateriaAgotada,
       'ralentizado' ||
       'trampa_colocada' ||
       'trampa_disparada' ||

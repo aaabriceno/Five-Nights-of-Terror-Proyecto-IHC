@@ -132,6 +132,15 @@ void main() {
       expect(juego.session.avisoDeCompanero!.detalle, contains('ritmo normal'));
     });
 
+    test('batería agotada: aviso rojo que dice qué se apagó y cómo recargarla', () {
+      juego.handleMessage(efecto('bateria_agotada', message: 'Sin batería'));
+      final aviso = juego.session.avisoDeCompanero!;
+      expect(aviso.titulo, 'Sin batería');
+      expect(aviso.detalle, allOf(contains('compuertas'), contains('linterna'), contains('cálculo')));
+      expect(aviso.esMalaNoticia, isTrue);
+      expect(juego.session.companeroConectado, isNull, reason: 'no dice nada del compañero');
+    });
+
     test('un efecto de un tipo que no conoce usa el texto que mandó Unity', () {
       juego.handleMessage(efecto('algo_nuevo', message: 'Pasó algo'));
       expect(juego.session.avisoDeCompanero!.titulo, 'Pasó algo');
@@ -177,6 +186,13 @@ void main() {
       expect(find.text('Tu compañero puso una trampa'), findsOneWidget);
       await tester.pump(const Duration(seconds: 2));
       expect(find.text('Tu compañero puso una trampa'), findsNothing);
+    });
+
+    testWidgets('la batería agotada se ve con el icono de batería, en rojo', (tester) async {
+      await montar(tester, FranjaDelCompanero(aviso: aviso('bateria_agotada')));
+      expect(find.byIcon(Icons.battery_alert), findsOneWidget);
+      expect(find.byIcon(Icons.person_off), findsNothing);
+      await tester.pumpWidget(const SizedBox());
     });
 
     testWidgets('un aviso nuevo reemplaza al anterior y reinicia los 5 s', (tester) async {
@@ -264,6 +280,13 @@ void main() {
     test('si se cae el compañero vibra más largo que un aviso normal', () {
       servicio.avisarDeCompanero('operador_perdido');
       final List<int> p = vibrador.patrones.single;
+      expect(p[1], greaterThan(300));
+    });
+
+    test('sin batería vibra dos veces largo (distinto de todo lo demás)', () {
+      servicio.avisarDeCompanero('bateria_agotada');
+      final List<int> p = vibrador.patrones.single;
+      expect(pulsos(p), 2);
       expect(p[1], greaterThan(300));
     });
 
