@@ -43,22 +43,26 @@ public static class PruebaControlDeCamara
 
         c.Ordenar(0, ahora);
         Simular(c, 0.5f, null);
-        Comprobar("al soltar vuelve al centro a 90°/s: a los 0,5 s van unos 30°", Cerca(c.Yaw, 30f, 1.5f));
-        Simular(c, 2f, null);
-        Comprobar("y llega al centro sin pasarse", c.Yaw == 0f);
+        Comprobar("al soltar la cámara se queda mirando hacia donde giró", Cerca(c.Yaw, ControlDeCamara.GradosMaximos, 0.01f));
+        Simular(c, 5f, null);
+        Comprobar("y sigue ahí aunque pase el tiempo (no vuelve sola al centro)", Cerca(c.Yaw, ControlDeCamara.GradosMaximos, 0.01f));
 
         Simular(c, 5f, -1);
         Comprobar("mantener la izquierda llega a -75° y no pasa", Cerca(c.Yaw, -ControlDeCamara.GradosMaximos, 0.01f));
 
         Simular(c, 0.5f, 1);
         Comprobar("cambiar de lado sin soltar: la última orden manda", c.Yaw > -ControlDeCamara.GradosMaximos + 30f);
+        float donde = c.Yaw;
+        c.Ordenar(0, ahora);
+        Simular(c, 2f, null);
+        Comprobar("soltar a mitad de camino deja la cámara a mitad de camino", Cerca(c.Yaw, donde, 0.01f));
 
         // La tablet se pierde sin avisar que soltó el botón: una orden vieja no deja la cámara girando.
         c.Centrar();
         Comprobar("Centrar deja la cámara al frente de golpe", c.Yaw == 0f);
         c.Ordenar(1, ahora);
         Simular(c, 3f, null);
-        Comprobar("sin nuevas órdenes (se perdió el «soltar») la cámara vuelve sola al centro", c.Yaw == 0f);
+        Comprobar("sin nuevas órdenes (se perdió el «soltar») deja de girar a los 0,5 s y se queda ahí", Cerca(c.Yaw, 35f, 1.5f));
 
         c.Ordenar(1, ahora);
         float antes = ahora;

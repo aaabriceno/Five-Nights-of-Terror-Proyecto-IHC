@@ -236,17 +236,19 @@ async def principal():
             await tarea_boton
             comprobar(f"mantener «izquierda» 1,2 s gira la cámara a la izquierda (llegó a {yaw_izquierda}°)",
                       yaw_izquierda is not None and -90 < yaw_izquierda < -60)
-            yaw_vuelta = await yaw_de_la_camara(operador, 1.6)
-            comprobar(f"al soltar vuelve sola al frente (quedó en {yaw_vuelta}°)", yaw_vuelta == 0)
+            yaw_soltado = await yaw_de_la_camara(operador, 1.6)
+            comprobar(f"al soltar se queda mirando a la izquierda (quedó en {yaw_soltado}°)",
+                      yaw_soltado is not None and yaw_izquierda is not None and abs(yaw_soltado - yaw_izquierda) < 1)
             tarea_boton = asyncio.ensure_future(mantener_boton(tablet, 1, 5.0))
             yaw_derecha = await yaw_de_la_camara(operador, 5.0)
             await tarea_boton
             comprobar(f"mantener «derecha» no pasa de 75° (llegó a {yaw_derecha}°)", yaw_derecha is not None and 70 < yaw_derecha <= 75)
-            yaw_vuelta = await yaw_de_la_camara(operador, 1.6)
-            comprobar(f"y también vuelve al frente (quedó en {yaw_vuelta}°)", yaw_vuelta == 0)
-            await tablet.send(json.dumps({"type": "camara", "direccion": 1}))     # el «soltar» se pierde
+            yaw_soltado = await yaw_de_la_camara(operador, 1.6)
+            comprobar(f"y al soltar se queda a la derecha (quedó en {yaw_soltado}°)", yaw_soltado is not None and 70 < yaw_soltado <= 75)
+            await tablet.send(json.dumps({"type": "camara", "direccion": -1}))    # el «soltar» se pierde
             yaw_perdido = await yaw_de_la_camara(operador, 3.0)
-            comprobar(f"si se pierde el «soltar», la cámara no se queda girando (quedó en {yaw_perdido}°)", yaw_perdido == 0)
+            comprobar(f"si se pierde el «soltar», gira solo 0,5 s y se queda (quedó en {yaw_perdido}°)",
+                      yaw_perdido is not None and 30 < yaw_perdido < 50)
 
             # Un segundo operador que se conecta a mitad de la noche recibe todo de golpe.
             async with websockets.connect(URL, ping_interval=None, max_queue=None) as operador2:
