@@ -69,7 +69,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 padding: const EdgeInsets.all(24),
                 child: estado == ConnectionState.error
                     ? _sinConexion(connectionProvider.motivoDeRechazo)
-                    : _conectando(estado),
+                    : _conectando(),
               ),
             ),
           ),
@@ -78,7 +78,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  Widget _conectando(ConnectionState estado) {
+  Widget _conectando() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -89,11 +89,9 @@ class _SplashScreenState extends State<SplashScreen> {
         const SizedBox(height: 24),
         const CircularProgressIndicator(),
         const SizedBox(height: 16),
-        Text(
-          estado == ConnectionState.reconnecting
-              ? 'Reconectando...'
-              : 'Conectando con la PC...',
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+        const Text(
+          'Conectando con la PC...',
+          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         Text(

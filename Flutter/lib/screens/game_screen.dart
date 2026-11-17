@@ -23,6 +23,7 @@ import '../widgets/temperatura_game_widget.dart';
 import '../widgets/procesar_datos_game_widget.dart';
 import '../widgets/subir_datos_game_widget.dart';
 import '../widgets/trazar_curso_game_widget.dart';
+import 'conexion_perdida_screen.dart';
 import 'game_over_screen.dart';
 import 'jumpscare_screen.dart';
 import 'menu_principal_screen.dart';
@@ -62,7 +63,8 @@ class _GameScreenState extends State<GameScreen> {
     )..iniciar();
     // Lo que hace el compañero también se siente: un toque de vibración distinto
     // según qué (trampa, rescate, se cayó).
-    _juego.alAvisoDeCompanero = (aviso) => _avisos?.avisarDeCompanero(aviso.tipo);
+    _juego.alAvisoDeCompanero = (aviso) =>
+        _avisos?.avisarDeCompanero(aviso.tipo);
   }
 
   @override
@@ -112,6 +114,17 @@ class _GameScreenState extends State<GameScreen> {
           context,
         ).pushReplacement(MaterialPageRoute<void>(builder: (_) => destination));
       });
+    } else if (connection.conexionPerdida && !_gameOverTransitionScheduled) {
+      // La tablet se quedó sin conexión: la noche terminó y no se puede volver.
+      _gameOverTransitionScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => const ConexionPerdidaScreen(),
+          ),
+        );
+      });
     }
 
     return Scaffold(
@@ -121,10 +134,7 @@ class _GameScreenState extends State<GameScreen> {
         toolbarHeight: _alturaDeLaBarra,
         leadingWidth: _ladoDelBoton + 16,
         leading: _buildBotonVolver(game),
-        title: StatusBar(
-          connectionState: connection.state,
-          reconnectAttempts: connection.reconnectAttempts,
-        ),
+        title: StatusBar(connectionState: connection.state),
         actions: [
           _botonDeBarra(
             icono: Icons.close,
@@ -178,7 +188,8 @@ class _GameScreenState extends State<GameScreen> {
           lado: 'izquierda',
           cerrada: game.session.compuertaIzquierdaCerrada,
           bateria: bateria,
-          alCambiar: (bool cerrar) => game.cambiarCompuerta('izquierda', cerrar),
+          alCambiar: (bool cerrar) =>
+              game.cambiarCompuerta('izquierda', cerrar),
         ),
         const SizedBox(width: 16),
         Expanded(

@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 
 /// El jugador 1 mueve la cámara del juego desde la tablet: dos botones grandes
 /// que se mantienen apretados (izquierda y derecha). Mientras el dedo sigue
-/// apoyado la tablet repite la orden; al soltar manda 0 y Unity vuelve al frente.
+/// apoyado la tablet repite la orden; al soltar manda 0 y la cámara se queda ahí.
 class JuegoEspia extends GameProvider {
   final List<int> miradas = <int>[];
 

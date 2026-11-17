@@ -6,8 +6,8 @@ import '../utils/colors.dart';
 
 /// Los dos botones con los que el jugador 1 mueve la cámara del juego desde la
 /// tablet. Se mantienen apretados: mientras el dedo siga apoyado la cámara gira
-/// hacia ese lado; al soltar, vuelve sola al frente. Mirar un ducto cuesta
-/// atención (hay que seguir apretando), que es justo la tensión del juego.
+/// hacia ese lado; al soltar, se queda mirando hacia donde quedó (para volver
+/// al frente se gira al otro lado).
 ///
 /// Son grandes y siempre están en el mismo lugar, para acertarlos sin mirar la
 /// tablet. Usan `Listener` (no `GestureDetector`) para que un toque no compita

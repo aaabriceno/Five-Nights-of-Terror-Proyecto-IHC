@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../utils/logger.dart';
 
@@ -11,17 +13,42 @@ class WebSocketService {
 
   Stream<Map<String, dynamic>> get messages => _messageController.stream;
 
+  /// Cada cuánto la tablet le manda un ping al relay. Si la respuesta no llega
+  /// antes del siguiente, dart:io cierra el socket: así la tablet se entera de
+  /// que se quedó sin red (de 3 a 6 s) aunque Android no avise nada.
+  static const Duration intervaloDeLatido = Duration(seconds: 3);
+
+  /// Cualquier final del socket que no pidió la app (error, el juego cerró la
+  /// conexión, el latido no tuvo respuesta) llega a `messages` como un error,
+  /// una sola vez. Antes el cierre solo se anotaba en el log y la tablet seguía
+  /// diciendo «Conectado» sin juego del otro lado.
   void connect(String url) {
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(url));
-      _channel!.stream.listen(
-        procesarCrudo,
+      final WebSocketChannel canal = IOWebSocketChannel.connect(
+        Uri.parse(url),
+        pingInterval: intervaloDeLatido,
+      );
+      _channel = canal;
+      bool avisado = false;
+      // Una conexión vieja (ya descartada con disconnect) no avisa nada: su
+      // cierre llega tarde y tumbaría a la conexión nueva.
+      void avisarCaida(Object motivo) {
+        if (avisado || !identical(_channel, canal)) return;
+        avisado = true;
+        _messageController.addError(motivo);
+      }
+
+      canal.stream.listen(
+        (dynamic raw) {
+          if (identical(_channel, canal)) procesarCrudo(raw);
+        },
         onError: (Object error) {
           appLogger.e('WebSocket error: $error');
-          _messageController.addError(error);
+          avisarCaida(error);
         },
         onDone: () {
           appLogger.w('WebSocket connection closed');
+          avisarCaida(const SocketException('Se cerró la conexión con el juego'));
         },
       );
     } catch (e) {
@@ -59,8 +86,9 @@ class WebSocketService {
   }
 
   void disconnect() {
-    _channel?.sink.close();
-    _channel = null;
+    final WebSocketChannel? canal = _channel;
+    _channel = null;            // primero: su cierre ya no cuenta como caída
+    canal?.sink.close();
   }
 
   void dispose() {

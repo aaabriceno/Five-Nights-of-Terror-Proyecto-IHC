@@ -4,13 +4,8 @@ import '../utils/colors.dart';
 
 class StatusBar extends StatelessWidget {
   final ConnectionState connectionState;
-  final int reconnectAttempts;
 
-  const StatusBar({
-    super.key,
-    required this.connectionState,
-    required this.reconnectAttempts,
-  });
+  const StatusBar({super.key, required this.connectionState});
 
   String _label() {
     switch (connectionState) {
@@ -20,8 +15,6 @@ class StatusBar extends StatelessWidget {
         return 'Conectando...';
       case ConnectionState.connected:
         return 'Conectado';
-      case ConnectionState.reconnecting:
-        return 'Reconectando ($reconnectAttempts/5)...';
       case ConnectionState.error:
         return 'Error de conexión';
     }

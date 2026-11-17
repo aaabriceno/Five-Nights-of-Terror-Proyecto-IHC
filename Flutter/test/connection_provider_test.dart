@@ -104,62 +104,55 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('un rechazo durante una reconexión también termina en error, y volver a conectar limpia el motivo', (tester) async {
+  // Si la tablet (el jugador 1) pierde la red a mitad de la noche, la partida
+  // termina: Unity la cierra y no hay forma de volver a ella (2026-11-17).
+  testWidgets('si ya estaba conectado y el socket se cierra: conexión perdida, sin reintentos', (tester) async {
+    conexion.connect();
+    ws.llega(respuestaDeUnity);
+    await tester.pump();
+    expect(conexion.conexionPerdida, isFalse);
+    ws.seCierra();
+    await tester.pump();
+    expect(conexion.state, ConnectionState.error);
+    expect(conexion.conexionPerdida, isTrue);
+    await tester.pump(const Duration(seconds: 30));
+    expect(ws.conexiones, 1, reason: 'no vuelve a intentar: la noche ya terminó');
+    expect(ws.enviados.where((m) => m['type'] == 'reconnect'), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('si el socket falla estando conectado: también es conexión perdida', (tester) async {
     conexion.connect();
     ws.llega(respuestaDeUnity);
     await tester.pump();
     ws.falla();
-    await tester.pump(AppConstants.reconnectDelay + const Duration(milliseconds: 100));
-    expect(conexion.state, ConnectionState.connecting);
-    expect(ws.enviados.last['type'], 'reconnect');
-    ws.llega(<String, dynamic>{'type': 'conexion_rechazada', 'motivo': 'ya_hay_jugador1'});
     await tester.pump();
     expect(conexion.state, ConnectionState.error);
-    expect(conexion.motivoDeRechazo, 'ya_hay_jugador1');
-    conexion.connect();
-    expect(conexion.motivoDeRechazo, isNull);
-    conexion.disconnect();
+    expect(conexion.conexionPerdida, isTrue);
+    expect(ws.desconexiones, greaterThanOrEqualTo(1), reason: 'se suelta el socket roto');
+    await tester.pump(const Duration(seconds: 30));
+    expect(ws.conexiones, 1);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('si ya estaba conectado y el socket se cae: reconecta (como antes)', (tester) async {
+  testWidgets('no encontrar el juego al conectar no es «conexión perdida» (nunca la hubo)', (tester) async {
     conexion.connect();
-    ws.llega(respuestaDeUnity);
+    ws.falla();
     await tester.pump();
-    ws.seCierra();
-    await tester.pump();
-    expect(conexion.state, ConnectionState.reconnecting);
-    await tester.pump(AppConstants.reconnectDelay + const Duration(milliseconds: 100));
-    expect(ws.conexiones, 2, reason: 'volvió a intentar');
-    conexion.disconnect();
+    expect(conexion.state, ConnectionState.error);
+    expect(conexion.conexionPerdida, isFalse);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('tras una caída vuelve con reconnect (retoma la noche), no con connect (la reiniciaría)', (tester) async {
-    conexion.connect(modo: 'continuar');
-    ws.llega(respuestaDeUnity);
-    await tester.pump();
-    expect(ws.enviados.last['type'], 'connect', reason: 'la primera vez sí es un connect');
-    ws.seCierra();
-    await tester.pump();
-    await tester.pump(AppConstants.reconnectDelay + const Duration(milliseconds: 100));
-    expect(ws.conexiones, 2);
-    expect(ws.enviados.last['type'], 'reconnect');
-    expect(ws.enviados.last['modo'], 'continuar', reason: 'por si Unity no tiene partida: sigue donde se quedó');
-    expect(ws.enviados.last['player_id'], isNotNull);
-    conexion.disconnect();
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('conectarse a propósito después de una reconexión vuelve a ser un connect', (tester) async {
+  testWidgets('después de perder la conexión, conectar de nuevo es un connect (partida nueva) y limpia el aviso', (tester) async {
     conexion.connect();
     ws.llega(respuestaDeUnity);
     await tester.pump();
-    ws.seCierra();
+    ws.falla();
     await tester.pump();
-    await tester.pump(AppConstants.reconnectDelay + const Duration(milliseconds: 100));
-    expect(ws.enviados.last['type'], 'reconnect');
+    expect(conexion.conexionPerdida, isTrue);
     conexion.disconnect();
+    expect(conexion.conexionPerdida, isFalse);
     conexion.connect();
     expect(ws.enviados.last['type'], 'connect');
     conexion.disconnect();

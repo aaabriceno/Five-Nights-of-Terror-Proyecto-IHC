@@ -108,14 +108,14 @@ class _TutorialScreenState extends State<TutorialScreen> {
   }
 
   Task _tareaDePrueba() => Task(
-        taskId: -1,
-        taskType: 'cables',
-        duration: 90,
-        description: 'Conecta cada cable con su forma y color',
-        difficulty: 1,
-        createdAt: DateTime.now(),
-        params: const {},
-      );
+    taskId: -1,
+    taskType: 'cables',
+    duration: 90,
+    description: 'Conecta cada cable con su forma y color',
+    difficulty: 1,
+    createdAt: DateTime.now(),
+    params: const {},
+  );
 
   void _terminarPruebaDeCables(bool exito, List<Map<String, dynamic>> _) {
     if (!mounted) return;
@@ -139,14 +139,16 @@ class _TutorialScreenState extends State<TutorialScreen> {
           _miradaCompleta
               ? '✓ Cámara: mirada verificada'
               : !_camaraDisponible
-                  ? 'Cámara: detector no disponible en Unity'
-                  : _mirandoCamara
-                      ? 'Cámara: mantén la mirada en la pantalla'
-                      : 'Cámara: mira hacia la pantalla del PC',
+              ? 'Cámara: detector no disponible en Unity'
+              : _mirandoCamara
+              ? 'Cámara: mantén la mirada en la pantalla'
+              : 'Cámara: mira hacia la pantalla del PC',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        const Text('Práctica: arrastra cada cable a su conector del mismo color y forma.'),
+        const Text(
+          'Práctica: arrastra cada cable a su conector del mismo color y forma.',
+        ),
         const SizedBox(height: 8),
         if (_tareaCompleta)
           const Expanded(child: Center(child: Text('✓ Minitarea completada')))
@@ -215,9 +217,11 @@ class _TutorialScreenState extends State<TutorialScreen> {
     final bool hayAnterior = _indice > 0;
     final bool esLaUltima = _total > 0 && _indice >= _total - 1;
     // "Conectado" solo cuando el juego de la PC respondió de verdad.
-    final ConnectionState conexion = context.watch<ConnectionProvider>().state;
+    final ConnectionProvider proveedor = context.watch<ConnectionProvider>();
+    final ConnectionState conexion = proveedor.state;
     final bool conectado = conexion == ConnectionState.connected;
     final bool sinJuego = conexion == ConnectionState.error;
+    final bool perdida = sinJuego && proveedor.conexionPerdida;
 
     return Scaffold(
       appBar: AppBar(
@@ -244,7 +248,11 @@ class _TutorialScreenState extends State<TutorialScreen> {
             Text(
               conectado
                   ? 'Mira la pantalla de la computadora'
-                  : (sinJuego ? 'No se encontró el juego' : 'Conectando...'),
+                  : (perdida
+                        ? 'Se perdió la conexión con el juego'
+                        : (sinJuego
+                              ? 'No se encontró el juego'
+                              : 'Conectando...')),
               style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
@@ -252,9 +260,11 @@ class _TutorialScreenState extends State<TutorialScreen> {
             Text(
               conectado
                   ? 'Usa los botones de abajo para avanzar'
-                  : (sinJuego
-                      ? 'Revisa que el juego esté abierto y que la IP de Opciones sea la de la PC.'
-                      : 'Buscando el juego en ${ServerConfig.host}:${ServerConfig.port}'),
+                  : (perdida
+                        ? 'Revisa que la tablet y la PC sigan en la misma red Wi-Fi.'
+                        : sinJuego
+                        ? 'Revisa que el juego esté abierto y que la IP de Opciones sea la de la PC.'
+                        : 'Buscando el juego en ${ServerConfig.host}:${ServerConfig.port}'),
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -281,7 +291,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
                 _boton(
                   icono: Icons.arrow_back,
                   etiqueta: 'Anterior',
-                  alTocar: hayAnterior ? () => _irADiapositiva(_indice - 1) : null,
+                  alTocar: hayAnterior
+                      ? () => _irADiapositiva(_indice - 1)
+                      : null,
                 ),
                 // En la última diapositiva no hay a dónde avanzar: el botón
                 // pasa a cerrar el tutorial, así el recorrido termina con
