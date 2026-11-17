@@ -22,6 +22,7 @@
       <span id="estado-conexion" class="estado mal">Desconectado</span>
       <span class="medida">LAT <b id="latencia">– ms</b></span>
       <span class="medida" id="fecha"></span>
+      <button type="button" id="ayuda" aria-haspopup="dialog" aria-controls="como-jugar">? Cómo jugar</button>
     </div>
   </header>
 
@@ -132,6 +133,22 @@
 
     </aside>
   </main>
+
+  <!-- Se abre solo la primera vez que alguien entra a la página; después, con «? Cómo jugar». -->
+  <div id="como-jugar" hidden role="dialog" aria-modal="true" aria-labelledby="cj-titulo">
+    <div class="cj-caja">
+      <h2 id="cj-titulo">CÓMO JUGAR · SALA DE CONTROL</h2>
+      <p class="cj-intro">Eres el operador. Tú ves todo el edificio; el jugador 1 solo ve su oficina. Ayúdalo a llegar a las 6 AM.</p>
+      <ol class="cj-pasos">
+        <li><b>Mira el mapa.</b> Cada punto es un animatrónico: <span style="color:var(--freddy)">Freddy</span>, <span style="color:var(--vixy)">Vixy</span> y <span style="color:var(--puppet)">Puppet</span>. Si uno se acerca a la oficina, avísale al jugador 1 en voz alta.</li>
+        <li><b>Sigue al jugador 1.</b> El panel «Jugador 1 · en vivo» dice si mira la pantalla, hacia dónde gira su cámara, cuántas tareas tiene, cómo va su caja de música, los ductos y su batería.</li>
+        <li><b>Frénalos.</b> En «Amenazas», <i>Retrasar</i> deja a un animatrónico a mitad de velocidad unos segundos. Con tus cargas puedes colocar una trampa en un punto del mapa: el que pase por ahí se detiene.</li>
+        <li><b>Gana recursos en la terminal.</b> Un cálculo resuelto te devuelve cargas y le da 20 % de batería al jugador 1. Una ecuación desbloquea el rescate de Puppet.</li>
+      </ol>
+      <p class="cj-ojo"><b>OJO:</b> contigo conectado, Freddy y Vixy van más rápido. Si pierdes la conexión tienes 15 s para volver; si la pierde el jugador 1, la partida termina.</p>
+      <button type="button" id="cj-entendido">Entendido</button>
+    </div>
+  </div>
 </div>
 
 <script src="logica.js"></script>

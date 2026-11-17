@@ -838,6 +838,27 @@
   setInterval(pintarFecha, 1000);
   pintarFecha();
 
+  // ------------------------------------------------------ cómo jugar (2026-11-17)
+  // Se abre solo la primera vez; después, con «? Cómo jugar». Si el navegador no
+  // deja guardar (modo privado), se abre cada vez: mejor de más que de menos.
+  const CLAVE_COMO_JUGAR = "fnot_como_jugar_visto";
+  function mostrarComoJugar(ver) {
+    $("como-jugar").hidden = !ver;
+    if (ver) $("cj-entendido").focus();
+    else $("ayuda").focus();
+  }
+  $("ayuda").onclick = () => mostrarComoJugar(true);
+  $("cj-entendido").onclick = () => {
+    try { localStorage.setItem(CLAVE_COMO_JUGAR, "1"); } catch (e) { /* sin almacenamiento */ }
+    mostrarComoJugar(false);
+  };
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("como-jugar").hidden) $("cj-entendido").click();
+  });
+  let yaLoVio = false;
+  try { yaLoVio = localStorage.getItem(CLAVE_COMO_JUGAR) === "1"; } catch (e) { /* sin almacenamiento */ }
+  if (!yaLoVio) mostrarComoJugar(true);
+
   requestAnimationFrame(cuadro);
   if (parametros.get("auto")) $("conectar").click();
 })();

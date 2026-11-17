@@ -264,6 +264,28 @@ input {
 }
 
 /* fin de la partida: tapa el monitor y deja las dos salidas a mano */
+/* «Cómo jugar»: tapa toda la sala, con la misma estética de monitor. */
+#como-jugar {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background: rgba(3, 6, 4, .9);
+  animation: aparecer 200ms var(--entrada);
+}
+#como-jugar[hidden] { display: none; }
+.cj-caja {
+  max-width: 46rem; max-height: 100%; overflow-y: auto;
+  padding: 20px 24px;
+  border: 1px solid var(--linea); background: var(--panel);
+}
+.cj-caja h2 { margin: 0 0 8px; font-size: 18px; letter-spacing: .18em; color: var(--alerta); }
+.cj-intro { margin: 0 0 12px; font-size: 15px; }
+.cj-pasos { margin: 0 0 12px; padding-left: 1.4em; display: grid; gap: 10px; font-size: 14px; line-height: 1.45; }
+.cj-pasos b { color: var(--alerta); }
+.cj-ojo { margin: 0 0 16px; color: var(--suave); }
+.cj-ojo b { color: var(--peligro); }
+#cj-entendido { min-height: 44px; min-width: 12rem; }
+
 #fin-partida {
   position: absolute; inset: 0; z-index: 3;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
