@@ -1,0 +1,21 @@
+/* Diapositivas del tutorial (1920 x 1080). Se convierten en PNG con generar.sh. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --fondo: #0b0e12; --tarjeta: #151a21; --borde: #2b323c;
+  --rojo: #dc3232; --verde: #5fd3a0; --amarillo: #f2c94c;
+  --texto: #f4efe6; --gris: #b9bec7; --tenue: #8a9099;
+}
+html, body { width: 1920px; height: 1080px; overflow: hidden; }
+body { background: var(--fondo); color: var(--texto); font-family: "Liberation Sans", Arial, sans-serif; position: relative; }
+body::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 12px; background: var(--rojo); }
+.cabecera { position: absolute; left: 75px; top: 44px; right: 75px; }
+.migas { color: var(--rojo); font-weight: 700; font-size: 29px; letter-spacing: .02em; }
+h1 { font-size: 72px; font-weight: 700; margin-top: 18px; letter-spacing: .01em; }
+.bajada { color: var(--gris); font-size: 28px; margin-top: 10px; }
+.pie { position: absolute; left: 75px; right: 75px; bottom: 26px; border-top: 2px solid var(--borde); padding-top: 12px; color: var(--tenue); font-weight: 700; font-size: 20px; }
+.tarjeta { background: var(--tarjeta); border: 2px solid var(--borde); border-radius: 14px; }
+.rojo { color: var(--rojo); } .verde { color: var(--verde); } .amarillo { color: var(--amarillo); } .gris { color: var(--gris); }
+.contenido { position: absolute; left: 75px; right: 75px; top: 245px; bottom: 90px; }
+h2 { font-size: 34px; font-weight: 700; }
+p, li { font-size: 27px; line-height: 1.38; }
+.num { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 10px; background: var(--rojo); color: #fff; font-weight: 700; font-size: 28px; flex: none; }

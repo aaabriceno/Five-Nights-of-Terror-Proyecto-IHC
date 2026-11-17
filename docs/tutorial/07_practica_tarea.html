@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="estilo.css">
+<style>
+/* Las posiciones del marco de la cámara y del estado coinciden con las de PantallaDeTutorial.cs. */
+.izq { position: absolute; left: 0; top: 0; width: 850px; height: 750px; padding: 40px; }
+.izq h2 { color: var(--rojo); margin-bottom: 18px; }
+.izq ol { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+.izq li { font-size: 29px; }
+.izq hr { border: 0; border-top: 2px solid var(--borde); margin: 26px 0; }
+.izq .final { position: absolute; left: 40px; bottom: 36px; font-size: 28px; font-weight: 700; color: var(--verde); }
+.der { position: absolute; left: 920px; right: 0; top: 0; height: 750px; }
+.vivo { position: absolute; left: 62px; top: 32px; display: flex; gap: 16px; align-items: center; font-size: 32px; font-weight: 700; }
+.vivo i { width: 28px; height: 28px; border-radius: 50%; background: var(--rojo); display: inline-block; }
+.camara { position: absolute; left: 50px; top: 83px; width: 750px; height: 368px; border: 3px solid var(--verde); border-radius: 12px; background: #030507; }
+.indicacion { position: absolute; left: 0; right: 0; top: 480px; text-align: center; font-size: 29px; font-weight: 700; }
+.estado { position: absolute; left: 44px; top: 565px; width: 766px; height: 154px; border: 3px solid var(--verde); border-radius: 12px; }
+</style>
+<div class="cabecera"><div class="migas">TUTORIAL / 07 DE 07</div><h1>PRÁCTICA 2 · TAREA Y MIRADA</h1><p class="bajada">Haz una minitarea real en la tablet y comprueba que la cámara detecta tu mirada.</p></div>
+<div class="contenido">
+  <div class="tarjeta izq">
+    <h2>EN LA TABLET</h2>
+    <ol><li>1. Arrastra los cuatro cables.</li><li>2. Une cada color y forma.</li><li>3. Pulsa Enviar al terminar.</li></ol>
+    <hr>
+    <h2>EN LA PANTALLA</h2>
+    <ol><li>4. Mira hacia la cámara y a la PC.</li><li>5. Mantén la mirada dos segundos.</li></ol>
+    <p class="final">Terminar se habilita al completar<br>las dos prácticas.</p>
+  </div>
+  <div class="tarjeta der">
+    <div class="vivo"><i></i>CÁMARA EN VIVO</div>
+    <div class="camara"></div>
+    <div class="indicacion">MIRA AL FRENTE · COMPLETA LOS CABLES</div>
+    <div class="estado"></div>
+  </div>
+</div>
+<div class="pie">FIVE NIGHTS OF TERROR</div>

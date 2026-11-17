@@ -1,5 +1,31 @@
 # Plan — Tutorial dentro del juego
 
+> **Versión vigente (2026-11-17): 7 diapositivas y práctica en dos partes.** Lo
+> que sigue debajo es el plan original (9 diapositivas propuestas, 3 hechas) y
+> queda como historia.
+>
+> - **Diapositivas:** 1 Tu misión · 2 Tus controles (esquema de la tablet) ·
+>   3 Cómo defenderte (Freddy, Vixy, Puppet y la lámpara de cada ducto) ·
+>   4 Minitareas · 5 Tu compañero (jugador 2) · 6 Práctica 1: tus controles ·
+>   7 Práctica 2: tarea y mirada.
+> - **Fuente editable:** `docs/tutorial/*.html` (+ `estilo.css` e `img/`).
+>   `docs/tutorial/generar.sh` las pasa a PNG con Firefox sin ventana y las
+>   deja en `Unity/Assets/Resources/tutorial/`; a una imagen nueva le crea el
+>   `.meta` sin escalar ni mipmaps.
+> - **Práctica:** son siempre las dos últimas diapositivas. En la 1 la tablet
+>   muestra los mismos botones de la partida (compuertas, cámara, linterna) y
+>   la caja de Puppet; manda las órdenes de siempre (`camara`, `linterna`,
+>   `compuerta`, `dar_cuerda_inicio`/`fin`) y Unity, en modo tutorial, las
+>   cuenta en `PracticaDeTutorial` en vez de moverse. En la 2 están los cables
+>   y la mirada, como antes. `tutorial_prueba_estado` suma `camara`,
+>   `linterna`, `compuerta` y `cuerda`. La PC y la tablet muestran la misma
+>   lista; «Terminar» se habilita con las seis cosas hechas.
+> - **Pruebas:** `pruebas/PruebaPracticaDeTutorial.cs` (Mono),
+>   `Flutter/test/tutorial_practica_test.dart` y
+>   `pruebas/probar_tutorial_con_juego.py` (juego real; abre la webcam).
+> - **Jugador 2:** la página del operador tiene su propio «Cómo jugar», que se
+>   abre solo la primera vez y después con el botón «? Cómo jugar».
+
 Pedido del profesor: que alguien que nunca vio el juego pueda entender cómo
 se juega. Dado que el jugador no tiene teclado ni mouse, el tutorial se
 controla desde la tablet y se proyecta en la pantalla de la PC — la misma

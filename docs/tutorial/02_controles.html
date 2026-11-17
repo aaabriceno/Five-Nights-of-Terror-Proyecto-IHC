@@ -1,0 +1,46 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="estilo.css">
+<style>
+.tablet { position: absolute; left: 0; top: 0; width: 900px; height: 690px; border: 10px solid #39414c; border-radius: 34px; background: #10141a; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.barra { height: 58px; border-radius: 10px; background: #1b2129; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 24px; font-weight: 700; color: var(--gris); }
+.tareas { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.t { border-radius: 10px; background: #1b2129; border: 2px solid #2f3742; display: flex; align-items: center; padding: 0 18px; font-size: 24px; font-weight: 700; position: relative; }
+.t.puppet { border-color: var(--verde); color: var(--verde); }
+.abajo { height: 132px; display: flex; gap: 12px; }
+.b { border-radius: 12px; background: #222a34; border: 2px solid #3a4452; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; position: relative; }
+.b .icono { font-size: 44px; line-height: 1; margin-bottom: 6px; }
+.comp { width: 150px; } .flecha { flex: 1; } .linterna { width: 190px; border-color: var(--amarillo); color: var(--amarillo); }
+.marca { position: absolute; top: -18px; right: -14px; width: 46px; height: 46px; border-radius: 50%; background: var(--rojo); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; border: 3px solid var(--fondo); }
+.lista { position: absolute; left: 980px; right: 0; top: 0; display: flex; flex-direction: column; gap: 12px; }
+.lista .tarjeta { display: flex; gap: 22px; padding: 14px 22px; align-items: flex-start; }
+.lista h2 { font-size: 28px; margin-bottom: 2px; }
+.lista p { font-size: 24px; color: var(--gris); line-height: 1.32; }
+.bateria { padding: 14px 22px; border-color: var(--amarillo); }
+.bateria p { font-size: 23px; }
+.bateria p { color: var(--texto); }
+</style>
+<div class="cabecera"><div class="migas">TUTORIAL / 02 DE 07</div><h1>TUS CONTROLES</h1><p class="bajada">Todo se maneja desde la tablet. Los botones de abajo están siempre en el mismo lugar.</p></div>
+<div class="contenido">
+  <div class="tablet">
+    <div class="barra"><span>12:00 AM · NOCHE 1</span><span>COMPAÑERO CONECTADO</span></div>
+    <div class="tareas">
+      <div class="t">CABLES<span class="marca">4</span></div><div class="t">RITMO</div>
+      <div class="t">PERILLAS</div><div class="t puppet">REINICIAR CAJA MUSICAL<span class="marca">5</span></div>
+    </div>
+    <div class="abajo">
+      <div class="b comp"><span class="icono">🔓</span>COMPUERTA<br>IZQUIERDA<span class="marca">3</span></div>
+      <div class="b flecha"><span class="icono">◀</span>MIRAR<span class="marca">1</span></div>
+      <div class="b linterna"><span class="icono">🔦</span>LINTERNA<span class="marca">2</span></div>
+      <div class="b flecha"><span class="icono">▶</span>MIRAR</div>
+      <div class="b comp"><span class="icono">🔓</span>COMPUERTA<br>DERECHA</div>
+    </div>
+  </div>
+  <div class="lista">
+    <div class="tarjeta"><span class="num">1</span><div><h2>CÁMARA ◀ ▶</h2><p>Mantén apretado para girar la vista.<br>Al soltar, se queda mirando hacia ahí.</p></div></div>
+    <div class="tarjeta"><span class="num">2</span><div><h2>LINTERNA</h2><p>Mantenla apretada para alumbrar al frente.</p></div></div>
+    <div class="tarjeta"><span class="num">3</span><div><h2>COMPUERTAS</h2><p>Toca una para cerrar o abrir el ducto de ese lado.</p></div></div>
+    <div class="tarjeta"><span class="num">4</span><div><h2>TAREAS</h2><p>Toca una para abrir su minijuego. Pulsa Enviar al terminar.</p></div></div>
+    <div class="tarjeta"><span class="num">5</span><div><h2>CAJA DE PUPPET</h2><p>Ábrela y mantén apretado para darle cuerda.</p></div></div>
+    <div class="tarjeta bateria"><p><b class="amarillo">BATERÍA:</b> la linterna y las compuertas cerradas la gastan. Si llega a 0, las compuertas se abren solas.</p></div>
+  </div>
+</div>
+<div class="pie">FIVE NIGHTS OF TERROR</div>

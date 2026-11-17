@@ -1,0 +1,41 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="estilo.css">
+<style>
+.cols { position: absolute; left: 0; right: 0; top: 0; height: 400px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
+.col { padding: 22px 28px; }
+.quien { display: flex; gap: 20px; align-items: center; margin-bottom: 16px; }
+.quien img { width: 120px; height: 121px; border-radius: 8px; object-fit: cover; }
+.quien h2 { font-size: 40px; }
+.quien .por { color: var(--gris); font-size: 23px; font-weight: 700; margin-top: 4px; }
+.col ul { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.col li { font-size: 26px; padding-left: 30px; position: relative; }
+.col li::before { content: "▸"; position: absolute; left: 0; color: var(--rojo); }
+.col li b { color: var(--texto); }
+.semaforo { position: absolute; left: 0; right: 0; top: 428px; padding: 22px 30px; display: flex; align-items: center; gap: 40px; }
+.semaforo h2 { font-size: 30px; white-space: nowrap; }
+.luz { display: flex; align-items: center; gap: 14px; font-size: 25px; }
+.consejo { position: absolute; left: 0; right: 0; top: 548px; padding: 22px 30px; border-color: var(--amarillo); }
+.consejo p { font-size: 27px; }
+.luz i { width: 34px; height: 34px; border-radius: 50%; display: inline-block; }
+</style>
+<div class="cabecera"><div class="migas">TUTORIAL / 03 DE 07</div><h1>CÓMO DEFENDERTE</h1><p class="bajada">Cada animatrónico se frena de una forma distinta.</p></div>
+<div class="contenido">
+  <div class="cols">
+    <div class="tarjeta col"><div class="quien"><img src="img/freddy.png" alt=""><div><h2>FREDDY</h2><div class="por">POR EL PASILLO</div></div></div>
+      <ul><li><b>Míralo:</b> mientras miras la pantalla de la PC, se queda quieto.</li>
+          <li><b>Alúmbralo:</b> con la linterna encima 2 segundos, retrocede.</li></ul></div>
+    <div class="tarjeta col"><div class="quien"><img src="img/vixy.png" alt=""><div><h2>VIXY</h2><div class="por">DUCTO IZQUIERDO</div></div></div>
+      <ul><li><b>No acumules tareas:</b> solo avanza cuando tienes muchas pendientes.</li>
+          <li><b>Luz roja a la izquierda:</b> cierra la compuerta izquierda. Si aguanta 4 s cerrada, Vixy retrocede.</li></ul></div>
+    <div class="tarjeta col"><div class="quien"><img src="img/puppet.png" alt=""><div><h2>PUPPET</h2><div class="por">DUCTO DERECHO</div></div></div>
+      <ul><li><b>Dale cuerda a su caja</b> antes de que se vacíe: así no sale.</li>
+          <li><b>Si sale, luz roja a la derecha:</b> cierra la compuerta derecha hasta que retroceda.</li></ul></div>
+  </div>
+  <div class="tarjeta semaforo">
+    <h2>LA LÁMPARA SOBRE CADA DUCTO</h2>
+    <div class="luz"><i style="background:var(--verde)"></i>Verde: lejos</div>
+    <div class="luz"><i style="background:var(--amarillo)"></i>Amarillo: dentro del ducto</div>
+    <div class="luz"><i style="background:var(--rojo)"></i><b>Rojo: en la boca. ¡Cierra la compuerta!</b></div>
+  </div>
+  <div class="tarjeta consejo"><p><b class="amarillo">CUIDA LA BATERÍA:</b> una compuerta cerrada todo el tiempo la agota en 50 segundos, y la noche dura más que eso. Ciérrala cuando la luz esté en rojo.</p></div>
+</div>
+<div class="pie">FIVE NIGHTS OF TERROR</div>
