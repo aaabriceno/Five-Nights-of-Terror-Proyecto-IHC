@@ -95,6 +95,9 @@ comprobar("los segundos se escriben sin ceros de más",
   Logica.formatearSegundos(15) === "15" && Logica.formatearSegundos(7.5) === "7,5" && Logica.formatearSegundos(3.75) === "3,75");
 comprobar("su propia conexión no se anuncia a sí mismo", t({ tipo: "operador_conectado" }) === "");
 comprobar("ni su caída", t({ tipo: "operador_perdido" }) === "");
+comprobar("batería agotada: le dice al jugador 2 que puede recargarla con un cálculo",
+  t({ tipo: "bateria_agotada", message: "Sin batería: se abrieron las compuertas y se apagó la linterna" })
+    === "El jugador 1 se quedó sin batería: resuelve un cálculo para recargarla (+20 %)");
 comprobar("un tipo nuevo usa el texto de Unity", t({ tipo: "algo", message: "Pasó algo" }) === "Pasó algo");
 comprobar("un tipo nuevo sin texto no muestra nada", t({ tipo: "algo" }) === "");
 comprobar("la multa se escribe sin decimales sobrantes", Logica.formatearMulta(2) === "×2" && Logica.formatearMulta(1.5) === "×1,5");

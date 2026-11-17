@@ -139,6 +139,9 @@
       case "operador_conectado":
       case "operador_perdido":
         return "";
+      // Al jugador 1 se le acabó la batería: el jugador 2 es quien la recarga.
+      case "bateria_agotada":
+        return "El jugador 1 se quedó sin batería: resuelve un cálculo para recargarla (+20 %)";
     }
     return m.message || "";
   }
