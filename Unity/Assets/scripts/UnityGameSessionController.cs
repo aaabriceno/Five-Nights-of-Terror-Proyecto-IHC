@@ -23,6 +23,11 @@ public class UnityGameSessionController : MonoBehaviour
         public bool mirada_completada;
         public bool tarea_completada;
         public bool camara_disponible;
+        // Práctica de los controles (2026-11-17): lo que ya probó con los botones de la tablet.
+        public bool camara;
+        public bool linterna;
+        public bool compuerta;
+        public bool cuerda;
     }
 
     [Serializable] private class TutorialEstadoMessage
@@ -318,8 +323,12 @@ public class UnityGameSessionController : MonoBehaviour
     public bool EnTutorial { get; private set; }
 
     public int IndiceDeDiapositiva { get; private set; }
-    public bool TutorialMiradaCompletada => tutorialMiradaCompletada;
-    public bool TutorialTareaCompletada => tutorialTareaCompletada;
+    /// Lo que el jugador ya probó en las dos diapositivas de práctica.
+    public PracticaDeTutorial Practica => practica;
+    /// Las dos últimas diapositivas son la práctica: primero los controles,
+    /// después la tarea y la mirada.
+    public bool EnPracticaDeControles => EnTutorial && TotalDeDiapositivas >= 2 && IndiceDeDiapositiva == TotalDeDiapositivas - 2;
+    public bool EnPracticaDeTarea => EnTutorial && TotalDeDiapositivas >= 1 && IndiceDeDiapositiva == TotalDeDiapositivas - 1;
     public bool TutorialMirandoCamara => detectorCabeza != null && detectorCabeza.mirandoPC;
     public bool TutorialCamaraDisponible => detectorCabeza != null;
 
@@ -421,10 +430,8 @@ public class UnityGameSessionController : MonoBehaviour
     private bool puppetEnPeligroPrevio;
     private bool puppetCajaVaciaPrevio;
     private float segundosDesdeUltimaTarea;
-    private float tutorialMiradaSegundos;
     private float tutorialEstadoReloj;
-    private bool tutorialMiradaCompletada;
-    private bool tutorialTareaCompletada;
+    private readonly PracticaDeTutorial practica = new PracticaDeTutorial();
 
     // Jugador 2 (operador)
     private readonly FrenoDeOperador freno = new FrenoDeOperador();
@@ -496,11 +503,9 @@ public class UnityGameSessionController : MonoBehaviour
 
     private void Update()
     {
-        if (EnTutorial && IndiceDeDiapositiva == 2)
+        if (EnPracticaDeTarea)
         {
-            bool mirando = TutorialMirandoCamara;
-            tutorialMiradaSegundos = mirando ? tutorialMiradaSegundos + Time.deltaTime : 0f;
-            if (tutorialMiradaSegundos >= 2f) tutorialMiradaCompletada = true;
+            if (practica.Mirar(TutorialMirandoCamara, Time.deltaTime)) PublicarEstadoDePrueba();
             tutorialEstadoReloj += Time.deltaTime;
             if (tutorialEstadoReloj >= 0.5f)
             {
@@ -678,6 +683,7 @@ public class UnityGameSessionController : MonoBehaviour
                 case "dar_cuerda_inicio":
                     windingPuppet = true;
                     if (gestorSonido != null) gestorSonido.ReproducirCuerdaCajaMusica();
+                    if (EnTutorial && practica.DarCuerda()) PublicarEstadoDePrueba();
                     break;
                 case "dar_cuerda_fin": windingPuppet = false; break;
                 case "disconnect":
@@ -697,15 +703,12 @@ public class UnityGameSessionController : MonoBehaviour
                 case "tutorial_slide":
                     IndiceDeDiapositiva = JsonUtility.FromJson<TutorialSlideMessage>(json).indice;
                     PublicarEstadoDeTutorial();
-                    if (IndiceDeDiapositiva == 2) PublicarEstadoDePrueba();
+                    if (EnPracticaDeControles || EnPracticaDeTarea) PublicarEstadoDePrueba();
                     break;
                 case "tutorial_prueba_tarea":
-                    if (EnTutorial && IndiceDeDiapositiva == 2 &&
-                        JsonUtility.FromJson<TutorialPracticeMessage>(json).exito)
-                    {
-                        tutorialTareaCompletada = true;
+                    if (EnPracticaDeTarea && JsonUtility.FromJson<TutorialPracticeMessage>(json).exito &&
+                        practica.CompletarCables())
                         PublicarEstadoDePrueba();
-                    }
                     break;
                 case "tutorial_cerrar":
                     EnTutorial = false;
@@ -720,10 +723,20 @@ public class UnityGameSessionController : MonoBehaviour
                     PublicarEstadoOperador();
                     break;
                 case "camara":
-                    if (partidaActiva) camara.Ordenar(JsonUtility.FromJson<CamaraMessage>(json).direccion, Time.time);
+                {
+                    int direccion = JsonUtility.FromJson<CamaraMessage>(json).direccion;
+                    if (partidaActiva) camara.Ordenar(direccion, Time.time);
+                    // En el tutorial no hay partida: solo cuenta para la práctica.
+                    else if (EnTutorial && practica.UsarCamara(direccion)) PublicarEstadoDePrueba();
                     break;
+                }
                 case "compuerta":
-                    if (partidaActiva)
+                    if (!partidaActiva)
+                    {
+                        if (EnTutorial && practica.UsarCompuerta(JsonUtility.FromJson<CompuertaMessage>(json).cerrar))
+                            PublicarEstadoDePrueba();
+                    }
+                    else
                     {
                         CompuertaMessage orden = JsonUtility.FromJson<CompuertaMessage>(json);
                         compuertas.Fijar(orden.lado, orden.cerrar);
@@ -740,6 +753,8 @@ public class UnityGameSessionController : MonoBehaviour
                         compuertas.OrdenarLinterna(JsonUtility.FromJson<LinternaMessage>(json).encendida, Time.time);
                         PublicarEstadoOficina(false);
                     }
+                    else if (EnTutorial && practica.UsarLinterna(JsonUtility.FromJson<LinternaMessage>(json).encendida))
+                        PublicarEstadoDePrueba();
                     break;
                 case "tarea_pedir":
                     AtenderPedidoDeTarea(JsonUtility.FromJson<TareaPedirMessage>(json));
@@ -778,10 +793,8 @@ public class UnityGameSessionController : MonoBehaviour
 
     private void ReiniciarPruebaDeTutorial()
     {
-        tutorialMiradaSegundos = 0f;
         tutorialEstadoReloj = 0f;
-        tutorialMiradaCompletada = false;
-        tutorialTareaCompletada = false;
+        practica.Reiniciar();
     }
 
     private void PublicarEstadoDePrueba()
@@ -789,9 +802,13 @@ public class UnityGameSessionController : MonoBehaviour
         Send(new TutorialPracticeStatus
         {
             mirando = TutorialMirandoCamara,
-            mirada_completada = tutorialMiradaCompletada,
-            tarea_completada = tutorialTareaCompletada,
-            camara_disponible = TutorialCamaraDisponible
+            mirada_completada = practica.Mirada,
+            tarea_completada = practica.Cables,
+            camara_disponible = TutorialCamaraDisponible,
+            camara = practica.Camara,
+            linterna = practica.Linterna,
+            compuerta = practica.Compuerta,
+            cuerda = practica.Cuerda
         });
     }
 

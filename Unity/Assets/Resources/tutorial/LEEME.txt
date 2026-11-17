@@ -20,3 +20,8 @@ desactiva "Generate Mip Maps": si no, Unity la reescala a 2048x1024 y el
 texto se ve borroso.
 
 Guion propuesto en docs/PLAN_TUTORIAL.md.
+
+Desde 2026-11-17 las imágenes salen de docs/tutorial/*.html: se editan ahí y
+se regeneran con docs/tutorial/generar.sh (que también crea el .meta correcto
+de una imagen nueva). Las dos últimas diapositivas son la práctica: el código
+dibuja encima la lista de controles y la cámara en vivo.

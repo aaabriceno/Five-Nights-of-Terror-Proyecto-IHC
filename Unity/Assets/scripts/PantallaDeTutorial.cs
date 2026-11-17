@@ -28,6 +28,7 @@ public class PantallaDeTutorial : MonoBehaviour
     private Mediapipe.Unity.Screen pantallaDelJuego;
     private Text aviso;
     private Text estadoPrueba;
+    private RectTransform rectEstado;
     private Texture2D[] diapositivas;
     private int indiceMostrado = -1;
 
@@ -57,7 +58,7 @@ public class PantallaDeTutorial : MonoBehaviour
         if (controlador.IndiceDeDiapositiva != indiceMostrado) MostrarDiapositiva();
         if (estadoPrueba.gameObject.activeSelf)
         {
-            ActualizarVistaCamara();
+            if (vistaCamara.gameObject.activeSelf) ActualizarVistaCamara();
             ActualizarEstadoDePrueba();
         }
     }
@@ -92,9 +93,30 @@ public class PantallaDeTutorial : MonoBehaviour
         imagen.texture = textura;
         imagen.color = Color.white;
         aviso.text = string.Empty;
-        estadoPrueba.gameObject.SetActive(indice == 2);
-        vistaCamara.gameObject.SetActive(indice == 2);
-        avisoCamara.gameObject.SetActive(indice == 2);
+        // Las dos últimas diapositivas son la práctica (ver PracticaDeTutorial).
+        bool practicaDeControles = diapositivas.Length >= 2 && indice == diapositivas.Length - 2;
+        bool practicaDeTarea = indice == diapositivas.Length - 1;
+        estadoPrueba.gameObject.SetActive(practicaDeControles || practicaDeTarea);
+        vistaCamara.gameObject.SetActive(practicaDeTarea);
+        avisoCamara.gameObject.SetActive(practicaDeTarea);
+        if (practicaDeControles)
+        {
+            // Dentro del marco «LO QUE YA PROBASTE» de slide_06 (docs/tutorial/06_practica_controles.html).
+            rectEstado.anchoredPosition = new Vector2(462f, -80f);
+            rectEstado.sizeDelta = new Vector2(680f, 520f);
+            estadoPrueba.fontSize = 44;
+            estadoPrueba.lineSpacing = 1.3f;
+            estadoPrueba.alignment = TextAnchor.MiddleLeft;
+        }
+        else
+        {
+            // El recuadro de abajo a la derecha de slide_07, bajo la cámara.
+            rectEstado.anchoredPosition = new Vector2(440f, -345f);
+            rectEstado.sizeDelta = new Vector2(920f, 150f);
+            estadoPrueba.fontSize = 28;
+            estadoPrueba.lineSpacing = 1f;
+            estadoPrueba.alignment = TextAnchor.MiddleCenter;
+        }
     }
 
     private void ActualizarVistaCamara()
@@ -124,8 +146,32 @@ public class PantallaDeTutorial : MonoBehaviour
         }
     }
 
+    private const string Verde = "#5FD3A0";
+    private const string Gris = "#8A9099";
+    private const string Amarillo = "#F2C94C";
+
+    /// Un paso de la lista: ● en verde si ya lo probó, ○ en gris si falta.
+    /// (● y ○ existen en la fuente de Unity; ✓ no.)
+    private static string Paso(bool hecho, string texto) =>
+        hecho ? $"<color={Verde}>●  {texto}</color>" : $"<color={Gris}>○  {texto}</color>";
+
     private void ActualizarEstadoDePrueba()
     {
+        PracticaDeTutorial practica = controlador.Practica;
+        if (controlador.EnPracticaDeControles)
+        {
+            estadoPrueba.color = Color.white;
+            estadoPrueba.text =
+                Paso(practica.Camara, "GIRAR LA CÁMARA") + "\n" +
+                Paso(practica.Linterna, "PRENDER LA LINTERNA") + "\n" +
+                Paso(practica.Compuerta, "CERRAR UNA COMPUERTA") + "\n" +
+                Paso(practica.Cuerda, "DAR CUERDA A LA CAJA") + "\n\n" +
+                (practica.ControlesListos
+                    ? $"<color={Verde}>¡LISTO! PULSA SIGUIENTE</color>"
+                    : $"<color={Gris}>USA LOS BOTONES DE LA TABLET</color>");
+            return;
+        }
+
         if (!controlador.TutorialCamaraDisponible)
         {
             estadoPrueba.text = "DETECTOR NO DISPONIBLE\nRevisa la escena y la cámara";
@@ -133,18 +179,18 @@ public class PantallaDeTutorial : MonoBehaviour
             return;
         }
 
-        string mirada = controlador.TutorialMiradaCompletada
+        string mirada = practica.Mirada
             ? "MIRADA VERIFICADA"
             : controlador.TutorialMirandoCamara
                 ? "ROSTRO DETECTADO · MANTÉN LA MIRADA"
                 : "MIRA A LA PANTALLA Y A LA CÁMARA";
-        string tarea = controlador.TutorialTareaCompletada
+        string tarea = practica.Cables
             ? "CABLES COMPLETADOS"
             : "CONECTA LOS CABLES EN LA TABLET";
         estadoPrueba.text = mirada + "\n" + tarea;
-        estadoPrueba.color = controlador.TutorialMiradaCompletada && controlador.TutorialTareaCompletada
-            ? new Color(0.45f, 0.95f, 0.65f)
-            : Color.white;
+        if (!practica.ControlesListos)
+            estadoPrueba.text += $"\n<color={Amarillo}>FALTAN CONTROLES: VUELVE A LA PRÁCTICA 1</color>";
+        estadoPrueba.color = practica.Completa ? new Color(0.45f, 0.95f, 0.65f) : Color.white;
     }
 
     private void ConstruirLienzo()
@@ -231,7 +277,7 @@ public class PantallaDeTutorial : MonoBehaviour
 
         GameObject objetoEstado = new GameObject("EstadoDePrueba", typeof(RectTransform), typeof(Text));
         objetoEstado.transform.SetParent(canvas.transform, false);
-        RectTransform rectEstado = objetoEstado.GetComponent<RectTransform>();
+        rectEstado = objetoEstado.GetComponent<RectTransform>();
         rectEstado.anchorMin = new Vector2(0.5f, 0.5f);
         rectEstado.anchorMax = new Vector2(0.5f, 0.5f);
         rectEstado.pivot = new Vector2(0.5f, 0.5f);
@@ -242,6 +288,7 @@ public class PantallaDeTutorial : MonoBehaviour
         estadoPrueba.fontSize = 30;
         estadoPrueba.alignment = TextAnchor.MiddleCenter;
         estadoPrueba.color = Color.white;
+        estadoPrueba.supportRichText = true;
         estadoPrueba.gameObject.SetActive(false);
     }
 }
