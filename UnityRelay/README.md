@@ -12,7 +12,7 @@ El relay escucha en `0.0.0.0:8000`. Unity se conecta a `127.0.0.1`; Flutter usa 
 
 ## Reglas del relay
 
-- Roles: `unity_connect` (solo desde la misma PC), `connect`/`reconnect` (tablet, una sola por partida) y `operador_connect` (jugador 2). Cada rol puede mandar solo sus tipos de mensaje; lo demás se descarta. Detalle en `docs/PROTOCOLO_JUGADOR2.md`.
+- Roles: `unity_connect` (solo desde la misma PC), `connect` (tablet, una sola por partida; si se cae, la noche termina) y `operador_connect` (jugador 2). Cada rol puede mandar solo sus tipos de mensaje; lo demás se descarta. Detalle en `docs/PROTOCOLO_JUGADOR2.md`.
 - Sin compresión y mensajes de hasta 64 kB.
-- Variables: `PING_INTERVALO_S`, `PING_TIMEOUT_S`, `CIERRE_TIMEOUT_S`, `VENTANA_OPERADOR_S`, `UNITY_DESDE_CUALQUIER_IP=1`.
+- Variables: `PING_INTERVALO_S`, `PING_TIMEOUT_S`, `CIERRE_TIMEOUT_S`, `PING_TABLET_INTERVALO_S`, `PING_TABLET_TIMEOUT_S`, `VENTANA_OPERADOR_S`, `UNITY_DESDE_CUALQUIER_IP=1`.
 - Pruebas: `UnityRelay/.venv/bin/python pruebas/probar_relay.py`.

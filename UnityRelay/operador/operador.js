@@ -191,18 +191,15 @@
         mostrarFin(m);
         break;
       case "jugador1_salio":
+        // Si el jugador 1 se queda sin red, la noche termina y no puede volver a
+        // ella (Unity la cierra como «conexion_perdida»): se tapa el monitor.
         if (m.motivo === "conexion_perdida") {
-          // Se quedó sin Wi-Fi: la tablet reintenta sola y retoma la noche, así que
-          // la partida sigue; solo se avisa (no se cierra nada).
-          $("j1-sin-conexion").hidden = false;
+          mostrarCierre("EL JUGADOR 1 SE DESCONECTÓ", "Su tablet perdió la conexión con el juego.",
+            "La partida terminó.", false, "esperar");
           break;
         }
-        mostrarCierre("EL JUGADOR 1 SE FUE DE LA PARTIDA",
-          m.motivo === "salio" ? "Salió al menú." : "Perdió la conexión.",
+        mostrarCierre("EL JUGADOR 1 SE FUE DE LA PARTIDA", "Salió al menú.",
           "Sin él la partida no continúa.", false, "esperar");
-        break;
-      case "jugador1_volvio":
-        $("j1-sin-conexion").hidden = true;
         break;
       case "juego_cerrado":
         mostrarCierre("EL JUEGO SE CERRÓ", "Unity ya no está conectado.", "Sin juego no hay partida.", false, "esperar");
@@ -214,7 +211,6 @@
         break;
       case "mapa_puntos":
         if (finDePartida) reiniciarVista();          // empezó otra noche
-        $("j1-sin-conexion").hidden = true;
         puntos = m.puntos || [];
         plano = Logica.piezasValidas(m.plano);
         $("mapa").dataset.plano = String(plano.length);
@@ -289,6 +285,7 @@
     loss: ["EL JUGADOR 1 FUE ATRAPADO", false],
     win: ["EL JUGADOR 1 SOBREVIVIÓ LA NOCHE", true],
     final_victory: ["EL JUGADOR 1 SOBREVIVIÓ TODAS LAS NOCHES", true],
+    conexion_perdida: ["EL JUGADOR 1 SE DESCONECTÓ", false],
   };
 
   function mostrarFin(m) {
@@ -305,7 +302,6 @@
   // noche, el jugador 1 o el juego se fueron, o la conexión se perdió.
   function mostrarCierre(titulo, detalle, estadisticas, gano, accion) {
     finDePartida = true;
-    $("j1-sin-conexion").hidden = true;
     accionPrimaria = accion;
     ventanaDeRescateHasta = 0;
     cerrarMiniTarea();
@@ -330,7 +326,6 @@
     $("fin-partida").hidden = true;
     for (const nombre in muestras) delete muestras[nombre];
     puntos = []; plano = []; jugador = null; camaraYaw = null; limites = null;
-    $("j1-sin-conexion").hidden = true;
     estadoMapa = { animatronicos: [], recibidoEn: 0 };
     estadoJugador = null; estadoOperador = null; estadoOficina = null;
     pintarOficina();

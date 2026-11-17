@@ -34,6 +34,14 @@ PING_INTERVALO_S = float(os.environ.get("PING_INTERVALO_S", "5"))
 PING_TIMEOUT_S = float(os.environ.get("PING_TIMEOUT_S", "5"))
 CIERRE_TIMEOUT_S = float(os.environ.get("CIERRE_TIMEOUT_S", "2"))
 
+# Si la tablet (el jugador 1) se queda sin red, la noche termina: no hay forma
+# de volver. Para que la PC y el jugador 2 se enteren rápido, a la tablet se le
+# manda un ping cada 2 s y se espera la respuesta 3 s: con el cierre, hasta 7 s
+# (nunca más de los 15 s acordados). Unity y el operador siguen con los tiempos
+# de arriba: Unity está en esta misma PC y una carga larga no debe tumbarla.
+PING_TABLET_INTERVALO_S = float(os.environ.get("PING_TABLET_INTERVALO_S", "2"))
+PING_TABLET_TIMEOUT_S = float(os.environ.get("PING_TABLET_TIMEOUT_S", "3"))
+
 # El mensaje más grande del juego (task_list, mapa_puntos) pesa menos de 10 kB.
 # Un tope bajo evita que un cliente malicioso o roto llene la memoria del relay
 # con mensajes de 1 MB (el máximo que trae la biblioteca).
@@ -58,7 +66,7 @@ SOLO_PARA_OPERADORES = {
 # este filtro un operador podía completar las tareas del jugador 1 o darle cuerda
 # a la caja de Puppet, y una tablet colocar trampas. Lo demás se descarta.
 PERMITIDO_DE_TABLET = {
-    "connect", "reconnect", "disconnect",
+    "connect", "disconnect",
     "task_completed", "task_failed",
     "dar_cuerda_inicio", "dar_cuerda_fin", "camara", "compuerta", "linterna",
     "tutorial_abrir", "tutorial_slide", "tutorial_prueba_tarea", "tutorial_cerrar",
@@ -135,10 +143,19 @@ def otra_tablet_jugando(socket, player_id):
     return any(otro is not socket and identidad_de_tablet.get(otro) != player_id for otro in tablets)
 
 
+def vigilar_de_cerca(socket):
+    """Acorta el keepalive de esta conexión (ver PING_TABLET_INTERVALO_S). El
+    keepalive de la biblioteca lee estos dos valores en cada vuelta, así que el
+    cambio rige desde el próximo ping. Nunca los alarga: las pruebas usan
+    tiempos globales más cortos."""
+    socket.ping_interval = min(PING_INTERVALO_S, PING_TABLET_INTERVALO_S)
+    socket.ping_timeout = min(PING_TIMEOUT_S, PING_TABLET_TIMEOUT_S)
+
+
 def soltar_conexiones_viejas(socket, player_id):
-    """La misma tablet volvió por otra conexión (se quedó sin Wi-Fi y regresó,
-    o la app se cerró sin despedirse): la conexión anterior se cierra ya, sin
-    esperar los 12 s del keepalive, y sin que cuente como que el jugador 1 se fue."""
+    """La misma tablet volvió por otra conexión (la app se cerró sin despedirse
+    y se abrió de nuevo): la conexión anterior se cierra ya, sin esperar al
+    keepalive, y sin que cuente como que el jugador 1 se fue."""
     for viejo in list(tablets):
         if viejo is not socket and identidad_de_tablet.get(viejo) == player_id:
             tablets.discard(viejo)
@@ -193,7 +210,7 @@ async def handle_connection(socket):
                 print("Operador conectado")
                 continue
 
-            if message_type in ("connect", "reconnect"):
+            if message_type == "connect":
                 if role not in (None, "tablet"):
                     continue                      # un operador no pasa a ser tablet
                 player_id = message.get("player_id")
@@ -205,18 +222,11 @@ async def handle_connection(socket):
                 role = "tablet"
                 tablets.add(socket)
                 identidad_de_tablet[socket] = player_id
-                if message_type == "reconnect":
-                    # La tablet perdió la conexión y volvió: Unity retoma la noche en
-                    # curso (con `connect` la reiniciaría). No se toca el `connect`
-                    # guardado ni la ventana del jugador 2.
-                    await send_to(unity_clients, raw)
-                    await send_to(operadores, aviso("jugador1_volvio"))
-                    print("Flutter reconectado; Unity retoma la noche en curso")
-                else:
-                    operador_perdido_en = None      # partida nueva: el jugador 2 puede entrar de nuevo
-                    last_connect_message = raw
-                    await send_to(unity_clients, raw)
-                    print("Flutter conectado; inicio de partida enviado a Unity")
+                vigilar_de_cerca(socket)
+                operador_perdido_en = None      # partida nueva: el jugador 2 puede entrar de nuevo
+                last_connect_message = raw
+                await send_to(unity_clients, raw)
+                print("Flutter conectado; inicio de partida enviado a Unity")
                 continue
 
             if role == "unity":
@@ -260,8 +270,8 @@ async def handle_connection(socket):
             operador_perdido_en = time.monotonic()
         if era_tablet:
             await send_to(operadores, aviso("jugador1_salio", motivo="conexion_perdida"))
-            # Unity tiene que soltar lo que la tablet dejó apretado (la cuerda
-            # de la caja de Puppet, la cámara): nadie le va a mandar el «soltar».
+            # Sin el jugador 1 la noche termina (Unity la cierra como
+            # «conexión perdida»); la tablet no puede volver a esa partida.
             await send_to(unity_clients, aviso("tablet_caida"))
         if era_unity:
             await send_to(operadores, aviso("juego_cerrado"))
