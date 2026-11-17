@@ -244,11 +244,41 @@ async def principal(captura):
     navegador = None
     try:
         navegador = await asyncio.get_running_loop().run_in_executor(None, Navegador)
-        url = f"http://127.0.0.1:{PUERTO_WEB}/operador.html?host=127.0.0.1&puerto={PUERTO_UNITY}&auto=1"
+        # Sin «auto=1»: la página abre en el menú, como la tablet (2026-11-17).
+        url = f"http://127.0.0.1:{PUERTO_WEB}/operador.html?host=127.0.0.1&puerto={PUERTO_UNITY}"
         await asyncio.get_running_loop().run_in_executor(None, navegador.abrir, url)
 
         def esperar(condicion, segundos=10.0):
             return asyncio.get_running_loop().run_in_executor(None, navegador.esperar, condicion, segundos)
+
+        # --- Menú del jugador 2 ---
+        menu = lambda: navegador.ejecutar("var m=document.getElementById('menu');return !!m && !m.hidden;")
+        abierto = lambda: navegador.ejecutar("var c=document.getElementById('como-jugar');return !!c && !c.hidden;")
+        opciones = lambda: navegador.ejecutar("var o=document.getElementById('menu-panel-opciones');return !!o && !o.hidden;")
+        comprobar("la página abre en el menú, sin conectarse sola",
+                  await esperar(menu, 5.0) and "Desconectado" in (navegador.texto("estado-conexion") or ""))
+        comprobar("el menú tiene Cómo jugar, Entrar a la sala de control, Opciones y Salir, en ese orden",
+                  navegador.ejecutar("return Array.from(document.querySelectorAll('#menu .menu-opciones > button'))"
+                                     ".map(function (b) { return b.textContent.trim(); }).join('|');")
+                  == "Cómo jugar|Entrar a la sala de control|Opciones|Salir")
+        comprobar("«Cómo jugar» no se abre solo: está en el menú", not abierto())
+        navegador.ejecutar("document.getElementById('menu-como-jugar').click();")
+        comprobar("«Cómo jugar» abre la explicación (trampas, terminal, 15 s) encima del menú",
+                  abierto() and all(p in (navegador.texto("como-jugar") or "").upper() for p in ("TRAMPA", "TERMINAL", "15 S")))
+        navegador.ejecutar("document.getElementById('cj-entendido').click();")
+        comprobar("«Entendido» la cierra y deja el menú", not abierto() and menu())
+        comprobar("las opciones (IP y puerto del juego) empiezan ocultas", not opciones())
+        navegador.ejecutar("document.getElementById('menu-opciones').click();")
+        comprobar("«Opciones» muestra la IP y el puerto del juego, con lo que vino en la dirección",
+                  opciones() and navegador.ejecutar("return document.getElementById('host').value;") == "127.0.0.1"
+                  and navegador.ejecutar("return document.getElementById('puerto').value;") == str(PUERTO_UNITY))
+        navegador.ejecutar("window.__cerrar = 0; window.close = function () { window.__cerrar++; };"
+                           "document.getElementById('menu-salir').click();")
+        comprobar("«Salir» intenta cerrar la pestaña y, si el navegador no deja, dice que se puede cerrar",
+                  navegador.ejecutar("return window.__cerrar;") == 1
+                  and await esperar(lambda: "cerrar esta pestaña" in (navegador.texto("menu-nota") or ""), 2.0))
+        navegador.ejecutar("document.getElementById('menu-entrar').click();")
+        comprobar("«Entrar a la sala de control» cierra el menú", not menu())
 
         comprobar("la página se conecta (#estado-conexion dice Conectado)",
                   await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or "")))
@@ -263,18 +293,11 @@ async def principal(captura):
         errores = navegador.ejecutar("return (window.__errores || []).length;")
         comprobar(f"sin errores de JavaScript, aunque posiciones llegó antes que el mapa (errores: {errores})", errores == 0)
 
-        # --- «Cómo jugar»: aparece la primera vez, se cierra y se puede volver a abrir (2026-11-17) ---
-        abierto = lambda: navegador.ejecutar("var c=document.getElementById('como-jugar');return !!c && !c.hidden;")
-        comprobar("la primera vez se abre «Cómo jugar» y explica las trampas y la terminal",
-                  abierto() and all(p in (navegador.texto("como-jugar") or "").upper() for p in ("TRAMPA", "TERMINAL", "15 S")))
-        navegador.ejecutar("document.getElementById('cj-entendido').click();")
-        comprobar("«Entendido» lo cierra", not abierto())
-        comprobar("y la página recuerda que ya lo viste",
-                  navegador.ejecutar("try { return localStorage.getItem('fnot_como_jugar_visto') === '1'; } catch (e) { return false; }"))
+        # --- «? Cómo jugar» en la barra, ya dentro de la sala ---
         navegador.ejecutar("document.getElementById('ayuda').click();")
-        comprobar("el botón «? Cómo jugar» de la barra lo vuelve a abrir", abierto())
+        comprobar("el botón «? Cómo jugar» de la barra lo abre durante la partida", abierto() and not menu())
         navegador.ejecutar("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));")
-        comprobar("Escape también lo cierra", not abierto())
+        comprobar("Escape lo cierra", not abierto())
         comprobar("el mapa deja de mostrar la espera cuando llega mapa_puntos",
                   await esperar(lambda: navegador.ejecutar(
                       "var m=document.getElementById('mapa');return !!m && m.dataset.estado==='listo';")))
@@ -438,9 +461,9 @@ async def principal(captura):
         comprobar("si el jugador 1 gana, el fin dice que sobrevivió",
                   await esperar(lambda: js(visible) and "SOBREVIVI" in (navegador.texto("fin-detalle") or "").upper(), 5.0))
         navegador.ejecutar("document.getElementById('fin-salir').click();")
-        comprobar("«Salir» desconecta y oculta el fin",
+        comprobar("«Salir» desconecta, oculta el fin y vuelve al menú",
                   await esperar(lambda: "Desconectado" in (navegador.texto("estado-conexion") or "")
-                                and not js(visible), 5.0))
+                                and not js(visible) and menu(), 5.0))
         await asyncio.sleep(3.5)
         comprobar("tras «Salir» la página no se reconecta sola",
                   "Desconectado" in (navegador.texto("estado-conexion") or ""))
@@ -448,8 +471,14 @@ async def principal(captura):
         comprobar(f"sin errores de JavaScript tras el fin de la partida (errores: {errores})", errores == 0)
 
         # --- J1 se va / J2 se cae: avisos, 3 intentos en 15 s y rechazo ---
-        navegador.ejecutar("document.getElementById('conectar').click();")
-        comprobar("«Conectar» vuelve a conectar tras Salir",
+        navegador.ejecutar("document.getElementById('menu-entrar').click();")
+        comprobar("«Entrar» del menú vuelve a conectar tras Salir",
+                  await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or "") and not menu(), 8.0))
+        navegador.ejecutar("document.getElementById('volver-al-menu').click();")
+        comprobar("el botón «Menú» de la sala desconecta y vuelve al menú",
+                  await esperar(lambda: menu() and "Desconectado" in (navegador.texto("estado-conexion") or ""), 5.0))
+        navegador.ejecutar("document.getElementById('menu-entrar').click();")
+        comprobar("y desde el menú se vuelve a entrar",
                   await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or ""), 8.0))
 
         # --- lo que hace el jugador 1 con la cámara se le ve al jugador 2 ---
