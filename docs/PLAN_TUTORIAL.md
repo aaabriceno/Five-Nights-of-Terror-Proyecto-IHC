@@ -23,8 +23,10 @@
 > - **Pruebas:** `pruebas/PruebaPracticaDeTutorial.cs` (Mono),
 >   `Flutter/test/tutorial_practica_test.dart` y
 >   `pruebas/probar_tutorial_con_juego.py` (juego real; abre la webcam).
-> - **Jugador 2:** la página del operador tiene su propio «Cómo jugar», que se
->   abre solo la primera vez y después con el botón «? Cómo jugar».
+> - **Jugador 2:** la página del operador abre en su **menú** (Cómo jugar ·
+>   Entrar a la sala de control · Opciones (IP y puerto) · Salir). «Cómo jugar»
+>   también está en la barra de la sala («? Cómo jugar»). Con `?auto=1` en la
+>   dirección no aparece el menú (lo usan las pruebas y las capturas).
 
 Pedido del profesor: que alguien que nunca vio el juego pueda entender cómo
 se juega. Dado que el jugador no tiene teclado ni mouse, el tutorial se

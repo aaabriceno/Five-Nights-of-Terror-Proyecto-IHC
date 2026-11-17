@@ -159,7 +159,7 @@ python3 -m http.server 8081 --directory UnityRelay/operador &
 
 1. Exportar el juego con el código de esta rama: `./exportar_linux.sh` (reemplaza `Unity/Builds/Linux`).
 2. Abrir `iniciar.sh` (o el acceso directo del escritorio). Levanta el relay, la **página del jugador 2** en el puerto 8081 y el juego, y escribe en la terminal la dirección para la otra computadora, por ejemplo `http://192.168.1.7:8081/operador.html`.
-3. En la otra computadora (misma red que la laptop), abrir esa dirección y pulsar **Conectar**. Debe decir "Conectado" y mostrar el minimapa.
+3. En la otra computadora (misma red que la laptop), abrir esa dirección. Aparece el **menú del jugador 2** (2026-11-17): «Cómo jugar», «Entrar a la sala de control», «Opciones» (IP y puerto del juego, ya llenos con los de la dirección) y «Salir». Al pulsar **Entrar a la sala de control** debe decir "Conectado" y mostrar el minimapa. En la sala, el botón **Menú** (panel Conexión) desconecta y vuelve al menú; «Salir» al final de una partida también.
 4. Iniciar una noche desde la tablet. Los animatrónicos aparecen en el minimapa y los botones **Retrasar** se activan.
 5. El jugador 2 pulsa **Retrasar**: el jugador 1 ve el aviso arriba en la pantalla de Unity.
 
