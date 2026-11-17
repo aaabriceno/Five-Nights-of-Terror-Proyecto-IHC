@@ -1618,7 +1618,7 @@ public class UnityGameSessionController : MonoBehaviour
     }
 
     /// La cámara del juego gira hacia donde el jugador 1 mantiene apretado el
-    /// botón de la tablet y vuelve sola al frente al soltarlo.
+    /// botón de la tablet y se queda mirando hacia ahí al soltarlo.
     private void ActualizarCamara()
     {
         camara.Actualizar(Time.deltaTime, Time.time);
