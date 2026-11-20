@@ -25,18 +25,18 @@
   const RUTA_FREDDY = [
     { id: "escenario", x: 50, y: 8 },
     { id: "comedor", x: 50, y: 29 },
-    { id: "pasillo-izq", x: 13, y: 29 },
-    { id: "pasillo-izq-bajo", x: 13, y: 50 },
-    { id: "puerta", x: 38, y: 56 },
+    { id: "pasillo-izq", x: 14, y: 29 },
+    { id: "pasillo-izq-bajo", x: 14, y: 53 },
+    { id: "puerta", x: 38, y: 53 },
     { id: "oficina", x: 50, y: 56 },
   ];
 
   const PUNTOS = [
     { id: "comedor", nombre: "Comedor", x: 50, y: 29, enRuta: true },
-    { id: "pasillo-izq", nombre: "Pasillo izquierdo", x: 13, y: 29, enRuta: true },
-    { id: "pasillo-izq-bajo", nombre: "Pasillo izquierdo, abajo", x: 13, y: 50, enRuta: true },
-    { id: "pasillo-der", nombre: "Pasillo derecho", x: 87, y: 29, enRuta: false },
-    { id: "pasillo-der-bajo", nombre: "Pasillo derecho, abajo", x: 87, y: 50, enRuta: false },
+    { id: "pasillo-izq", nombre: "Pasillo izquierdo", x: 14, y: 29, enRuta: true },
+    { id: "pasillo-izq-bajo", nombre: "Pasillo izquierdo, abajo", x: 14, y: 53, enRuta: true },
+    { id: "pasillo-der", nombre: "Pasillo derecho", x: 86, y: 29, enRuta: false },
+    { id: "pasillo-der-bajo", nombre: "Pasillo derecho, abajo", x: 86, y: 53, enRuta: false },
   ];
 
   const PASOS = [

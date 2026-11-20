@@ -840,17 +840,9 @@
   pintarFecha();
 
   // ------------------------------------------------------ cómo jugar (2026-11-17)
-  // Se abre desde el menú o con «? Cómo jugar» en la barra.
-  function mostrarComoJugar(ver) {
-    $("como-jugar").hidden = !ver;
-    if (ver) $("cj-entendido").focus();
-    else ($("menu").hidden ? $("ayuda") : $("menu-como-jugar")).focus();
-  }
-  $("ayuda").onclick = () => mostrarComoJugar(true);
-  $("cj-entendido").onclick = () => mostrarComoJugar(false);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$("como-jugar").hidden) $("cj-entendido").click();
-  });
+  // Se abre desde el menú o con «? Cómo jugar» en la barra. Desde el
+  // 2026-11-20 son diapositivas con práctica: ver como_jugar.js.
+  $("ayuda").onclick = () => ComoJugar.abrir($("ayuda"));
 
   // ------------------------------------------------------------ menú (2026-11-17)
   // Lo primero que ve el jugador 2, como el menú de la tablet. Entrar conecta;
@@ -862,7 +854,7 @@
     $("menu").hidden = !ver;
     if (ver) { pintarNotaDelMenu(); $("menu-entrar").focus(); }
   }
-  $("menu-como-jugar").onclick = () => mostrarComoJugar(true);
+  $("menu-como-jugar").onclick = () => ComoJugar.abrir($("menu-como-jugar"));
   $("menu-entrar").onclick = () => {
     mostrarMenu(false);
     if (!socket && !caidaEn) { quiereConexion = true; conectar(); }
