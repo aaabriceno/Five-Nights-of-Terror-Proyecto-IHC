@@ -236,6 +236,142 @@ class Navegador:
         subprocess.run(["rm", "-rf", self.perfil])
 
 
+def resolver(enunciado):
+    """La respuesta de un cálculo («Calcula 7 × 8») o de una ecuación («Encuentra x: 3x + 5 = 20»)."""
+    import re
+    m = re.fullmatch(r"Calcula (\d+) × (\d+)", enunciado or "")
+    if m:
+        return int(m[1]) * int(m[2])
+    m = re.fullmatch(r"Encuentra x: (\d+)x \+ (\d+) = (\d+)", enunciado or "")
+    if m:
+        return (int(m[3]) - int(m[2])) // int(m[1])
+    return None
+
+
+async def probar_como_jugar(navegador, esperar, abierto, menu):
+    """«Cómo jugar» con 7 diapositivas y práctica (2026-11-20): se recorre entero y se practica todo."""
+    js = navegador.ejecutar
+    # Clic con un evento (los elementos del SVG no tienen .click()) y teclas como las manda el navegador.
+    clic = lambda id_: js("var e=document.getElementById(arguments[0]);if(!e)return false;"
+                          "e.dispatchEvent(new MouseEvent('click',{bubbles:true}));return true;", [id_])
+    tecla = lambda clave, id_=None: js(
+        "var e=arguments[1]?document.getElementById(arguments[1]):document;"
+        "e.dispatchEvent(new KeyboardEvent('keydown',{key:arguments[0],bubbles:true}));", [clave, id_])
+    diapositiva = lambda: js("return document.getElementById('como-jugar').dataset.diapositiva;")
+    habilitado = lambda id_: js("var b=document.getElementById(arguments[0]);return !!b && !b.disabled;", [id_])
+    texto = lambda id_: navegador.texto(id_) or ""
+
+    js("document.getElementById('menu-como-jugar').click();")
+    comprobar("«Cómo jugar» abre en la diapositiva 1 de 7, encima del menú",
+              abierto() and diapositiva() == "1" and texto("cj-contador") == "1 / 7")
+    comprobar("se ve una sola diapositiva a la vez",
+              js("return document.querySelectorAll('#como-jugar .cj-diapositiva:not([hidden])').length;") == 1)
+    comprobar("en la primera no hay «Anterior»", not habilitado("cj-anterior"))
+    clic("cj-siguiente")
+    comprobar("«Siguiente» pasa a la 2", diapositiva() == "2" and texto("cj-contador") == "2 / 7")
+    tecla("ArrowLeft")
+    comprobar("la flecha izquierda vuelve a la 1", diapositiva() == "1")
+    tecla("ArrowRight")
+    comprobar("la flecha derecha avanza a la 2", diapositiva() == "2")
+
+    # 2 · El mapa: tocar a cada animatrónico
+    clic("cj-conocer-vixy")
+    comprobar("tocar a Vixy dice que entra por el ducto izquierdo", "ducto izquierdo" in texto("cj-ficha").lower())
+    clic("cj-conocer-puppet")
+    comprobar("tocar a Puppet habla de su caja de música", "caja" in texto("cj-ficha").lower())
+    clic("cj-conocer-freddy")
+    comprobar("tocar a los tres marca «3 / 3»", "3 / 3" in texto("cj-conocidos"))
+
+    # 3 · Jugador 1 en vivo: encontrar las filas
+    tecla("ArrowRight")
+    comprobar("la 3 pregunta por la fila de la mirada", diapositiva() == "3" and "mirando" in texto("cj-pregunta-panel"))
+    clic("cj-fila-caja")
+    comprobar("tocar otra fila dice «Esa no»", "Esa no" in texto("cj-mensaje-panel"))
+    clic("cj-fila-mirada")
+    comprobar("tocar «Mirada» pasa a la pregunta de la caja", "caja" in texto("cj-pregunta-panel").lower())
+    clic("cj-fila-caja")
+    comprobar("tocar la caja termina el panel", "Bien" in texto("cj-mensaje-panel") or "Eso" in texto("cj-mensaje-panel"))
+
+    # 4 · Retrasar
+    tecla("ArrowRight")
+    mapa_de = lambda id_: js("var m=document.getElementById(arguments[0]);return m?m.dataset.freddy:null;", [id_])
+    comprobar("la 4 muestra a Freddy caminando", diapositiva() == "4" and mapa_de("cj-mapa-retrasar") == "normal")
+    clic("cj-retrasar")
+    comprobar("«Retrasar» lo pone LENTO", await esperar(lambda: mapa_de("cj-mapa-retrasar") == "lento", 2.0))
+    comprobar("y dice cuánto le queda", "retrasado" in texto("cj-detalle-retrasar"))
+    comprobar("mientras tanto «Retrasar» queda deshabilitado", not habilitado("cj-retrasar"))
+
+    # 5 · Trampa
+    tecla("ArrowRight")
+    modo = lambda: js("return document.getElementById('cj-mapa-trampa').dataset.modo || '';")
+    comprobar("la 5 empieza con 1 carga", diapositiva() == "5" and texto("cj-cargas") == "1 / 3")
+    clic("cj-punto-pasillo-der")
+    comprobar("tocar un punto sin «Colocar trampa» pide apretarlo primero", "Colocar trampa" in texto("cj-mensaje-trampa"))
+    clic("cj-poner-trampa")
+    comprobar("«Colocar trampa» marca los puntos para elegir", modo() == "trampa")
+    clic("cj-punto-pasillo-der")
+    comprobar("fuera del camino de Freddy dice que no pasa por ahí, sin gastar la carga",
+              "no pasa por ahí" in texto("cj-mensaje-trampa") and texto("cj-cargas") == "1 / 3" and modo() == "")
+    clic("cj-poner-trampa")
+    clic("cj-punto-pasillo-izq")
+    comprobar("en su camino la trampa queda puesta y gasta la carga",
+              "puesta" in texto("cj-mensaje-trampa").lower() and texto("cj-cargas") == "0 / 3")
+    comprobar("Freddy cae en la trampa (ATRAPADO)", await esperar(lambda: mapa_de("cj-mapa-trampa") == "atrapado", 25.0))
+    clic("cj-poner-trampa")
+    clic("cj-punto-comedor")
+    comprobar("sin cargas manda a resolver un cálculo", "cálculo" in texto("cj-mensaje-trampa"))
+
+    # 6 · Terminal
+    tecla("ArrowRight")
+    comprobar("la 6 es la terminal", diapositiva() == "6")
+    clic("cj-calculo")
+    comprobar("«Recargar (cálculo)» muestra un cálculo como el del juego",
+              await esperar(lambda: resolver(texto("cj-enunciado")) is not None, 2.0) and texto("cj-enunciado").startswith("Calcula"))
+    tecla("ArrowRight", "cj-respuesta")
+    comprobar("la flecha derecha escribiendo en la respuesta no cambia de diapositiva", diapositiva() == "6")
+    responder = lambda valor: js("document.getElementById('cj-respuesta').value=arguments[0];"
+                                 "document.getElementById('cj-enviar').click();", [str(valor)])
+    responder("abc")
+    comprobar("«abc» pide un número entero", "Escribe solo un número entero." in texto("cj-mensaje-terminal"))
+    responder(resolver(texto("cj-enunciado")) + 1)
+    comprobar("una respuesta mala bloquea la terminal",
+              "Incorrecto" in texto("cj-mensaje-terminal") and not habilitado("cj-calculo") and not habilitado("cj-ecuacion"))
+    comprobar("a los 3 s la terminal vuelve", await esperar(lambda: habilitado("cj-calculo"), 5.0))
+    clic("cj-calculo")
+    await esperar(lambda: resolver(texto("cj-enunciado")) is not None, 2.0)
+    responder(resolver(texto("cj-enunciado")))
+    comprobar("el cálculo bien resuelto da +1 carga y +20 % de batería",
+              "+1 carga" in texto("cj-mensaje-terminal") and "20 %" in texto("cj-mensaje-terminal") and texto("cj-cargas-terminal") == "1 / 3")
+    comprobar("el rescate empieza bloqueado", not habilitado("cj-rescatar"))
+    clic("cj-ecuacion")
+    comprobar("«Desbloquear rescate» muestra una ecuación",
+              await esperar(lambda: texto("cj-enunciado").startswith("Encuentra x"), 2.0))
+    responder(resolver(texto("cj-enunciado")))
+    comprobar("la ecuación resuelta hace salir a Puppet y habilita «Rescatar a Puppet»",
+              "PUPPET" in texto("cj-alerta-puppet").upper() and habilitado("cj-rescatar"))
+    clic("cj-rescatar")
+    comprobar("«Rescatar a Puppet» lo rescata", "Rescataste" in texto("cj-mensaje-terminal"))
+
+    # 7 · Listo
+    tecla("ArrowRight")
+    hechos = lambda: js("return Array.from(document.querySelectorAll('#cj-lista [data-paso]'))"
+                        ".map(function (e) { return e.dataset.hecho; }).join(',');")
+    comprobar("la 7 tiene la lista con los 7 pasos hechos", diapositiva() == "7" and hechos() == ",".join(["true"] * 7))
+    comprobar("y el «OJO»: más rápido, 15 s para volver, si cae el jugador 1 termina",
+              all(p in texto("cj-diapositiva-7") for p in ("más rápido", "15 s", "termina")))
+    comprobar("en la última, «Siguiente» cambia por «Entendido»",
+              js("return document.getElementById('cj-siguiente').hidden && !document.getElementById('cj-entendido').hidden;"))
+    clic("cj-entendido")
+    comprobar("«Entendido» la cierra y deja el menú", not abierto() and menu())
+    js("document.getElementById('menu-como-jugar').click();")
+    comprobar("al volver a abrir empieza en la 1", abierto() and diapositiva() == "1")
+    for _ in range(6):
+        tecla("ArrowRight")
+    comprobar("y conserva lo practicado", hechos() == ",".join(["true"] * 7))
+    clic("cj-cerrar")
+    comprobar("«Cerrar ×» la cierra", not abierto() and menu())
+
+
 async def principal(captura):
     global ORDENES
     ORDENES = asyncio.Queue()
@@ -262,11 +398,7 @@ async def principal(captura):
                                      ".map(function (b) { return b.textContent.trim(); }).join('|');")
                   == "Cómo jugar|Entrar a la sala de control|Opciones|Salir")
         comprobar("«Cómo jugar» no se abre solo: está en el menú", not abierto())
-        navegador.ejecutar("document.getElementById('menu-como-jugar').click();")
-        comprobar("«Cómo jugar» abre la explicación (trampas, terminal, 15 s) encima del menú",
-                  abierto() and all(p in (navegador.texto("como-jugar") or "").upper() for p in ("TRAMPA", "TERMINAL", "15 S")))
-        navegador.ejecutar("document.getElementById('cj-entendido').click();")
-        comprobar("«Entendido» la cierra y deja el menú", not abierto() and menu())
+        await probar_como_jugar(navegador, esperar, abierto, menu)
         comprobar("las opciones (IP y puerto del juego) empiezan ocultas", not opciones())
         navegador.ejecutar("document.getElementById('menu-opciones').click();")
         comprobar("«Opciones» muestra la IP y el puerto del juego, con lo que vino en la dirección",
