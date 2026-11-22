@@ -79,6 +79,7 @@ Desde otra computadora o un celular, en una página web:
 - **Terminal:** un cálculo da +1 trampa y +20 % de batería al jugador 1, pero hay un **cupo por noche** (6, 5, 4, 3, 3 y 3 en las noches 1 a 6; solo gastan los bien resueltos). Una ecuación desbloquea el rescate de Puppet. Si fallas, se bloquea 3 s.
 - Las acciones están ordenadas por lo que hacen, cada una con su costo a la vista: **Frenar** (Retrasar y trampas), **Terminal** (cálculo y ecuación) y **Salvar a Puppet** (rescate).
 - Su menú tiene un **«Cómo jugar»** de 8 diapositivas con práctica simulada y animada: qué te cuesta y qué te da cada acción (Retrasar, trampa, cálculo, ecuación y rescate), con un ejercicio en cada una.
+- **Nadie empieza con el otro en el tutorial:** mientras el jugador 2 tenga «Cómo jugar» abierto, la tablet no puede lanzar la noche (dice «El jugador 2 sigue en "Cómo jugar"» y deja reintentar); y si el jugador 1 está en el tutorial, la página del jugador 2 lo avisa con una franja arriba.
 - Con el jugador 2 conectado, Freddy y Vixy van más rápido.
 
 ### Si se corta la red
@@ -117,7 +118,7 @@ Desde otra computadora o un celular, en una página web:
 
 ### 1. Tablet (`Flutter/`)
 
-App Flutter/Dart (Material 3, Provider), versión **0.18.1+29**, probada en una Lenovo TB350XU. Menú, tutorial, controles de la oficina, 10 minijuegos, caja de Puppet, avisos del compañero y pantallas de fin de noche. Tiene un modo de prueba sin la PC («Jugar sin la PC» en Opciones).
+App Flutter/Dart (Material 3, Provider), versión **0.18.3+31**, probada en una Lenovo TB350XU. Menú, tutorial, controles de la oficina, 10 minijuegos, caja de Puppet, avisos del compañero y pantallas de fin de noche. Tiene un modo de prueba sin la PC («Jugar sin la PC» en Opciones).
 
 ### 2. Motor Unity (`Unity/`)
 
