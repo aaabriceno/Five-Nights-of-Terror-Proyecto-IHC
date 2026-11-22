@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 /// <summary>
@@ -18,6 +19,19 @@ public class RecursosDeOperador
     public const float SegundosDeTrampa = 6f;
     public const int CargasIniciales = 1;
     public const int MaxCargas = 3;
+
+    /// Cuántos cálculos puede resolver el jugador 2 en cada noche (2026-11-22,
+    /// decidido por Anthony). Antes eran infinitos y con ellos las trampas y la
+    /// batería del jugador 1 tampoco se acababan. Solo gastan cupo los cálculos
+    /// bien resueltos; el cupo vuelve a llenarse al empezar cada noche.
+    private static readonly int[] CalculosPorNocheTabla = { 6, 5, 4, 3, 3, 3 };
+
+    /// Cupo de cálculos de una noche (las noches fuera de 1-6 se ajustan).
+    public static int CalculosPorNoche(int noche)
+    {
+        int indice = Math.Max(1, Math.Min(CalculosPorNocheTabla.Length, noche)) - 1;
+        return CalculosPorNocheTabla[indice];
+    }
     /// Ecuaciones que hacen falta para desbloquear el rescate de Puppet
     /// (antes eran 3 mini-tareas iguales de memoria).
     public const int EcuacionesParaHabilidad = 1;
@@ -45,6 +59,10 @@ public class RecursosDeOperador
     private readonly HashSet<string> trampas = new HashSet<string>();
 
     public int Cargas { get; private set; }
+    /// Cupo de cálculos de esta noche y cuántos quedan.
+    public int CalculosDeLaNoche { get; private set; }
+    public int CalculosRestantes { get; private set; }
+    public bool QuedanCalculos { get { return CalculosRestantes > 0; } }
     /// Ecuaciones resueltas hacia el rescate de Puppet (0 hasta EcuacionesParaHabilidad).
     public int Progreso { get; private set; }
     public bool CargasLlenas { get { return Cargas >= MaxCargas; } }
@@ -53,9 +71,13 @@ public class RecursosDeOperador
 
     public RecursosDeOperador() { Reiniciar(); }
 
-    public void Reiniciar()
+    /// Al empezar una noche: 1 carga, sin rescate, sin trampas y el cupo de
+    /// cálculos de esa noche.
+    public void Reiniciar(int noche = 1)
     {
         Cargas = CargasIniciales;
+        CalculosDeLaNoche = CalculosPorNoche(noche);
+        CalculosRestantes = CalculosDeLaNoche;
         Progreso = 0;
         trampas.Clear();
     }
@@ -73,8 +95,16 @@ public class RecursosDeOperador
     /// Quita la trampa si existe. Devuelve true si había una.
     public bool DispararTrampa(string punto) { return trampas.Remove(punto); }
 
-    /// Un cálculo bien resuelto: 1 carga de trampa (sin pasar del máximo).
-    public void GanarCargaPorCalculo() { if (Cargas < MaxCargas) Cargas++; }
+    /// Un cálculo bien resuelto: gasta 1 del cupo de la noche y da 1 carga de
+    /// trampa (sin pasar del máximo). Sin cupo no cuenta: devuelve false y no
+    /// da nada (quien llama tampoco debe recargar la batería).
+    public bool GanarCargaPorCalculo()
+    {
+        if (!QuedanCalculos) return false;
+        CalculosRestantes--;
+        if (Cargas < MaxCargas) Cargas++;
+        return true;
+    }
 
     /// Una ecuación bien resuelta: acerca (o da) el rescate de Puppet.
     public void GanarHabilidadPorEcuacion() { if (Progreso < EcuacionesParaHabilidad) Progreso++; }

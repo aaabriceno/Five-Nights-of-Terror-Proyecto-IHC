@@ -242,6 +242,8 @@ public class UnityGameSessionController : MonoBehaviour
         public float ventana_rescate_s;
         public float multa_factor;
         public float segundos_caja = 30f;
+        public int calculos_restantes;    // cupo de cálculos que le queda esta noche (2026-11-22)
+        public int calculos_de_la_noche;  // cupo total de la noche: 6, 5, 4, 3, 3, 3
     }
 
     [Serializable] private class AccionRechazadaMessage
@@ -873,7 +875,7 @@ public class UnityGameSessionController : MonoBehaviour
         }
 
         freno.Reiniciar();
-        recursos.Reiniciar();
+        recursos.Reiniciar(noche);
         tareas.Reiniciar();
         compuertas.Reiniciar();
         estadoOficinaPublicado = null;
@@ -1517,7 +1519,9 @@ public class UnityGameSessionController : MonoBehaviour
             bloqueo_s = tareas.SegundosDeBloqueo(Time.time),
             ventana_rescate_s = rescate.SegundosRestantes(Time.time),
             multa_factor = rescate.FactorDeDescarga,
-            segundos_caja = rescate.SegundosParaVaciarLaCaja
+            segundos_caja = rescate.SegundosParaVaciarLaCaja,
+            calculos_restantes = recursos.CalculosRestantes,
+            calculos_de_la_noche = recursos.CalculosDeLaNoche
         });
     }
 
@@ -1768,6 +1772,8 @@ public class UnityGameSessionController : MonoBehaviour
         else if (pedido.tipo == "ecuacion") tipo = TareasDeOperador.Tipo.Ecuacion;
         else { RechazarTarea("tarea_desconocida"); return; }
 
+        // Sin cupo de cálculos esta noche no se entregan más (2026-11-22).
+        if (tipo == TareasDeOperador.Tipo.Calculo && !recursos.QuedanCalculos) { RechazarTarea("sin_calculos"); return; }
         // No tiene sentido ganar lo que ya está lleno o ganado.
         // El cálculo da una carga y batería: solo sobra si las dos están llenas.
         if (tipo == TareasDeOperador.Tipo.Calculo && recursos.CargasLlenas && compuertas.BateriaLlena) { RechazarTarea("cargas_llenas"); return; }
@@ -1804,7 +1810,8 @@ public class UnityGameSessionController : MonoBehaviour
             case TareasDeOperador.ResultadoRespuesta.Correcta:
                 if (tipo == "calculo")
                 {
-                    recursos.GanarCargaPorCalculo();
+                    // Gasta 1 del cupo de la noche; sin cupo no da carga ni batería.
+                    if (!recursos.GanarCargaPorCalculo()) { RechazarTarea("sin_calculos"); PublicarEstadoOperador(); return; }
                     compuertas.Recargar(CompuertasDeDuctos.RecargaPorCalculo);
                     PublicarEstadoOficina(true);
                 }
