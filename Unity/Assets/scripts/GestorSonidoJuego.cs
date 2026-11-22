@@ -64,9 +64,10 @@ public class GestorSonidoJuego : MonoBehaviour
         if (campanas6am == null) campanas6am = Resources.Load<AudioClip>("sounds/FNaF_2_-_Campanas_(6_a.m.)");
     }
 
-    /// La música del menú suena unas 13 veces más fuerte que las campanas de las
-    /// 6 AM (-21,6 dB contra -32,9 dB de volumen medio): si arranca mientras
-    /// suenan, las tapa. En ese caso espera a que terminen.
+    /// La música del menú no debe arrancar encima de las campanas de las 6 AM:
+    /// si suenan, espera a que terminen. (El archivo de las campanas venía a
+    /// -32,9 dB de volumen medio y quedaba por debajo de la estática; desde
+    /// 2026-11-22 está a -16,9 dB, más fuerte que la música del menú, -21,6 dB.)
     public void ReproducirMusicaMenu()
     {
         if (CampanasSonando)
