@@ -7,6 +7,7 @@ Tres escenarios, cada uno con su propio arranque del juego:
   linterna Con la linterna prendida (botón mantenido en la tablet), alumbrar a Freddy 2 s lo hace retroceder.
   tablet   La tablet se cae a mitad de la noche: Unity la termina («conexion_perdida»),
            avisa al jugador 2, y un `reconnect` ya no la retoma.
+  tarea_fallada  Fallar una tarea no la borra: sigue pendiente; resolverla sí la quita.
 
 El juego se abre en una pantalla virtual (Xvfb) para no tocar tu escritorio. Usa las
 opciones de prueba del juego (-prueba-sin-freddy, -prueba-tareas-cada): sin ellas el
@@ -69,6 +70,7 @@ class Partida:
         self.efectos_tablet = []        # (t, mensaje) de los efecto que recibe la tablet
         self.oficina_j2 = []            # (t, mensaje) de estado_oficina que recibe el jugador 2
         self.atacante = None            # quién mató al jugador 1 (`animatronic` del mensaje attack)
+        self.listas_de_tareas = []      # (t, [task_id...]) de cada task_list que recibe la tablet
 
     def t(self):
         return round(time.time() - self.t0, 1) if self.t0 else 0.0
@@ -148,6 +150,8 @@ class Partida:
                     self.oficina.append((self.t(), m))
                 elif m.get("type") == "efecto":
                     self.efectos_tablet.append((self.t(), m))
+                elif m.get("type") == "task_list":
+                    self.listas_de_tareas.append((self.t(), [(x["task_id"], x["task_type"]) for x in m.get("tasks", [])]))
                 elif m.get("type") == "attack":
                     self.atacante = m.get("animatronic")
                 elif m.get("type") == "game_over" and self.fin is None:
@@ -573,9 +577,41 @@ async def escenario_linterna():
         await p.cerrar()
 
 
+async def escenario_tarea_fallada():
+    """Fallar una tarea (tiempo agotado o respuesta mala) no la borra: sigue en la lista
+    hasta que se resuelva. Antes (hasta el 2026-11-22) se borraba igual que al
+    resolverla y, sin tareas acumuladas, Vixy no avanzaba nunca."""
+    print("\n== tarea fallada: sigue pendiente ==", flush=True)
+    p = Partida(["-prueba-sin-freddy"])
+    try:
+        await p.abrir()
+        hay = await p.esperar(lambda: p.listas_de_tareas and p.listas_de_tareas[-1][1], 20)
+        comprobar("la tablet recibe una lista con al menos una tarea", bool(hay))
+        if not hay:
+            return
+        tarea_id, tipo = p.listas_de_tareas[-1][1][0]
+        def resultado(exito):
+            return json.dumps({"type": "task_completed", "task_id": tarea_id, "task_type": tipo, "success": exito,
+                               "time_taken": 5.0, "attempts": 1, "timestamp": int(time.time() * 1000)})
+        listas_antes = len(p.listas_de_tareas)
+        await p.tablet.send(resultado(False))
+        llego = await p.esperar(lambda: len(p.listas_de_tareas) > listas_antes, 3)
+        ids = [i for i, _ in p.listas_de_tareas[-1][1]]
+        comprobar(f"tras fallarla, Unity manda la lista de nuevo y la tarea {tipo} sigue pendiente",
+                  llego and tarea_id in ids)
+        listas_antes = len(p.listas_de_tareas)
+        await p.tablet.send(resultado(True))
+        await p.esperar(lambda: len(p.listas_de_tareas) > listas_antes, 3)
+        ids = [i for i, _ in p.listas_de_tareas[-1][1]]
+        comprobar("tras resolverla bien, ya no está en la lista", tarea_id not in ids)
+        comprobar("nadie atacó", p.fin is None)
+    finally:
+        await p.cerrar()
+
+
 ESCENARIOS = {"vixy": escenario_vixy, "rescate": escenario_rescate, "puppet": escenario_puppet, "tablet": escenario_tablet,
               "compuerta_vixy": escenario_compuerta_vixy, "compuerta_puppet": escenario_compuerta_puppet,
-              "linterna": escenario_linterna}
+              "linterna": escenario_linterna, "tarea_fallada": escenario_tarea_fallada}
 
 
 async def principal(nombres):
