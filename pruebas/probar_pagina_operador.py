@@ -249,7 +249,7 @@ def resolver(enunciado):
 
 
 async def probar_como_jugar(navegador, esperar, abierto, menu):
-    """«Cómo jugar» con 7 diapositivas y práctica (2026-11-20): se recorre entero y se practica todo."""
+    """«Cómo jugar» con 8 diapositivas y práctica (2026-11-20; cupo de cálculos 2026-11-22): se recorre entero y se practica todo."""
     js = navegador.ejecutar
     # Clic con un evento (los elementos del SVG no tienen .click()) y teclas como las manda el navegador.
     clic = lambda id_: js("var e=document.getElementById(arguments[0]);if(!e)return false;"
@@ -263,12 +263,12 @@ async def probar_como_jugar(navegador, esperar, abierto, menu):
 
     js("document.getElementById('menu-como-jugar').click();")
     comprobar("«Cómo jugar» abre en la diapositiva 1 de 7, encima del menú",
-              abierto() and diapositiva() == "1" and texto("cj-contador") == "1 / 7")
+              abierto() and diapositiva() == "1" and texto("cj-contador") == "1 / 8")
     comprobar("se ve una sola diapositiva a la vez",
               js("return document.querySelectorAll('#como-jugar .cj-diapositiva:not([hidden])').length;") == 1)
     comprobar("en la primera no hay «Anterior»", not habilitado("cj-anterior"))
     clic("cj-siguiente")
-    comprobar("«Siguiente» pasa a la 2", diapositiva() == "2" and texto("cj-contador") == "2 / 7")
+    comprobar("«Siguiente» pasa a la 2", diapositiva() == "2" and texto("cj-contador") == "2 / 8")
     tecla("ArrowLeft")
     comprobar("la flecha izquierda vuelve a la 1", diapositiva() == "1")
     tecla("ArrowRight")
@@ -304,7 +304,9 @@ async def probar_como_jugar(navegador, esperar, abierto, menu):
     # 5 · Trampa
     tecla("ArrowRight")
     modo = lambda: js("return document.getElementById('cj-mapa-trampa').dataset.modo || '';")
-    comprobar("la 5 empieza con 1 carga", diapositiva() == "5" and texto("cj-cargas") == "1 / 3")
+    comprobar("la 5 empieza con 1 trampa en el bolsillo", diapositiva() == "5" and texto("cj-cargas") == "1 / 3")
+    comprobar("y explica que las trampas salen del bolsillo y se ganan con cálculos",
+              all(p in texto("cj-diapositiva-5").lower() for p in ("bolsillo", "cálculo")))
     clic("cj-punto-pasillo-der")
     comprobar("tocar un punto sin «Colocar trampa» pide apretarlo primero", "Colocar trampa" in texto("cj-mensaje-trampa"))
     clic("cj-poner-trampa")
@@ -321,51 +323,69 @@ async def probar_como_jugar(navegador, esperar, abierto, menu):
     clic("cj-punto-comedor")
     comprobar("sin cargas manda a resolver un cálculo", "cálculo" in texto("cj-mensaje-trampa"))
 
-    # 6 · Terminal
+    # 6 · Terminal: el cálculo y lo que da (cupo de cálculos, 2026-11-22)
     tecla("ArrowRight")
-    comprobar("la 6 es la terminal", diapositiva() == "6")
+    comprobar("la 6 es la terminal del cálculo", diapositiva() == "6")
+    comprobar("dice qué da un cálculo y el cupo por noche (6, 5, 4, 3, 3, 3)",
+              all(p in texto("cj-diapositiva-6") for p in ("+1 trampa", "+20 %", "6", "5", "4", "3")))
+    comprobar("el contador empieza en 6 / 6, la batería del jugador 1 en 60 % y el bolsillo en 0 / 3",
+              texto("cj-cupo") == "6 / 6" and texto("cj-bateria-j1") == "60 %" and texto("cj-cargas-terminal") == "0 / 3")
     clic("cj-calculo")
-    comprobar("«Recargar (cálculo)» muestra un cálculo como el del juego",
+    comprobar("«Resolver cálculo» muestra un cálculo como el del juego",
               await esperar(lambda: resolver(texto("cj-enunciado")) is not None, 2.0) and texto("cj-enunciado").startswith("Calcula"))
     tecla("ArrowRight", "cj-respuesta")
     comprobar("la flecha derecha escribiendo en la respuesta no cambia de diapositiva", diapositiva() == "6")
-    responder = lambda valor: js("document.getElementById('cj-respuesta').value=arguments[0];"
-                                 "document.getElementById('cj-enviar').click();", [str(valor)])
+    responder = lambda valor, casilla="cj-respuesta", enviar="cj-enviar": js(
+        "document.getElementById(arguments[1]).value=arguments[0];document.getElementById(arguments[2]).click();",
+        [str(valor), casilla, enviar])
     responder("abc")
     comprobar("«abc» pide un número entero", "Escribe solo un número entero." in texto("cj-mensaje-terminal"))
     responder(resolver(texto("cj-enunciado")) + 1)
-    comprobar("una respuesta mala bloquea la terminal",
-              "Incorrecto" in texto("cj-mensaje-terminal") and not habilitado("cj-calculo") and not habilitado("cj-ecuacion"))
+    comprobar("una respuesta mala bloquea la terminal y no gasta cupo",
+              "Incorrecto" in texto("cj-mensaje-terminal") and not habilitado("cj-calculo") and texto("cj-cupo") == "6 / 6")
     comprobar("a los 3 s la terminal vuelve", await esperar(lambda: habilitado("cj-calculo"), 5.0))
     clic("cj-calculo")
     await esperar(lambda: resolver(texto("cj-enunciado")) is not None, 2.0)
     responder(resolver(texto("cj-enunciado")))
-    comprobar("el cálculo bien resuelto da +1 carga y +20 % de batería",
-              "+1 carga" in texto("cj-mensaje-terminal") and "20 %" in texto("cj-mensaje-terminal") and texto("cj-cargas-terminal") == "1 / 3")
+    comprobar("al acertar sale volando una ficha «+1 TRAMPA» hacia el bolsillo",
+              "+1 TRAMPA" in (js("var f=document.querySelector('.cj-ficha-volando');return f?f.textContent:'';") or ""))
+    comprobar("el cupo baja a 5 / 6, el bolsillo sube a 1 / 3 y la batería a 80 %",
+              texto("cj-cupo") == "5 / 6" and texto("cj-cargas-terminal") == "1 / 3" and texto("cj-bateria-j1") == "80 %")
+    comprobar("y el mensaje lo dice", "+1 trampa" in texto("cj-mensaje-terminal") and "+20 %" in texto("cj-mensaje-terminal"))
+
+    # 7 · Salvar a Puppet: ecuación y rescate
+    tecla("ArrowRight")
+    comprobar("la 7 es salvar a Puppet, con la caja durando 30 s",
+              diapositiva() == "7" and texto("cj-segundos-caja") == "30 s")
     comprobar("el rescate empieza bloqueado", not habilitado("cj-rescatar"))
     clic("cj-ecuacion")
-    comprobar("«Desbloquear rescate» muestra una ecuación",
-              await esperar(lambda: texto("cj-enunciado").startswith("Encuentra x"), 2.0))
-    responder(resolver(texto("cj-enunciado")))
-    comprobar("la ecuación resuelta hace salir a Puppet y habilita «Rescatar a Puppet»",
-              "PUPPET" in texto("cj-alerta-puppet").upper() and habilitado("cj-rescatar"))
+    comprobar("«Resolver ecuación» muestra una ecuación",
+              await esperar(lambda: texto("cj-enunciado-ecuacion").startswith("Encuentra x"), 2.0))
+    responder(resolver(texto("cj-enunciado-ecuacion")), "cj-respuesta-ecuacion", "cj-enviar-ecuacion")
+    comprobar("la ecuación resuelta hace salir a Puppet de su caja y habilita «Rescatar a Puppet»",
+              "PUPPET" in texto("cj-alerta-puppet").upper() and habilitado("cj-rescatar")
+              and js("return document.getElementById('cj-caja-puppet').dataset.puppet;") == "fuera")
     clic("cj-rescatar")
-    comprobar("«Rescatar a Puppet» lo rescata", "Rescataste" in texto("cj-mensaje-terminal"))
+    comprobar("«Rescatar a Puppet» lo devuelve a su caja y la caja pasa a durar 15 s",
+              "Rescataste" in texto("cj-mensaje-puppet") and texto("cj-segundos-caja") == "15 s"
+              and js("return document.getElementById('cj-caja-puppet').dataset.puppet;") == "dentro")
 
-    # 7 · Listo
+    # 8 · Listo
     tecla("ArrowRight")
     hechos = lambda: js("return Array.from(document.querySelectorAll('#cj-lista [data-paso]'))"
                         ".map(function (e) { return e.dataset.hecho; }).join(',');")
-    comprobar("la 7 tiene la lista con los 7 pasos hechos", diapositiva() == "7" and hechos() == ",".join(["true"] * 7))
+    comprobar("la 8 tiene la lista con los 7 pasos hechos", diapositiva() == "8" and hechos() == ",".join(["true"] * 7))
+    comprobar("y el resumen «Acción · Te cuesta · Te da» de las 5 acciones",
+              all(p in texto("cj-resumen") for p in ("Te cuesta", "Te da", "Retrasar", "Trampa", "Cálculo", "Ecuación", "Rescate")))
     comprobar("y el «OJO»: más rápido, 15 s para volver, si cae el jugador 1 termina",
-              all(p in texto("cj-diapositiva-7") for p in ("más rápido", "15 s", "termina")))
+              all(p in texto("cj-diapositiva-8") for p in ("más rápido", "15 s", "termina")))
     comprobar("en la última, «Siguiente» cambia por «Entendido»",
               js("return document.getElementById('cj-siguiente').hidden && !document.getElementById('cj-entendido').hidden;"))
     clic("cj-entendido")
     comprobar("«Entendido» la cierra y deja el menú", not abierto() and menu())
     js("document.getElementById('menu-como-jugar').click();")
     comprobar("al volver a abrir empieza en la 1", abierto() and diapositiva() == "1")
-    for _ in range(6):
+    for _ in range(7):
         tecla("ArrowRight")
     comprobar("y conserva lo practicado", hechos() == ",".join(["true"] * 7))
     clic("cj-cerrar")
