@@ -21,6 +21,16 @@ operadores = set()
 identidad_de_tablet = {}        # socket -> player_id con el que se anunció
 last_connect_message = None
 
+# Nadie empieza con el otro en el tutorial (2026-11-22). La página del jugador 2
+# abre, desde que carga, un canal de aviso (`pagina_j2`) aparte del socket del
+# operador: por ahí dice si tiene «Cómo jugar» abierto y se entera de si el
+# jugador 1 está en el tutorial. Mientras alguna página tenga «Cómo jugar»
+# abierto, una tablet no puede empezar una noche (`jugador2_en_tutorial`).
+paginas_j2 = set()
+paginas_en_como_jugar = set()
+tablets_en_tutorial = set()
+ultimo_estado_de_tutoriales = None
+
 # Si el jugador 2 se cae a mitad de la partida, tiene este tiempo para volver.
 # Pasado ese tiempo el relay no lo deja entrar hasta que empiece otra partida.
 SEGUNDOS_PARA_VOLVER = float(os.environ.get("VENTANA_OPERADOR_S", "15"))
@@ -131,6 +141,27 @@ def aviso(tipo, **campos):
     return json.dumps({"type": tipo, **campos})
 
 
+def estado_de_tutoriales():
+    return aviso("estado_tutoriales",
+                 jugador1_en_tutorial=bool(tablets_en_tutorial),
+                 jugador2_en_como_jugar=bool(paginas_en_como_jugar))
+
+
+async def publicar_tutoriales():
+    """Avisa a las páginas del jugador 2 solo si cambió quién está en el tutorial."""
+    global ultimo_estado_de_tutoriales
+    estado = estado_de_tutoriales()
+    if estado != ultimo_estado_de_tutoriales:
+        ultimo_estado_de_tutoriales = estado
+        await send_to(paginas_j2, estado)
+
+
+def empieza_una_noche(modo):
+    """El `connect` de la tablet arranca una noche salvo en el tutorial y en «Salir»
+    (ver UnityGameSessionController.StartGame)."""
+    return modo not in ("tutorial", "salir")
+
+
 async def rechazar(socket, motivo):
     await socket.send(aviso("conexion_rechazada", motivo=motivo))
     await socket.close()
@@ -159,6 +190,7 @@ def soltar_conexiones_viejas(socket, player_id):
     for viejo in list(tablets):
         if viejo is not socket and identidad_de_tablet.get(viejo) == player_id:
             tablets.discard(viejo)
+            tablets_en_tutorial.discard(viejo)
             identidad_de_tablet.pop(viejo, None)
             asyncio.ensure_future(viejo.close(code=1000, reason="la tablet volvió por otra conexión"))
 
@@ -191,6 +223,14 @@ async def handle_connection(socket):
                 print("Unity conectado")
                 continue
 
+            if message_type == "pagina_j2":
+                if role not in (None, "pagina_j2"):
+                    continue
+                role = "pagina_j2"
+                paginas_j2.add(socket)
+                await socket.send(estado_de_tutoriales())
+                continue
+
             if message_type == "operador_connect":
                 # Jugador 2: ve el mapa y manda acciones a Unity. No es una
                 # tablet: su anuncio no debe guardarse como `connect`, porque
@@ -218,6 +258,12 @@ async def handle_connection(socket):
                     print("Rechazada otra tablet mientras el jugador 1 juega:", player_id)
                     await rechazar(socket, "ya_hay_jugador1")
                     return
+                modo = message.get("modo")
+                if empieza_una_noche(modo) and paginas_en_como_jugar:
+                    print("Rechazado el inicio: el jugador 2 sigue en «Cómo jugar»")
+                    await send_to(paginas_j2, aviso("jugador1_quiere_empezar"))
+                    await rechazar(socket, "jugador2_en_tutorial")
+                    return
                 soltar_conexiones_viejas(socket, player_id)
                 role = "tablet"
                 tablets.add(socket)
@@ -225,6 +271,11 @@ async def handle_connection(socket):
                 vigilar_de_cerca(socket)
                 operador_perdido_en = None      # partida nueva: el jugador 2 puede entrar de nuevo
                 last_connect_message = raw
+                if modo == "tutorial":
+                    tablets_en_tutorial.add(socket)
+                else:
+                    tablets_en_tutorial.discard(socket)
+                await publicar_tutoriales()
                 await send_to(unity_clients, raw)
                 print("Flutter conectado; inicio de partida enviado a Unity")
                 continue
@@ -239,12 +290,25 @@ async def handle_connection(socket):
                 if message_type not in PERMITIDO_DE_TABLET:
                     continue
                 await send_to(unity_clients, raw)
+                if message_type == "tutorial_abrir":
+                    tablets_en_tutorial.add(socket)
+                    await publicar_tutoriales()
+                elif message_type in ("tutorial_cerrar", "disconnect"):
+                    tablets_en_tutorial.discard(socket)
+                    await publicar_tutoriales()
                 if message_type == "disconnect":
                     tablets.discard(socket)
                     identidad_de_tablet.pop(socket, None)
                     olvidar_connect_si_no_hay_tablets()
                     role = None
                     await send_to(operadores, aviso("jugador1_salio", motivo="salio"))
+            elif role == "pagina_j2":
+                if message_type == "j2_como_jugar":
+                    if message.get("abierto") is True:
+                        paginas_en_como_jugar.add(socket)
+                    else:
+                        paginas_en_como_jugar.discard(socket)
+                    await publicar_tutoriales()
             elif role == "operador":
                 if message_type not in PERMITIDO_DE_OPERADOR:
                     continue
@@ -265,6 +329,10 @@ async def handle_connection(socket):
         identidad_de_tablet.pop(socket, None)
         unity_clients.discard(socket)
         operadores.discard(socket)
+        tablets_en_tutorial.discard(socket)
+        paginas_j2.discard(socket)
+        paginas_en_como_jugar.discard(socket)
+        await publicar_tutoriales()
         olvidar_connect_si_no_hay_tablets()
         if era_operador:
             operador_perdido_en = time.monotonic()
