@@ -498,8 +498,8 @@ async def principal(captura):
                   await esperar(lambda: navegador.ejecutar(habilitado("boton-ecuacion")), 4.0))
         comprobar("y el panel dice que el rescate se gana con una ecuación",
                   (navegador.texto("habilidad") or "") == "Resuelve la ecuación"
-                  and "ecuación" in (navegador.texto("nota-recursos") or "")
-                  and "circuito" not in (navegador.texto("nota-recursos") or "").lower())
+                  and "ecuación" in (navegador.texto("panel-terminal") or "")
+                  and "circuito" not in (navegador.texto("panel-terminal") or "").lower())
         navegador.ejecutar("document.getElementById('boton-minitarea').click();")
         comprobar("Recargar pide un cálculo a Unity", await esperar(lambda: "tarea_pedir" in RECIBIDOS_POR_UNITY, 3.0))
         comprobar("la terminal muestra el problema que inventó Unity",
@@ -530,7 +530,7 @@ async def principal(captura):
                                 "bloqueada" in (navegador.texto("boton-minitarea") or "").lower(), 3.0))
         comprobar("pasados 3 s la terminal se desbloquea sola",
                   await esperar(lambda: navegador.ejecutar(habilitado("boton-minitarea")) and
-                                "Recargar" in (navegador.texto("boton-minitarea") or ""), 6.0))
+                                "Resolver cálculo" in (navegador.texto("boton-minitarea") or ""), 6.0))
         navegador.ejecutar("document.getElementById('boton-minitarea').click();")
         await esperar(lambda: navegador.ejecutar(visible_terminal), 3.0)
         responder("5")
@@ -564,6 +564,46 @@ async def principal(captura):
         comprobar("y la terminal se cierra al resolver la ecuación", await esperar(lambda: navegador.ejecutar(oculta_terminal), 3.0))
         comprobar("avisando que el rescate quedó desbloqueado",
                   await esperar(lambda: "Ecuación resuelta" in (navegador.texto("aviso") or ""), 3.0))
+
+        # --- acciones ordenadas por lo que hacen y cupo de cálculos por noche (2026-11-22) ---
+        titulos = navegador.ejecutar("return Array.from(document.querySelectorAll('.lateral .panel h2'))"
+                                     ".map(function (h) { return h.textContent.trim(); }).join('|');") or ""
+        comprobar(f"la sala agrupa las acciones en Frenar, Terminal y Salvar a Puppet ({titulos})",
+                  all(t in titulos for t in ("Frenar", "Terminal", "Salvar a Puppet")))
+        dentro = lambda hijo, panel: navegador.ejecutar(
+            "var h=document.getElementById(arguments[0]);return !!h && !!h.closest('#' + arguments[1]);", [hijo, panel])
+        comprobar("Retrasar y Colocar trampa están en Frenar",
+                  dentro("lista-amenazas", "panel-frenar") and dentro("boton-trampa", "panel-frenar") and dentro("cargas", "panel-frenar"))
+        comprobar("el cálculo y la ecuación están en Terminal",
+                  dentro("boton-minitarea", "panel-terminal") and dentro("boton-ecuacion", "panel-terminal") and dentro("calculos", "panel-terminal"))
+        comprobar("el rescate está en Salvar a Puppet", dentro("boton-rescate", "panel-puppet") and dentro("habilidad", "panel-puppet"))
+        comprobar("la terminal dice qué da un cálculo (+1 trampa y +20 % de batería)",
+                  all(p in (navegador.texto("nota-calculo") or "") for p in ("+1 trampa", "+20 %")))
+        ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 1, "max_cargas": 3, "trampas": [], "progreso": 1,
+                                    "necesario": 1, "habilidad_puppet": True, "bloqueo_s": 0, "ventana_rescate_s": 0,
+                                    "multa_factor": 1, "calculos_restantes": 4, "calculos_de_la_noche": 6}))
+        ORDENES.put_nowait(("raw", {"type": "estado_oficina", "bateria": 10, "compuerta_izquierda": False,
+                                    "compuerta_derecha": False, "luz_izquierda": "verde", "luz_derecha": "verde"}))
+        comprobar("la terminal dice cuántos cálculos quedan esta noche (4 / 6)",
+                  await esperar(lambda: (navegador.texto("calculos") or "") == "4 / 6", 4.0))
+        comprobar("con cupo, el botón dice «Resolver cálculo» y se puede usar",
+                  (navegador.texto("boton-minitarea") or "") == "Resolver cálculo" and navegador.ejecutar(habilitado("boton-minitarea")))
+        ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 0, "max_cargas": 3, "trampas": [], "progreso": 1,
+                                    "necesario": 1, "habilidad_puppet": True, "bloqueo_s": 0, "ventana_rescate_s": 0,
+                                    "multa_factor": 1, "calculos_restantes": 0, "calculos_de_la_noche": 6}))
+        comprobar("sin cupo, el botón dice «Sin cálculos esta noche» y no se usa aunque falten batería y trampas",
+                  await esperar(lambda: (navegador.texto("boton-minitarea") or "") == "Sin cálculos esta noche"
+                                and not navegador.ejecutar(habilitado("boton-minitarea")), 4.0))
+        comprobar("y el contador queda en 0 / 6", (navegador.texto("calculos") or "") == "0 / 6")
+        ORDENES.put_nowait(("raw", {"type": "accion_rechazada", "objetivo": "tarea", "motivo": "sin_calculos"}))
+        comprobar("si Unity rechaza un cálculo por cupo, se explica",
+                  await esperar(lambda: "cálculos esta noche" in (navegador.texto("aviso") or ""), 3.0))
+        ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 1, "max_cargas": 3, "trampas": [], "progreso": 0,
+                                    "necesario": 1, "habilidad_puppet": False, "bloqueo_s": 0, "ventana_rescate_s": 0,
+                                    "multa_factor": 1, "calculos_restantes": 3, "calculos_de_la_noche": 3}))
+        comprobar("al empezar otra noche (cupo 3) el cálculo vuelve a estar disponible",
+                  await esperar(lambda: (navegador.texto("calculos") or "") == "3 / 3"
+                                and navegador.ejecutar(habilitado("boton-minitarea")), 4.0))
 
         # --- fin de la partida: el jugador 2 no se queda con la pantalla congelada ---
         js = lambda codigo: navegador.ejecutar(codigo)
