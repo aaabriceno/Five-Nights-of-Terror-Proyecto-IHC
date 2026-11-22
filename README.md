@@ -76,8 +76,9 @@ Desde otra computadora o un celular, en una página web:
 - Ve en vivo dónde está cada animatrónico y lo que hace el jugador 1 (mirada, cámara, tareas, caja de Puppet, ductos, batería).
 - **Retrasar:** un animatrónico va a la mitad de velocidad por 8 s; se puede volver a usar a los 20 s.
 - **Trampas:** en un punto del mapa por donde creas que pasará uno; lo detiene 6 s.
-- **Terminal:** un cálculo da +1 carga de trampa y +20 % de batería al jugador 1; una ecuación desbloquea el rescate de Puppet. Si fallas, se bloquea 3 s.
-- Su menú tiene un **«Cómo jugar»** de 7 diapositivas con práctica simulada (Retrasar, trampa y terminal) antes de entrar.
+- **Terminal:** un cálculo da +1 trampa y +20 % de batería al jugador 1, pero hay un **cupo por noche** (6, 5, 4, 3, 3 y 3 en las noches 1 a 6; solo gastan los bien resueltos). Una ecuación desbloquea el rescate de Puppet. Si fallas, se bloquea 3 s.
+- Las acciones están ordenadas por lo que hacen, cada una con su costo a la vista: **Frenar** (Retrasar y trampas), **Terminal** (cálculo y ecuación) y **Salvar a Puppet** (rescate).
+- Su menú tiene un **«Cómo jugar»** de 8 diapositivas con práctica simulada y animada: qué te cuesta y qué te da cada acción (Retrasar, trampa, cálculo, ecuación y rescate), con un ejercicio en cada una.
 - Con el jugador 2 conectado, Freddy y Vixy van más rápido.
 
 ### Si se corta la red
