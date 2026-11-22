@@ -1046,12 +1046,22 @@ public class UnityGameSessionController : MonoBehaviour
         if (result == null) return;
         int index = activeTasks.FindIndex(task => task.task_id == result.task_id);
         if (index < 0) return;
+        bool success = !explicitlyFailed && result.success;
+        if (!success)
+        {
+            // Fallarla (tiempo agotado o respuesta mala) no la borra: sigue
+            // pendiente hasta que se resuelva, con su misma antigüedad. Antes se
+            // borraba igual que al resolverla y, sin tareas acumuladas, Vixy no
+            // avanzaba nunca (2026-11-22). Se reenvía la lista para que la tablet
+            // la vuelva a mostrar.
+            tasksFailed++;
+            PublishTaskList();
+            return;
+        }
         TaskData resolved = activeTasks[index];
         activeTasks.RemoveAt(index);
-        bool success = !explicitlyFailed && result.success;
-        if (success) tasksCompleted++;
-        else tasksFailed++;
-        if (success) completedTaskTypes.Add(resolved.task_type);
+        tasksCompleted++;
+        completedTaskTypes.Add(resolved.task_type);
 
         SyncTasksToBrains();
         if (coordinator != null) coordinator.alRetirarTarea.Invoke(resolved.task_type);
