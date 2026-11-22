@@ -97,29 +97,48 @@
         </div>
       </section>
 
-      <section class="panel" id="panel-acciones" aria-labelledby="titulo-acciones">
-        <h2 id="titulo-acciones">Amenazas</h2>
+      <!-- Acciones del jugador 2 agrupadas por lo que hacen, cada una con su
+           costo a la vista (2026-11-22). -->
+      <section class="panel" id="panel-frenar" aria-labelledby="titulo-frenar">
+        <h2 id="titulo-frenar">Frenar</h2>
+        <p class="nota costo"><b>Retrasar</b> es gratis: el animatrónico va a la mitad de velocidad 8 s y luego hay que esperar para volver a usarlo.</p>
         <div id="lista-amenazas"></div>
-        <p class="nota">Retrasar baja a la mitad la velocidad del animatrónico por unos segundos y luego tiene que enfriarse. Unity valida cada acción.</p>
-      </section>
-
-      <section class="panel" id="panel-recursos" aria-labelledby="titulo-recursos">
-        <h2 id="titulo-recursos">Recursos</h2>
-        <div class="fila">
-          <span class="etiqueta">Cargas de trampa</span>
+        <div class="fila fila-trampa">
+          <span class="etiqueta">Trampas en tu bolsillo</span>
           <span id="cargas" class="valor grande">–</span>
-        </div>
-        <div class="fila">
-          <span class="etiqueta">Rescate de Puppet</span>
-          <span id="habilidad" class="valor">–</span>
         </div>
         <div class="botones">
           <button type="button" id="boton-trampa" disabled>Colocar trampa</button>
-          <button type="button" id="boton-minitarea" disabled>Recargar (cálculo)</button>
-          <button type="button" id="boton-ecuacion" disabled>Desbloquear rescate (ecuación)</button>
+        </div>
+        <p class="nota" id="nota-recursos">Pon una trampa en un punto por donde creas que pasará un animatrónico: se queda quieto 6 s. Las trampas salen de tu bolsillo (máximo 3).</p>
+      </section>
+
+      <section class="panel" id="panel-terminal" aria-labelledby="titulo-terminal">
+        <h2 id="titulo-terminal">Terminal</h2>
+        <div class="fila">
+          <span class="etiqueta">Cálculos esta noche</span>
+          <span id="calculos" class="valor grande">–</span>
+        </div>
+        <div class="botones">
+          <button type="button" id="boton-minitarea" disabled>Resolver cálculo</button>
+        </div>
+        <p class="nota" id="nota-calculo">Cada cálculo bien resuelto da <b>+1 trampa</b> a tu bolsillo y <b>+20 %</b> de batería al jugador 1. Son pocos por noche: úsalos cuando hagan falta.</p>
+        <div class="botones">
+          <button type="button" id="boton-ecuacion" disabled>Resolver ecuación</button>
+        </div>
+        <p class="nota">La ecuación desbloquea el rescate de Puppet. Si te equivocas, la terminal se bloquea 3 s.</p>
+      </section>
+
+      <section class="panel" id="panel-puppet" aria-labelledby="titulo-puppet">
+        <h2 id="titulo-puppet">Salvar a Puppet</h2>
+        <div class="fila">
+          <span class="etiqueta">Rescate</span>
+          <span id="habilidad" class="valor">–</span>
+        </div>
+        <div class="botones">
           <button type="button" id="boton-rescate" disabled>Rescatar a Puppet</button>
         </div>
-        <p class="nota" id="nota-recursos">Coloca una trampa en un punto del mapa por donde creas que pasará un animatrónico: se detiene unos segundos. Cuando se te acaben, resuelve un cálculo en la terminal: también le da 20 % de batería a las compuertas del jugador 1. El rescate de Puppet se desbloquea resolviendo una ecuación.</p>
+        <p class="nota">Cuando Puppet sale de su caja tienes unos segundos para devolverlo. Cuesta: su caja dura la mitad.</p>
       </section>
 
       <section class="panel conexion" aria-labelledby="titulo-conexion">

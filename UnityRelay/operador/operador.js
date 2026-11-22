@@ -19,6 +19,7 @@
     sin_ventana: "No hay nada que rescatar ahora.",
     cargas_llenas: "Ya tienes todas las cargas: usa una trampa antes de recargar.",
     habilidad_lista: "El rescate de Puppet ya está desbloqueado.",
+    sin_calculos: "Ya no te quedan cálculos esta noche: vuelven en la siguiente.",
     bloqueado: "La terminal está bloqueada por un error.",
     tarea_desconocida: "Esa tarea no existe.",
     tarea_sin_pedir: "Esa tarea ya no está abierta: pídela de nuevo.",
@@ -395,6 +396,7 @@
     const e = estadoOperador;
     if (!e) return;
     $("cargas").textContent = `${e.cargas} / ${e.max_cargas}`;
+    $("calculos").textContent = Logica.textoDeCalculos(e);
     $("habilidad").textContent = e.habilidad_puppet ? "Lista" : "Resuelve la ecuación";
     $("habilidad").className = "valor " + (e.habilidad_puppet ? "alerta" : "");
     actualizarBotones();
@@ -407,6 +409,10 @@
     const bloqueada = performance.now() < bloqueadoHasta;
     $("boton-minitarea").disabled = !socket || finDePartida || bloqueada ||
       !Logica.puedeRecargar(e, estadoOficina ? estadoOficina.bateria : undefined);
+    if (!bloqueada) {
+      const texto = Logica.quedanCalculos(e) ? "Resolver cálculo" : "Sin cálculos esta noche";
+      if ($("boton-minitarea").textContent !== texto) $("boton-minitarea").textContent = texto;
+    }
     $("boton-ecuacion").disabled = !socket || finDePartida || bloqueada || !!(e && e.habilidad_puppet);
   }
 
@@ -417,8 +423,8 @@
     const bloqueada = restante > 0;
     if (bloqueada === terminalBloqueada) return;
     terminalBloqueada = bloqueada;
-    $("boton-minitarea").textContent = bloqueada ? "Terminal bloqueada…" : "Recargar (cálculo)";
-    $("boton-ecuacion").textContent = bloqueada ? "Terminal bloqueada…" : "Desbloquear rescate (ecuación)";
+    $("boton-minitarea").textContent = bloqueada ? "Terminal bloqueada…" : "Resolver cálculo";
+    $("boton-ecuacion").textContent = bloqueada ? "Terminal bloqueada…" : "Resolver ecuación";
     actualizarBotones();
   }
 

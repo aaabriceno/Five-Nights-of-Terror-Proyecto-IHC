@@ -85,8 +85,23 @@
   // solo las cargas; sin estado de recursos todavía no se bloquea.
   function puedeRecargar(estadoOperador, bateria) {
     if (!estadoOperador) return true;
+    if (!quedanCalculos(estadoOperador)) return false;
     if (estadoOperador.cargas < estadoOperador.max_cargas) return true;
     return typeof bateria === "number" && bateria < 100;
+  }
+
+  // Cupo de cálculos de la noche (2026-11-22: 6, 5, 4, 3, 3, 3). Un Unity sin
+  // el campo no tenía cupo: se toma como que quedan.
+  function quedanCalculos(estadoOperador) {
+    if (!estadoOperador || typeof estadoOperador.calculos_restantes !== "number") return true;
+    return estadoOperador.calculos_restantes > 0;
+  }
+
+  // "4 / 6", o "–" si Unity no manda el cupo.
+  function textoDeCalculos(estadoOperador) {
+    if (!estadoOperador || typeof estadoOperador.calculos_restantes !== "number" ||
+        typeof estadoOperador.calculos_de_la_noche !== "number") return "–";
+    return estadoOperador.calculos_restantes + " / " + estadoOperador.calculos_de_la_noche;
   }
 
   // El aviso de un cálculo bien resuelto, según lo que había para ganar
@@ -171,5 +186,5 @@
     return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
   }
 
-  return { textoDeDucto, puedeRecargar, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
+  return { textoDeDucto, puedeRecargar, quedanCalculos, textoDeCalculos, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
 });

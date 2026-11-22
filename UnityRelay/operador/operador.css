@@ -440,3 +440,9 @@ input {
 .ducto[data-luz="amarillo"]::before { background: #ffd24a; }
 .ducto[data-luz="rojo"]::before { background: #ff4a4a; box-shadow: 0 0 8px #ff4a4a; }
 .ducto[data-luz="rojo"] { color: #ff8a80; }
+
+/* Acciones del jugador 2 agrupadas por lo que hacen (2026-11-22). */
+.nota b { color: var(--alerta); font-weight: 700; }
+.nota.costo { margin: 0 0 8px; }
+.fila-trampa { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--linea); }
+#calculos { color: var(--alerta); }

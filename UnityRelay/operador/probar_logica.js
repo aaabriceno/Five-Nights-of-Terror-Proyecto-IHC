@@ -59,6 +59,21 @@ comprobar("sin dato de batería (Unity viejo) manda solo las cargas",
   Logica.puedeRecargar({ cargas: 3, max_cargas: 3 }, undefined) === false && Logica.puedeRecargar({ cargas: 2, max_cargas: 3 }, null) === true);
 comprobar("sin estado de recursos todavía no se bloquea", Logica.puedeRecargar(null, 50) === true);
 
+console.log("cupo de cálculos por noche (2026-11-22)");
+comprobar("sin cálculos esta noche no se puede, aunque falte batería y cargas",
+  Logica.puedeRecargar({ cargas: 0, max_cargas: 3, calculos_restantes: 0, calculos_de_la_noche: 6 }, 10) === false);
+comprobar("con cupo y algo por llenar sí",
+  Logica.puedeRecargar({ cargas: 0, max_cargas: 3, calculos_restantes: 2, calculos_de_la_noche: 6 }, 10) === true);
+comprobar("un Unity sin el campo no bloquea (como antes)",
+  Logica.puedeRecargar({ cargas: 1, max_cargas: 3 }, 50) === true);
+comprobar("el cupo se lee «4 / 6»",
+  Logica.textoDeCalculos({ calculos_restantes: 4, calculos_de_la_noche: 6 }) === "4 / 6");
+comprobar("sin dato de cupo se lee «–», nunca «undefined»",
+  Logica.textoDeCalculos({ cargas: 1 }) === "–" && Logica.textoDeCalculos(null) === "–");
+comprobar("quedanCalculos: 0 es false, sin dato es true",
+  Logica.quedanCalculos({ calculos_restantes: 0 }) === false && Logica.quedanCalculos({}) === true &&
+  Logica.quedanCalculos(null) === true && Logica.quedanCalculos({ calculos_restantes: 3 }) === true);
+
 comprobar("el aviso dice lo que se ganó: las dos cosas",
   Logica.textoDeRecarga({ cargas: 1, max_cargas: 3 }, 60) === "Correcto: +1 carga de trampa y +20 % de batería");
 comprobar("solo batería si las cargas ya estaban llenas",
