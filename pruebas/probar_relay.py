@@ -489,6 +489,142 @@ async def caso_una_sola_tablet_por_partida():
                           await recibir_o_nada(unity) == connect_b)
 
 
+async def mensaje_recibido(socket, espera=1.0):
+    crudo = await recibir_o_nada(socket, espera)
+    return json.loads(crudo) if crudo else {}
+
+
+async def vaciar(socket):
+    """Descarta lo que esté por llegar (p. ej. el tablet_caida de una tablet que se cerró)."""
+    while await recibir_o_nada(socket, 0.3) is not None:
+        pass
+
+
+async def ultimo_estado_de_tutoriales(pagina, espera=0.6):
+    """Lee lo que haya llegado a la página y devuelve el último estado_tutoriales (o {})."""
+    ultimo = {}
+    while (mensaje := await mensaje_recibido(pagina, espera)):
+        if mensaje.get("type") == "estado_tutoriales":
+            ultimo = mensaje
+        espera = 0.3
+    return ultimo
+
+
+async def caso_nadie_empieza_con_el_otro_en_el_tutorial():
+    print("Caso 18: la partida no arranca con el jugador 2 en «Cómo jugar»; el jugador 2 ve el tutorial del jugador 1")
+    pagina_j2 = json.dumps({"type": "pagina_j2"})
+    abierto = json.dumps({"type": "j2_como_jugar", "abierto": True})
+    cerrado = json.dumps({"type": "j2_como_jugar", "abierto": False})
+    connect_nuevo = json.dumps({"type": "connect", "device": "tablet", "modo": "nuevo", "player_id": "t18"})
+    connect_salir = json.dumps({"type": "connect", "device": "tablet", "modo": "salir", "player_id": "t18"})
+    async with websockets.connect(URL) as unity, websockets.connect(URL) as pagina:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await pagina.send(pagina_j2)
+        estado = await ultimo_estado_de_tutoriales(pagina)
+        comprobar(f"la página del J2 recibe estado_tutoriales al anunciarse, nadie en tutorial ({estado})",
+                  estado.get("jugador1_en_tutorial") is False and estado.get("jugador2_en_como_jugar") is False)
+        comprobar("el anuncio de la página no le llega a Unity", await recibir_o_nada(unity, 0.4) is None)
+
+        # El J1 entra al tutorial y sale.
+        async with websockets.connect(URL) as tablet:
+            await tablet.send(CONNECT_TUTORIAL)
+            await recibir_o_nada(unity, 0.5)
+            estado = await ultimo_estado_de_tutoriales(pagina)
+            comprobar("J1 entra al tutorial: la página recibe jugador1_en_tutorial true",
+                      estado.get("jugador1_en_tutorial") is True)
+            await tablet.send(json.dumps({"type": "tutorial_cerrar"}))
+            await recibir_o_nada(unity, 0.5)
+            estado = await ultimo_estado_de_tutoriales(pagina)
+            comprobar("J1 cierra el tutorial: jugador1_en_tutorial false", estado.get("jugador1_en_tutorial") is False)
+            await tablet.send(json.dumps({"type": "tutorial_abrir"}))
+            await recibir_o_nada(unity, 0.5)
+            estado = await ultimo_estado_de_tutoriales(pagina)
+            comprobar("tutorial_abrir lo vuelve a marcar", estado.get("jugador1_en_tutorial") is True)
+        estado = await ultimo_estado_de_tutoriales(pagina)
+        comprobar("la tablet del tutorial se cae: jugador1_en_tutorial false", estado.get("jugador1_en_tutorial") is False)
+        await vaciar(unity)
+
+        # Reintentar el tutorial abre otra conexión con el mismo player_id: sigue en tutorial.
+        tutorial_t18 = json.dumps({"type": "connect", "device": "tablet", "modo": "tutorial", "player_id": "t18"})
+        async with websockets.connect(URL) as vieja:
+            await vieja.send(tutorial_t18)
+            await recibir_o_nada(unity, 0.5)
+            async with websockets.connect(URL) as nueva:
+                await nueva.send(tutorial_t18)
+                await recibir_o_nada(unity, 0.5)
+                await asyncio.sleep(0.3)
+                estado = await ultimo_estado_de_tutoriales(pagina)
+                comprobar("la tablet que reintenta el tutorial (otra conexión) sigue en tutorial",
+                          estado.get("jugador1_en_tutorial") is True)
+                await nueva.send(json.dumps({"type": "disconnect"}))
+                await recibir_o_nada(unity, 0.5)
+                estado = await ultimo_estado_de_tutoriales(pagina)
+                comprobar("con disconnect sale del tutorial", estado.get("jugador1_en_tutorial") is False)
+        await vaciar(unity)
+
+        # El J2 abre «Cómo jugar»: el J1 no puede empezar.
+        await pagina.send(abierto)
+        estado = await ultimo_estado_de_tutoriales(pagina)
+        comprobar("J2 abre «Cómo jugar»: jugador2_en_como_jugar true", estado.get("jugador2_en_como_jugar") is True)
+        async with websockets.connect(URL) as tablet:
+            await tablet.send(connect_nuevo)
+            rechazo = await mensaje_recibido(tablet)
+            comprobar(f"«Nuevo juego» con el J2 en «Cómo jugar»: conexion_rechazada jugador2_en_tutorial ({rechazo})",
+                      rechazo.get("type") == "conexion_rechazada" and rechazo.get("motivo") == "jugador2_en_tutorial")
+            comprobar("y Unity no recibe ese connect (la noche no arranca)", await recibir_o_nada(unity, 0.5) is None)
+        avisos = []
+        while (mensaje := await mensaje_recibido(pagina, 0.4)):
+            avisos.append(mensaje.get("type"))
+        comprobar(f"la página del J2 recibe jugador1_quiere_empezar ({avisos})", "jugador1_quiere_empezar" in avisos)
+        comprobar("el rechazo no cuenta como que el J1 se fue (no hay tablet_caida en Unity)",
+                  await recibir_o_nada(unity, 0.4) is None)
+        async with websockets.connect(URL) as tablet:
+            await tablet.send(connect_salir)
+            comprobar("«Salir» (cerrar el juego) no se bloquea", await recibir_o_nada(unity) == connect_salir)
+        await vaciar(unity)
+
+        # Dos pestañas del J2: mientras una tenga «Cómo jugar» abierto, sigue bloqueado.
+        async with websockets.connect(URL) as otra:
+            await otra.send(pagina_j2)
+            await otra.send(abierto)
+            await pagina.send(cerrado)
+            await ultimo_estado_de_tutoriales(pagina)
+            async with websockets.connect(URL) as tablet:
+                await tablet.send(connect_nuevo)
+                rechazo = await mensaje_recibido(tablet)
+                comprobar("con otra pestaña del J2 todavía en «Cómo jugar», sigue bloqueado",
+                          rechazo.get("motivo") == "jugador2_en_tutorial")
+        estado = await ultimo_estado_de_tutoriales(pagina)
+        comprobar("la pestaña que estaba en «Cómo jugar» se cierra: jugador2_en_como_jugar false",
+                  estado.get("jugador2_en_como_jugar") is False)
+        await vaciar(unity)
+        async with websockets.connect(URL) as tablet:
+            await tablet.send(connect_nuevo)
+            comprobar("con el J2 fuera de «Cómo jugar», «Nuevo juego» llega a Unity",
+                      await recibir_o_nada(unity) == connect_nuevo)
+            # Partida en curso: el J2 abre «Cómo jugar» y la noche sigue.
+            await pagina.send(abierto)
+            await ultimo_estado_de_tutoriales(pagina)
+            camara = json.dumps({"type": "camara", "direccion": 1})
+            await tablet.send(camara)
+            comprobar("con la partida en curso, abrir «Cómo jugar» no corta a la tablet",
+                      await recibir_o_nada(unity) == camara)
+            await pagina.send(cerrado)
+            await tablet.send(json.dumps({"type": "disconnect"}))
+            await recibir_o_nada(unity, 0.5)
+        await vaciar(unity)
+        # Un operador no puede hacerse pasar por la página para marcar «Cómo jugar» de otro modo.
+        async with websockets.connect(URL) as operador:
+            await operador.send(OPERADOR_CONNECT)
+            await recibir_o_nada(unity, 0.5)
+            await operador.send(abierto)
+            await asyncio.sleep(0.2)
+            estado = await ultimo_estado_de_tutoriales(pagina)
+            comprobar("j2_como_jugar por el socket del operador no cuenta (solo por el canal de aviso)",
+                      estado.get("jugador2_en_como_jugar") in (None, False))
+            comprobar("ni le llega a Unity", await recibir_o_nada(unity, 0.4) is None)
+
+
 async def con_relay(entorno, caso):
     """Corre `caso` con un relay propio (otras esperas de keepalive que el de las demás pruebas)."""
     relay = subprocess.Popen([sys.executable, "-u", str(RAIZ / "UnityRelay" / "relay.py")],
@@ -529,6 +665,7 @@ async def principal():
         await caso_unity_solo_desde_la_misma_pc()
         await caso_cada_rol_manda_solo_lo_suyo()
         await caso_una_sola_tablet_por_partida()
+        await caso_nadie_empieza_con_el_otro_en_el_tutorial()
     finally:
         relay.terminate()
         relay.wait()
