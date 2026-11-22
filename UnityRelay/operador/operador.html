@@ -182,7 +182,7 @@
     <div class="cj-caja">
       <div class="cj-cabecera">
         <h2 id="cj-titulo">CÓMO JUGAR · SALA DE CONTROL</h2>
-        <span id="cj-contador" aria-live="polite">1 / 7</span>
+        <span id="cj-contador" aria-live="polite">1 / 8</span>
         <button type="button" id="cj-cerrar" aria-label="Cerrar «Cómo jugar»">Cerrar ×</button>
       </div>
 
@@ -221,52 +221,121 @@
         <p id="cj-mensaje-panel" class="cj-mensaje" aria-live="polite"></p>
       </section>
 
-      <section class="cj-diapositiva" id="cj-diapositiva-4" data-n="4" aria-label="Práctica: Retrasar" hidden>
-        <h3>4 · PRÁCTICA · RETRASAR</h3>
+      <section class="cj-diapositiva" id="cj-diapositiva-4" data-n="4" aria-label="Frenar: Retrasar" hidden>
+        <h3>4 · FRENAR · RETRASAR</h3>
+        <div class="cj-trato">
+          <span class="cj-chip cj-cuesta">Te cuesta: <b>nada</b> (solo esperar 20 s)</span>
+          <span class="cj-chip cj-da">Te da: <b>mitad de velocidad 8 s</b></span>
+        </div>
         <svg id="cj-mapa-retrasar" class="cj-mapa" viewBox="0 0 100 66" aria-label="Freddy camina hacia la oficina" data-freddy="normal"></svg>
         <div class="amenaza cj-amenaza">
           <span class="nombre"><span class="punto" style="background:var(--freddy)"></span>Freddy</span>
           <button type="button" id="cj-retrasar">Retrasar</button>
           <span class="detalle" id="cj-detalle-retrasar">listo</span>
         </div>
-        <p class="cj-texto">Aprieta <b>Retrasar</b>: Freddy camina a la mitad de velocidad <b>8 s</b>. Luego espera para volver a usarlo.</p>
+        <p class="cj-texto">Aprieta <b>Retrasar</b>: Freddy camina a la mitad de velocidad. Cada animatrónico tiene su propia espera.</p>
         <p id="cj-mensaje-retrasar" class="cj-mensaje" aria-live="polite"></p>
       </section>
 
-      <section class="cj-diapositiva" id="cj-diapositiva-5" data-n="5" aria-label="Práctica: trampa" hidden>
-        <h3>5 · PRÁCTICA · TRAMPA</h3>
+      <section class="cj-diapositiva" id="cj-diapositiva-5" data-n="5" aria-label="Frenar: trampa" hidden>
+        <h3>5 · FRENAR · TRAMPA</h3>
+        <div class="cj-trato">
+          <span class="cj-chip cj-cuesta">Te cuesta: <b>1 trampa de tu bolsillo</b></span>
+          <span class="cj-chip cj-da">Te da: <b>lo detiene 6 s</b></span>
+        </div>
         <svg id="cj-mapa-trampa" class="cj-mapa" viewBox="0 0 100 66" aria-label="Mapa para poner una trampa" data-freddy="normal"></svg>
         <div class="cj-fila-acciones">
           <button type="button" id="cj-poner-trampa">Colocar trampa</button>
-          <span>Cargas <b id="cj-cargas">1 / 3</b></span>
+          <span class="cj-bolsillo-rotulo">Tu bolsillo
+            <span class="cj-bolsillo" id="cj-bolsillo-trampa" data-cargas="1" aria-hidden="true"><i></i><i></i><i></i></span>
+            <b id="cj-cargas">1 / 3</b>
+          </span>
         </div>
-        <p class="cj-texto">Mira por dónde camina Freddy y pon la trampa <b>en su camino</b>: se queda quieto <b>6 s</b>.</p>
+        <p class="cj-texto">Pon la trampa <b>en el camino</b> de Freddy. Las trampas salen de tu <b>bolsillo</b> (caben 3): empiezas la noche con 1 y ganas más resolviendo un <b>cálculo</b>.</p>
         <p id="cj-mensaje-trampa" class="cj-mensaje" aria-live="polite"></p>
       </section>
 
-      <section class="cj-diapositiva" id="cj-diapositiva-6" data-n="6" aria-label="Práctica: terminal" hidden>
-        <h3>6 · PRÁCTICA · TERMINAL</h3>
-        <div class="cj-terminal-botones">
-          <button type="button" id="cj-calculo">Recargar (cálculo)</button>
-          <button type="button" id="cj-ecuacion">Desbloquear rescate (ecuación)</button>
-          <button type="button" id="cj-rescatar" disabled>Rescatar a Puppet</button>
+      <section class="cj-diapositiva" id="cj-diapositiva-6" data-n="6" aria-label="Terminal: cálculo" hidden>
+        <h3>6 · TERMINAL · CÁLCULO</h3>
+        <div class="cj-trato">
+          <span class="cj-chip cj-cuesta">Te cuesta: <b>1 cálculo de tu cupo</b></span>
+          <span class="cj-chip cj-da">Te da: <b>+1 trampa</b> y <b>+20 %</b> de batería al jugador 1</span>
         </div>
-        <div class="cj-terminal" id="cj-terminal">
-          <p id="cj-enunciado" class="cj-enunciado" aria-live="polite">Elige una tarea.</p>
-          <form id="cj-formulario" autocomplete="off" hidden>
-            <input id="cj-respuesta" type="text" inputmode="numeric" maxlength="6" aria-label="Tu respuesta" placeholder="Respuesta">
-            <button type="submit" id="cj-enviar">Enviar</button>
-          </form>
-          <div id="cj-alerta-puppet" class="cj-alerta" hidden>PUPPET SALIÓ DE LA CAJA · ¡rescátalo!</div>
+        <div class="cj-escena-calculo" id="cj-escena-calculo">
+          <div class="cj-terminal">
+            <div class="cj-cupo-fila">Cálculos esta noche <b id="cj-cupo">6 / 6</b></div>
+            <button type="button" id="cj-calculo">Resolver cálculo</button>
+            <p id="cj-enunciado" class="cj-enunciado" aria-live="polite">Aprieta «Resolver cálculo».</p>
+            <form id="cj-formulario" autocomplete="off" hidden>
+              <input id="cj-respuesta" type="text" inputmode="numeric" maxlength="6" aria-label="Tu respuesta" placeholder="Respuesta">
+              <button type="submit" id="cj-enviar">Enviar</button>
+            </form>
+          </div>
+          <div class="cj-premios">
+            <div class="cj-premio" id="cj-premio-bolsillo">
+              <span class="cj-premio-titulo">Tu bolsillo</span>
+              <span class="cj-bolsillo" id="cj-bolsillo-terminal" data-cargas="0" aria-hidden="true"><i></i><i></i><i></i></span>
+              <b id="cj-cargas-terminal">0 / 3</b>
+            </div>
+            <div class="cj-premio" id="cj-premio-bateria">
+              <span class="cj-premio-titulo">Batería del jugador 1</span>
+              <span class="cj-barra" aria-hidden="true"><i id="cj-barra-bateria"></i></span>
+              <b id="cj-bateria-j1">60 %</b>
+            </div>
+          </div>
         </div>
-        <p class="cj-estado-terminal">Cargas <b id="cj-cargas-terminal">0 / 3</b> · Batería del jugador 1 <b id="cj-bateria-terminal">60 %</b></p>
-        <p class="cj-texto">Cálculo: <b>+1 carga</b> y <b>+20 %</b> de batería. Ecuación: desbloquea el rescate. Si fallas, se bloquea <b>3 s</b>.</p>
+        <table class="cj-tabla-cupo" aria-label="Cálculos por noche">
+          <tr><th>Noche</th><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td></tr>
+          <tr><th>Cálculos</th><td>6</td><td>5</td><td>4</td><td>3</td><td>3</td><td>3</td></tr>
+        </table>
+        <p class="cj-texto">Solo cuentan los que resuelves <b>bien</b>. Si te equivocas, la terminal se bloquea <b>3 s</b>. El cupo se llena de nuevo cada noche.</p>
         <p id="cj-mensaje-terminal" class="cj-mensaje" aria-live="polite"></p>
       </section>
 
-      <section class="cj-diapositiva" id="cj-diapositiva-7" data-n="7" aria-label="Listo" hidden>
-        <h3>7 · LISTO</h3>
+      <section class="cj-diapositiva" id="cj-diapositiva-7" data-n="7" aria-label="Salvar a Puppet" hidden>
+        <h3>7 · SALVAR A PUPPET</h3>
+        <div class="cj-trato">
+          <span class="cj-chip cj-cuesta">Te cuesta: <b>una ecuación</b> y su caja dura <b>la mitad</b></span>
+          <span class="cj-chip cj-da">Te da: <b>Puppet vuelve a su caja</b></span>
+        </div>
+        <div class="cj-escena-puppet">
+          <div class="cj-terminal">
+            <button type="button" id="cj-ecuacion">Resolver ecuación</button>
+            <p id="cj-enunciado-ecuacion" class="cj-enunciado" aria-live="polite">Aprieta «Resolver ecuación».</p>
+            <form id="cj-formulario-ecuacion" autocomplete="off" hidden>
+              <input id="cj-respuesta-ecuacion" type="text" inputmode="numeric" maxlength="6" aria-label="Tu respuesta" placeholder="x =">
+              <button type="submit" id="cj-enviar-ecuacion">Enviar</button>
+            </form>
+          </div>
+          <div class="cj-lado-caja">
+            <div class="cj-caja-puppet" id="cj-caja-puppet" data-puppet="dentro" aria-hidden="true">
+              <span class="cj-puppet-figura"></span>
+              <span class="cj-cajita"><span class="cj-cajita-nota">♪</span></span>
+            </div>
+            <div id="cj-alerta-puppet" class="cj-alerta" hidden>PUPPET SALIÓ DE LA CAJA · ¡rescátalo!</div>
+            <button type="button" id="cj-rescatar" disabled>Rescatar a Puppet</button>
+            <div class="cj-duracion">La caja dura <b id="cj-segundos-caja">30 s</b>
+              <span class="cj-barra" aria-hidden="true"><i id="cj-barra-caja"></i></span>
+            </div>
+          </div>
+        </div>
+        <p class="cj-texto">En la partida Puppet sale cuando su caja se vacía; aquí sale al resolver la ecuación para que practiques. Cada rescate deja la caja durando la mitad (30 s → 15 s).</p>
+        <p id="cj-mensaje-puppet" class="cj-mensaje" aria-live="polite"></p>
+      </section>
+
+      <section class="cj-diapositiva" id="cj-diapositiva-8" data-n="8" aria-label="Listo" hidden>
+        <h3>8 · LISTO</h3>
         <ul id="cj-lista" class="cj-lista"></ul>
+        <table class="cj-resumen" id="cj-resumen">
+          <thead><tr><th>Acción</th><th>Te cuesta</th><th>Te da</th></tr></thead>
+          <tbody>
+            <tr><td>Retrasar</td><td>Nada: esperas 20 s</td><td>Mitad de velocidad 8 s</td></tr>
+            <tr><td>Trampa</td><td>1 trampa del bolsillo</td><td>Lo detiene 6 s</td></tr>
+            <tr><td>Cálculo</td><td>1 de tu cupo (6, 5, 4, 3, 3, 3)</td><td>+1 trampa y +20 % de batería</td></tr>
+            <tr><td>Ecuación</td><td>Si fallas, 3 s de bloqueo</td><td>Desbloquea el rescate</td></tr>
+            <tr><td>Rescate</td><td>Su caja dura la mitad</td><td>Puppet vuelve a su caja</td></tr>
+          </tbody>
+        </table>
         <ul class="cj-ojo">
           <li><b>OJO</b> Contigo conectado, Freddy y Vixy van más rápido.</li>
           <li><b>15 s</b> Si pierdes la conexión, tienes 15 s para volver.</li>

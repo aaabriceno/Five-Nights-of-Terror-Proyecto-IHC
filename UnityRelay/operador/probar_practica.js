@@ -128,11 +128,43 @@ comprobar("la ecuación correcta se acepta y marca «ecuacion»", r.correcto && 
 comprobar("después de la ecuación el rescate funciona", Practica.rescatar(e) === true);
 comprobar("y marca «rescate»", !Practica.pendientes(e).includes("rescate"));
 
+console.log("cupo de cálculos, batería del jugador 1 y caja de Puppet (2026-11-22)");
+comprobar("el cupo de la práctica es el de la noche 1 (6) y la tabla es 6-5-4-3-3-3",
+  Practica.VALORES.calculosDeLaNoche === 6 && Practica.VALORES.calculosPorNoche.join(",") === "6,5,4,3,3,3");
+e = Practica.crear();
+comprobar("se empieza con 6 cálculos, la batería del jugador 1 al 60 % y la caja durando 30 s",
+  e.calculosRestantes === 6 && e.bateriaJ1 === 60 && e.segundosDeLaCaja === 30);
+let calc = Practica.crearTarea("calculo", cero);
+Practica.responder(e, calc, 1, 0);
+comprobar("un cálculo mal resuelto no gasta cupo ni da batería", e.calculosRestantes === 6 && e.bateriaJ1 === 60);
+Practica.responder(e, calc, 36, 5);
+comprobar("uno bien resuelto gasta 1 (6 → 5) y da +20 % de batería (60 → 80)", e.calculosRestantes === 5 && e.bateriaJ1 === 80);
+Practica.responder(e, calc, 36, 6);
+Practica.responder(e, calc, 36, 7);
+comprobar("la batería no pasa de 100 %", e.bateriaJ1 === 100 && e.calculosRestantes === 3);
+Practica.responder(e, calc, 36, 8); Practica.responder(e, calc, 36, 9); Practica.responder(e, calc, 36, 10);
+comprobar("se puede gastar el cupo entero", e.calculosRestantes === 0);
+const cargasAntes = e.cargas;
+r = Practica.responder(e, calc, 36, 11);
+comprobar("sin cupo el cálculo no cuenta: avisa sinCupo, no da nada y no bloquea",
+  r.correcto === false && r.sinCupo === true && e.cargas === cargasAntes && Practica.bloqueoRestante(e, 11) === 0);
+comprobar("la ecuación no usa el cupo de cálculos",
+  Practica.responder(e, Practica.crearTarea("ecuacion", cero), 2, 12).correcto === true);
+Practica.rescatar(e);
+comprobar("cada rescate deja la caja durando la mitad (30 → 15)", e.segundosDeLaCaja === 15);
+Practica.responder(e, Practica.crearTarea("ecuacion", cero), 2, 13); Practica.rescatar(e);
+Practica.responder(e, Practica.crearTarea("ecuacion", cero), 2, 14); Practica.rescatar(e);
+comprobar("y nunca baja de 7,5 s", e.segundosDeLaCaja === 7.5);
+
 console.log("conocer a los animatrónicos y leer el panel");
 e = Practica.crear();
 comprobar("al empezar faltan los 7 pasos", Practica.pendientes(e).length === 7 && Practica.PASOS.length === 7);
 comprobar("cada paso dice en qué diapositiva se practica",
-  Practica.PASOS.every((p) => typeof p.texto === "string" && p.texto && p.diapositiva >= 2 && p.diapositiva <= 6));
+  Practica.PASOS.every((p) => typeof p.texto === "string" && p.texto && p.diapositiva >= 2 && p.diapositiva <= 7));
+comprobar("el cálculo se practica en la 6 y la ecuación y el rescate en la 7",
+  Practica.PASOS.find((p) => p.id === "calculo").diapositiva === 6 &&
+  Practica.PASOS.find((p) => p.id === "ecuacion").diapositiva === 7 &&
+  Practica.PASOS.find((p) => p.id === "rescate").diapositiva === 7);
 Practica.conocer(e, "freddy"); Practica.conocer(e, "freddy"); Practica.conocer(e, "vixy");
 comprobar("tocar dos (uno repetido) no basta", Practica.pendientes(e).includes("conocer"));
 Practica.conocer(e, "puppet");

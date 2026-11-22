@@ -6,7 +6,7 @@
   "use strict";
   const $ = (id) => document.getElementById(id);
   const SVG = "http://www.w3.org/2000/svg";
-  const TOTAL = 7;
+  const TOTAL = 8;
   const COLORES = { freddy: "#6fcf6f", vixy: "#ff5a5a", puppet: "#d9a066" };
   const NOMBRES = { freddy: "Freddy", vixy: "Vixy", puppet: "Puppet" };
   const FICHAS = {
@@ -22,8 +22,7 @@
   let abridor = null;
   let animando = false;
   let modoTrampa = false;
-  let tarea = null;
-  let bateria = 60;               // batería de mentira del jugador 1 (solo para ver el +20 %)
+  const tareas = { calculo: null, ecuacion: null };   // la tarea abierta en cada terminal
   let puppetFuera = false;
   let estabaAtrapado = false;
 
@@ -168,6 +167,7 @@
     const cargas = `${estado.cargas} / ${Practica.VALORES.maxCargas}`;
     if ($("cj-cargas").textContent !== cargas) $("cj-cargas").textContent = cargas;
     if ($("cj-cargas-terminal").textContent !== cargas) $("cj-cargas-terminal").textContent = cargas;
+    for (const id of ["cj-bolsillo-trampa", "cj-bolsillo-terminal"]) $(id).dataset.cargas = String(estado.cargas);
   }
 
   function mensaje(id, texto, tono) {
@@ -256,72 +256,142 @@
     $("cj-valor-mirada").dataset.mal = String(paso % 2 === 1);
   }
 
-  // ---------------------------------------------------- diapositiva 6: terminal
+  // ------------------------------------------- diapositivas 6 y 7: la terminal
+  // Dos terminales con las mismas reglas que la partida (un error bloquea las
+  // dos 3 s): la del cálculo (+1 trampa y +20 % de batería, con cupo) y la de
+  // la ecuación (desbloquea el rescate de Puppet).
+  const TERMINALES = {
+    calculo: { boton: "cj-calculo", enunciado: "cj-enunciado", formulario: "cj-formulario", respuesta: "cj-respuesta",
+      mensaje: "cj-mensaje-terminal", inicial: "Aprieta «Resolver cálculo».",
+      porque: "Resuélvelo: +1 trampa a tu bolsillo y +20 % de batería al jugador 1." },
+    ecuacion: { boton: "cj-ecuacion", enunciado: "cj-enunciado-ecuacion", formulario: "cj-formulario-ecuacion",
+      respuesta: "cj-respuesta-ecuacion", mensaje: "cj-mensaje-puppet", inicial: "Aprieta «Resolver ecuación».",
+      porque: "Resuélvela para desbloquear el rescate de Puppet." },
+  };
+
   function pedirTarea(tipo) {
+    const T = TERMINALES[tipo];
     const ahora = performance.now() / 1000;
     if (Practica.bloqueoRestante(estado, ahora) > 0) return;
-    tarea = Practica.crearTarea(tipo);
-    $("cj-enunciado").textContent = tarea.enunciado;
-    $("cj-formulario").hidden = false;
-    $("cj-respuesta").value = "";
-    $("cj-respuesta").focus();
-    mensaje("cj-mensaje-terminal", tipo === "calculo" ? "Resuélvelo y ganas 1 carga de trampa." : "Resuélvela para desbloquear el rescate de Puppet.");
+    if (tipo === "calculo" && estado.calculosRestantes <= 0) {
+      mensaje(T.mensaje, "Ya no te quedan cálculos: en la partida el cupo se llena de nuevo cada noche.");
+      return;
+    }
+    tareas[tipo] = Practica.crearTarea(tipo);
+    $(T.enunciado).textContent = tareas[tipo].enunciado;
+    $(T.formulario).hidden = false;
+    $(T.respuesta).value = "";
+    $(T.respuesta).focus();
+    mensaje(T.mensaje, T.porque);
   }
-  $("cj-calculo").addEventListener("click", () => pedirTarea("calculo"));
-  $("cj-ecuacion").addEventListener("click", () => pedirTarea("ecuacion"));
 
-  $("cj-formulario").addEventListener("submit", (evento) => {
-    evento.preventDefault();
+  function responderTarea(tipo) {
+    const T = TERMINALES[tipo];
+    const tarea = tareas[tipo];
     if (!tarea) return;
-    const valor = Logica.leerRespuesta($("cj-respuesta").value);
-    if (valor === null) { mensaje("cj-mensaje-terminal", "Escribe solo un número entero.", "mal"); return; }
+    const valor = Logica.leerRespuesta($(T.respuesta).value);
+    if (valor === null) { mensaje(T.mensaje, "Escribe solo un número entero.", "mal"); return; }
     const ahora = performance.now() / 1000;
-    const antes = { cargas: estado.cargas, max_cargas: Practica.VALORES.maxCargas };
-    const bateriaAntes = bateria;
+    const bateriaAntes = estado.bateriaJ1;
     const r = Practica.responder(estado, tarea, valor, ahora);
-    if (r.bloqueado) { mensaje("cj-mensaje-terminal", `Terminal bloqueada: faltan ${Math.ceil(r.bloqueoS)} s.`); return; }
-    const tipo = tarea.tipo;
-    tarea = null;
-    $("cj-formulario").hidden = true;
-    if (!r.correcto) {
-      $("cj-enunciado").textContent = "Elige una tarea.";
-      mensaje("cj-mensaje-terminal", `Incorrecto: la terminal se bloquea ${Practica.VALORES.bloqueoS} s.`, "mal");
+    if (r.bloqueado) { mensaje(T.mensaje, `Terminal bloqueada: faltan ${Math.ceil(r.bloqueoS)} s.`); return; }
+    tareas[tipo] = null;
+    $(T.formulario).hidden = true;
+    $(T.enunciado).textContent = T.inicial;
+    if (r.sinCupo) {
+      mensaje(T.mensaje, "Ya no te quedan cálculos: en la partida el cupo se llena de nuevo cada noche.");
+    } else if (!r.correcto) {
+      mensaje(T.mensaje, `Incorrecto: la terminal se bloquea ${Practica.VALORES.bloqueoS} s. No gastaste cupo.`, "mal");
     } else if (tipo === "calculo") {
-      bateria = Math.min(100, bateria + 20);
-      $("cj-enunciado").textContent = "Elige una tarea.";
-      mensaje("cj-mensaje-terminal", Logica.textoDeRecarga(antes, bateriaAntes), "bien");
+      const ganoBateria = estado.bateriaJ1 > bateriaAntes;
+      mensaje(T.mensaje, "¡Correcto! +1 trampa a tu bolsillo" +
+        (ganoBateria ? " y +20 % de batería al jugador 1." : " (la batería ya estaba llena)."), "bien");
+      animarPremio(ganoBateria);
     } else {
       puppetFuera = true;
-      $("cj-enunciado").textContent = "Ecuación resuelta.";
-      mensaje("cj-mensaje-terminal", "Rescate desbloqueado. ¡Puppet salió de su caja: rescátalo!", "bien");
+      mensaje(T.mensaje, "¡Rescate desbloqueado! Puppet salió de su caja: rescátalo antes de que llegue.", "bien");
     }
     pintarTerminal(ahora);
     pintarFreddy(ahora);
-  });
+  }
+
+  for (const tipo of Object.keys(TERMINALES)) {
+    $(TERMINALES[tipo].boton).addEventListener("click", () => pedirTarea(tipo));
+    $(TERMINALES[tipo].formulario).addEventListener("submit", (evento) => {
+      evento.preventDefault();
+      responderTarea(tipo);
+    });
+  }
+
+  // «Resuelves esto y te da esto»: una ficha «+1 TRAMPA» vuela de la terminal
+  // al bolsillo, la batería del jugador 1 sube con un «+20 %» que flota y el
+  // contador del cupo late. Con «reducir movimiento» la ficha no se mueve.
+  function animarPremio(ganoBateria) {
+    const escena = $("cj-escena-calculo");
+    const caja = escena.getBoundingClientRect();
+    const desde = $("cj-calculo").getBoundingClientRect();   // el formulario ya se ocultó
+    const hasta = $("cj-bolsillo-terminal").getBoundingClientRect();
+    const ficha = document.createElement("span");
+    ficha.className = "cj-ficha-volando";
+    ficha.textContent = "+1 TRAMPA";
+    ficha.style.left = `${desde.left - caja.left}px`;
+    ficha.style.top = `${desde.top - caja.top}px`;
+    ficha.style.setProperty("--dx", `${hasta.left - desde.left}px`);
+    ficha.style.setProperty("--dy", `${hasta.top - desde.top}px`);
+    escena.appendChild(ficha);
+    setTimeout(() => ficha.remove(), 1400);
+    reiniciarAnimacion($("cj-premio-bolsillo"), "cj-gano");
+    reiniciarAnimacion($("cj-cupo"), "cj-late");
+    if (ganoBateria) {
+      reiniciarAnimacion($("cj-premio-bateria"), "cj-gano");
+      const mas = document.createElement("span");
+      mas.className = "cj-flota";
+      mas.textContent = "+20 %";
+      $("cj-premio-bateria").appendChild(mas);
+      setTimeout(() => mas.remove(), 1400);
+    }
+  }
+
+  function reiniciarAnimacion(elemento, clase) {
+    elemento.classList.remove(clase);
+    void elemento.offsetWidth;   // fuerza a que la animación vuelva a empezar
+    elemento.classList.add(clase);
+  }
 
   $("cj-rescatar").addEventListener("click", () => {
     if (!puppetFuera || !Practica.rescatar(estado)) return;
     puppetFuera = false;
-    $("cj-enunciado").textContent = "Elige una tarea.";
-    mensaje("cj-mensaje-terminal", "Rescataste a Puppet: su caja de música vuelve a empezar.", "bien");
+    mensaje("cj-mensaje-puppet", `¡Rescataste a Puppet! Volvió a su caja, pero ahora dura ${Logica.formatearSegundos(estado.segundosDeLaCaja)} s.`, "bien");
     pintarTerminal(performance.now() / 1000);
   });
 
   function pintarTerminal(ahora) {
     const bloqueo = Practica.bloqueoRestante(estado, ahora);
-    const textoCalculo = bloqueo > 0 ? `Terminal bloqueada… ${Math.ceil(bloqueo)} s` : "Recargar (cálculo)";
-    const textoEcuacion = bloqueo > 0 ? `Terminal bloqueada… ${Math.ceil(bloqueo)} s` : "Desbloquear rescate (ecuación)";
-    if ($("cj-calculo").textContent !== textoCalculo) $("cj-calculo").textContent = textoCalculo;
-    if ($("cj-ecuacion").textContent !== textoEcuacion) $("cj-ecuacion").textContent = textoEcuacion;
-    $("cj-calculo").disabled = bloqueo > 0;
+    const sinCupo = estado.calculosRestantes <= 0;
+    const textos = {
+      calculo: bloqueo > 0 ? `Terminal bloqueada… ${Math.ceil(bloqueo)} s` : sinCupo ? "Sin cálculos esta noche" : "Resolver cálculo",
+      ecuacion: bloqueo > 0 ? `Terminal bloqueada… ${Math.ceil(bloqueo)} s` : "Resolver ecuación",
+    };
+    for (const tipo of Object.keys(TERMINALES)) {
+      const boton = $(TERMINALES[tipo].boton);
+      if (boton.textContent !== textos[tipo]) boton.textContent = textos[tipo];
+    }
+    $("cj-calculo").disabled = bloqueo > 0 || sinCupo;
     $("cj-ecuacion").disabled = bloqueo > 0;
     $("cj-rescatar").disabled = !puppetFuera;
     $("cj-alerta-puppet").hidden = !puppetFuera;
-    const texto = `${bateria} %`;
-    if ($("cj-bateria-terminal").textContent !== texto) $("cj-bateria-terminal").textContent = texto;
+    $("cj-caja-puppet").dataset.puppet = puppetFuera ? "fuera" : "dentro";
+    const cupo = `${estado.calculosRestantes} / ${Practica.VALORES.calculosDeLaNoche}`;
+    if ($("cj-cupo").textContent !== cupo) $("cj-cupo").textContent = cupo;
+    const bateria = `${estado.bateriaJ1} %`;
+    if ($("cj-bateria-j1").textContent !== bateria) $("cj-bateria-j1").textContent = bateria;
+    $("cj-barra-bateria").style.width = `${estado.bateriaJ1}%`;
+    const segundos = `${Logica.formatearSegundos(estado.segundosDeLaCaja)} s`;
+    if ($("cj-segundos-caja").textContent !== segundos) $("cj-segundos-caja").textContent = segundos;
+    $("cj-barra-caja").style.width = `${(estado.segundosDeLaCaja / Practica.VALORES.segundosDeLaCaja) * 100}%`;
   }
 
-  // ------------------------------------------------------ diapositiva 7: lista
+  // ------------------------------------------------------ diapositiva 8: lista
   function pintarLista() {
     const lista = $("cj-lista");
     lista.textContent = "";
@@ -404,7 +474,7 @@
     Practica.avanzar(estado, ahora);
     pintarFreddy(ahora);
     if (actual === 3) pintarPanel(ahora);
-    if (actual === 6) pintarTerminal(ahora);
+    if (actual === 6 || actual === 7) pintarTerminal(ahora);
     requestAnimationFrame(cuadro);
   }
 

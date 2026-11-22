@@ -16,6 +16,11 @@
     trampaS: 6,           // RecursosDeOperador.SegundosDeTrampa
     bloqueoS: 3,          // TareasDeOperador.BloqueoPorErrorSegundos
     maxCargas: 3,
+    calculosPorNoche: [6, 5, 4, 3, 3, 3],   // RecursosDeOperador.CalculosPorNoche (2026-11-22)
+    calculosDeLaNoche: 6,                  // la práctica es como la noche 1
+    recargaDeBateria: 20,                  // CompuertasDeDuctos.RecargaPorCalculo
+    segundosDeLaCaja: 30,                  // RescateDePuppet.SegundosDeLaCaja
+    segundosMinimosDeLaCaja: 7.5,          // RescateDePuppet.SegundosMinimosDeLaCaja
     velocidad: 9,         // unidades del mini mapa por segundo (una vuelta dura ~13 s)
   };
 
@@ -44,9 +49,9 @@
     { id: "panel", texto: "Leíste el panel del jugador 1", diapositiva: 3 },
     { id: "retrasar", texto: "Retrasaste a Freddy", diapositiva: 4 },
     { id: "trampa", texto: "Atrapaste a Freddy con una trampa", diapositiva: 5 },
-    { id: "calculo", texto: "Resolviste un cálculo (recarga)", diapositiva: 6 },
-    { id: "ecuacion", texto: "Resolviste una ecuación (rescate)", diapositiva: 6 },
-    { id: "rescate", texto: "Rescataste a Puppet", diapositiva: 6 },
+    { id: "calculo", texto: "Resolviste un cálculo: +1 trampa y +20 % de batería", diapositiva: 6 },
+    { id: "ecuacion", texto: "Resolviste una ecuación: rescate desbloqueado", diapositiva: 7 },
+    { id: "rescate", texto: "Rescataste a Puppet", diapositiva: 7 },
   ];
 
   const PREGUNTAS_PANEL = [
@@ -74,6 +79,9 @@
       atrapadoHasta: -Infinity,
       trampa: null,              // id del punto con la trampa puesta
       cargas: 1,
+      calculosRestantes: VALORES.calculosDeLaNoche,
+      bateriaJ1: 60,             // batería del jugador 1 en la práctica, para ver el +20 %
+      segundosDeLaCaja: VALORES.segundosDeLaCaja,
       bloqueadoHasta: -Infinity,
       rescateListo: false,
       conocidos: {},
@@ -171,18 +179,25 @@
   function responder(estado, tarea, valor, ahoraS) {
     const restante = bloqueoRestante(estado, ahoraS);
     if (restante > 0) return { correcto: false, bloqueado: true, bloqueoS: restante };
+    // Sin cupo el cálculo no cuenta (ni castiga): en la partida, Unity ni lo entrega.
+    if (tarea.tipo === "calculo" && estado.calculosRestantes <= 0) return { correcto: false, sinCupo: true, bloqueoS: 0 };
     if (valor !== tarea.respuesta) {
       estado.bloqueadoHasta = ahoraS + VALORES.bloqueoS;
       return { correcto: false, bloqueoS: VALORES.bloqueoS };
     }
-    if (tarea.tipo === "calculo") estado.cargas = Math.min(VALORES.maxCargas, estado.cargas + 1);
-    else estado.rescateListo = true;
+    if (tarea.tipo === "calculo") {
+      estado.calculosRestantes--;
+      estado.cargas = Math.min(VALORES.maxCargas, estado.cargas + 1);
+      estado.bateriaJ1 = Math.min(100, estado.bateriaJ1 + VALORES.recargaDeBateria);
+    } else estado.rescateListo = true;
     marcar(estado, tarea.tipo);
     return { correcto: true, bloqueoS: 0 };
   }
 
   function rescatar(estado) {
     if (!estado.rescateListo) return false;
+    estado.rescateListo = false;          // hay que volver a ganarlo con otra ecuación
+    estado.segundosDeLaCaja = Math.max(VALORES.segundosMinimosDeLaCaja, estado.segundosDeLaCaja / 2);
     marcar(estado, "rescate");
     return true;
   }

@@ -446,3 +446,82 @@ input {
 .nota.costo { margin: 0 0 8px; }
 .fila-trampa { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--linea); }
 #calculos { color: var(--alerta); }
+
+/* «Cómo jugar» con el costo de cada acción y premios animados (2026-11-22). */
+.cj-trato { display: flex; flex-wrap: wrap; gap: 8px; }
+.cj-chip { padding: 6px 10px; border-radius: 999px; font-size: 13px; border: 1px solid var(--linea); }
+.cj-chip b { font-weight: 700; }
+.cj-cuesta { color: #ffb4a8; border-color: rgba(255, 77, 77, .5); background: rgba(255, 77, 77, .08); }
+.cj-da { color: #b9f5c6; border-color: rgba(111, 207, 111, .5); background: rgba(111, 207, 111, .08); }
+
+/* bolsillo de trampas: 3 huecos que se llenan */
+.cj-bolsillo-rotulo { display: inline-flex; align-items: center; gap: 8px; color: var(--suave); }
+.cj-bolsillo-rotulo b { color: var(--alerta); }
+.cj-bolsillo { display: inline-flex; gap: 4px; }
+.cj-bolsillo i { width: 18px; height: 18px; border: 2px solid var(--alerta); border-radius: 4px; opacity: .35; position: relative; }
+.cj-bolsillo i::before, .cj-bolsillo i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 12px; height: 2px; background: var(--alerta); transform: translate(-50%, -50%) rotate(45deg); }
+.cj-bolsillo i::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.cj-bolsillo i::before, .cj-bolsillo i::after { opacity: 0; transition: opacity 200ms ease-out; }
+.cj-bolsillo[data-cargas="1"] i:nth-child(-n+1), .cj-bolsillo[data-cargas="2"] i:nth-child(-n+2), .cj-bolsillo[data-cargas="3"] i { opacity: 1; background: rgba(255, 210, 74, .15); }
+.cj-bolsillo[data-cargas="1"] i:nth-child(-n+1)::before, .cj-bolsillo[data-cargas="1"] i:nth-child(-n+1)::after,
+.cj-bolsillo[data-cargas="2"] i:nth-child(-n+2)::before, .cj-bolsillo[data-cargas="2"] i:nth-child(-n+2)::after,
+.cj-bolsillo[data-cargas="3"] i::before, .cj-bolsillo[data-cargas="3"] i::after { opacity: 1; }
+
+/* diapositiva 6: terminal a la izquierda, premios a la derecha */
+.cj-escena-calculo, .cj-escena-puppet { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 12px; }
+.cj-cupo-fila { color: var(--suave); }
+.cj-cupo-fila b { color: var(--alerta); font-size: 20px; margin-left: 6px; display: inline-block; }
+.cj-premios { display: grid; gap: 10px; align-content: start; }
+.cj-premio { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 10px; padding: 10px 12px; border: 1px solid var(--linea); border-radius: 6px; }
+.cj-premio-titulo { grid-column: 1 / -1; color: var(--suave); font-size: 13px; }
+.cj-premio b { color: var(--alerta); font-size: 18px; }
+.cj-barra { display: block; height: 12px; border-radius: 6px; background: #13241a; overflow: hidden; }
+.cj-barra i { display: block; height: 100%; width: 60%; background: var(--freddy); transition: width 600ms var(--entrada); }
+#cj-barra-caja { width: 100%; background: var(--puppet); }
+.cj-ficha-volando {
+  position: absolute; z-index: 3; pointer-events: none;
+  padding: 5px 10px; border-radius: 6px; font-weight: 700; font-size: 15px;
+  color: #050807; background: var(--alerta); box-shadow: 0 0 12px rgba(255, 210, 74, .7);
+  animation: ficha-volando 1100ms var(--entrada) forwards;
+}
+@keyframes ficha-volando {
+  0% { transform: translate(0, 0) scale(1.2); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(.7); opacity: 0; }
+}
+.cj-gano { animation: gano 700ms ease-out; }
+@keyframes gano { 30% { box-shadow: 0 0 0 3px var(--alerta), 0 0 18px rgba(255, 210, 74, .6); } }
+.cj-late { animation: late 500ms ease-out; }
+@keyframes late { 40% { transform: scale(1.35); } }
+.cj-flota { position: absolute; right: 12px; top: 4px; font-weight: 700; color: var(--freddy); pointer-events: none; animation: flota 1200ms ease-out forwards; }
+@keyframes flota { from { transform: translateY(6px); opacity: 0; } 25% { opacity: 1; } to { transform: translateY(-22px); opacity: 0; } }
+.cj-tabla-cupo { border-collapse: collapse; font-size: 13px; }
+.cj-tabla-cupo th, .cj-tabla-cupo td { border: 1px solid var(--linea); padding: 3px 9px; text-align: center; }
+.cj-tabla-cupo th { color: var(--suave); text-align: left; font-weight: 400; }
+.cj-tabla-cupo tr:first-child td:first-of-type, .cj-tabla-cupo tr:last-child td:first-of-type { color: var(--alerta); font-weight: 700; }
+
+/* diapositiva 7: Puppet sale de su caja y vuelve al rescatarlo */
+.cj-lado-caja { display: grid; gap: 8px; justify-items: start; }
+.cj-caja-puppet { position: relative; width: 150px; height: 96px; }
+.cj-cajita { position: absolute; left: 10px; bottom: 0; width: 70px; height: 50px; border: 2px solid var(--puppet); border-radius: 6px; background: rgba(217, 160, 102, .12); display: grid; place-items: center; }
+.cj-cajita-nota { color: var(--puppet); font-size: 22px; }
+.cj-puppet-figura {
+  position: absolute; left: 33px; bottom: 16px; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--puppet); box-shadow: 0 0 14px var(--puppet);
+  transform: translate(0, 0) scale(.6); opacity: .35;
+  transition: transform 600ms var(--entrada), opacity 300ms ease-out;
+}
+.cj-caja-puppet[data-puppet="fuera"] .cj-puppet-figura { transform: translate(78px, -58px) scale(1); opacity: 1; animation: latir 1s ease-in-out infinite; }
+.cj-duracion { color: var(--suave); display: grid; gap: 4px; min-width: 12rem; }
+.cj-duracion b { color: var(--alerta); }
+
+/* diapositiva 8: lista en dos columnas y resumen de costos */
+.cj-lista { grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 6px 18px; }
+.cj-lista li { display: grid; grid-template-columns: 1.1em 1fr auto; align-items: center; gap: 8px; }
+.cj-escena-calculo > .cj-terminal, .cj-escena-puppet > .cj-terminal { align-content: start; }
+.cj-resumen { border-collapse: collapse; width: 100%; font-size: 13px; }
+.cj-resumen th, .cj-resumen td { border: 1px solid var(--linea); padding: 5px 8px; text-align: left; }
+.cj-resumen th { color: var(--suave); font-weight: 400; }
+.cj-resumen td:first-child { color: var(--alerta); font-weight: 700; }
+.cj-resumen td:nth-child(2) { color: #ffb4a8; }
+.cj-resumen td:nth-child(3) { color: #b9f5c6; }
