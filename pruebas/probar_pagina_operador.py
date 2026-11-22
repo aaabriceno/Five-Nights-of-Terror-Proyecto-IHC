@@ -71,7 +71,51 @@ RUTAS = [{"animatronico": "freddy", "puntos": ["Punto0", "Punto1", "Punto2"]},
          {"animatronico": "vixy", "puntos": ["Punto4", "Punto3"]}]
 
 
-async def unity_falso(socket):
+AVISOS_J2 = []               # lo que la página mandó por su canal de aviso: "pagina_j2", o True/False de «Cómo jugar»
+ORDENES_AVISO = None         # mensajes que el test le manda a la página por ese canal (como haría el relay)
+
+
+async def canal_de_aviso(socket):
+    """El relay del lado del canal de aviso de la página (pagina_j2, 2026-11-22)."""
+    AVISOS_J2.append("pagina_j2")
+    await socket.send(json.dumps({"type": "estado_tutoriales", "jugador1_en_tutorial": False,
+                                  "jugador2_en_como_jugar": False}))
+
+    async def ordenes():
+        while True:
+            await socket.send(json.dumps(await ORDENES_AVISO.get()))
+
+    tarea = asyncio.ensure_future(ordenes())
+    try:
+        async for crudo in socket:
+            mensaje = json.loads(crudo)
+            if mensaje.get("type") == "j2_como_jugar":
+                AVISOS_J2.append(mensaje.get("abierto"))
+    except websockets.exceptions.ConnectionClosed:
+        pass
+    finally:
+        tarea.cancel()
+
+
+async def mensajes_desde(socket, primero):
+    yield primero
+    async for crudo in socket:
+        yield crudo
+
+
+async def servidor_falso(socket):
+    """Un socket que se anuncia con pagina_j2 es el canal de aviso; los demás hablan con «Unity»."""
+    try:
+        primero = await socket.recv()
+    except websockets.exceptions.ConnectionClosed:
+        return
+    if json.loads(primero).get("type") == "pagina_j2":
+        await canal_de_aviso(socket)
+    else:
+        await unity_falso(socket, primero)
+
+
+async def unity_falso(socket, primero):
     """Se comporta como Unity con un operador conectado."""
     envios = []
 
@@ -128,7 +172,7 @@ async def unity_falso(socket):
             await asyncio.sleep(0.05)
 
     try:
-        async for crudo in socket:
+        async for crudo in mensajes_desde(socket, primero):
             mensaje = json.loads(crudo)
             RECIBIDOS_POR_UNITY.append(mensaje.get("type"))
             if mensaje.get("type") == "operador_connect":
@@ -393,10 +437,11 @@ async def probar_como_jugar(navegador, esperar, abierto, menu):
 
 
 async def principal(captura):
-    global ORDENES
+    global ORDENES, ORDENES_AVISO
     ORDENES = asyncio.Queue()
+    ORDENES_AVISO = asyncio.Queue()
     web = levantar_web()
-    unity = await websockets.serve(unity_falso, "127.0.0.1", PUERTO_UNITY)
+    unity = await websockets.serve(servidor_falso, "127.0.0.1", PUERTO_UNITY)
     navegador = None
     try:
         navegador = await asyncio.get_running_loop().run_in_executor(None, Navegador)
@@ -418,6 +463,49 @@ async def principal(captura):
                                      ".map(function (b) { return b.textContent.trim(); }).join('|');")
                   == "Cómo jugar|Entrar a la sala de control|Opciones|Salir")
         comprobar("«Cómo jugar» no se abre solo: está en el menú", not abierto())
+
+        # --- Nadie empieza con el otro en el tutorial (2026-11-22) ---
+        aviso_visible = lambda: navegador.ejecutar(
+            "var a=document.getElementById('aviso-companero');return !!a && !a.hidden;")
+        comprobar("desde el menú, sin entrar a la sala, la página abre su canal de aviso (pagina_j2)",
+                  await esperar(lambda: "pagina_j2" in AVISOS_J2, 5.0))
+        comprobar("y eso no la conecta a la sala (sigue Desconectado)",
+                  "Desconectado" in (navegador.texto("estado-conexion") or ""))
+        comprobar("sin nadie en el tutorial no hay aviso del compañero", not aviso_visible())
+        navegador.ejecutar("document.getElementById('menu-como-jugar').click();")
+        comprobar("abrir «Cómo jugar» lo avisa por el canal (abierto: true)",
+                  await esperar(lambda: AVISOS_J2[-1] is True, 3.0))
+        ORDENES_AVISO.put_nowait({"type": "jugador1_quiere_empezar"})
+        comprobar("si el jugador 1 quiere empezar, aparece el aviso encima de «Cómo jugar»",
+                  await esperar(lambda: aviso_visible() and
+                                "QUIERE EMPEZAR" in (navegador.texto("aviso-companero") or "").upper(), 3.0))
+        comprobar("y dice que cierre «Cómo jugar»", "cierra" in (navegador.texto("aviso-companero") or "").lower())
+        # El aviso no recibe clics (pointer-events: none), así que elementFromPoint no lo ve:
+        # se mira que vaya encima (z-index) y que el diálogo se corra para no quedar debajo.
+        comprobar("el aviso va encima del diálogo y la caja de «Cómo jugar» se corre para no quedar debajo",
+                  navegador.ejecutar(
+                      "var a=document.getElementById('aviso-companero');"
+                      "var z=+getComputedStyle(a).zIndex, zd=+getComputedStyle(document.getElementById('como-jugar')).zIndex;"
+                      "var caja=document.querySelector('#como-jugar .cj-caja').getBoundingClientRect();"
+                      "return z>zd && a.getBoundingClientRect().bottom<=caja.top+1;"))
+        comprobar("y no tapa el botón «Cerrar ×» del diálogo", navegador.ejecutar(
+            "var b=document.getElementById('cj-cerrar').getBoundingClientRect();"
+            "var e=document.elementFromPoint(b.left+b.width/2,b.top+b.height/2);"
+            "return !!e && !!e.closest('#cj-cerrar');"))
+        navegador.ejecutar("document.getElementById('cj-cerrar').click();")
+        comprobar("cerrar «Cómo jugar» lo avisa (abierto: false)", await esperar(lambda: AVISOS_J2[-1] is False, 3.0))
+        comprobar("y el aviso de «quiere empezar» se va", await esperar(lambda: not aviso_visible(), 2.0))
+        ORDENES_AVISO.put_nowait({"type": "estado_tutoriales", "jugador1_en_tutorial": True,
+                                  "jugador2_en_como_jugar": False})
+        comprobar("jugador 1 en el tutorial: el menú del J2 lo avisa",
+                  await esperar(lambda: aviso_visible() and
+                                "TUTORIAL" in (navegador.texto("aviso-companero") or "").upper(), 3.0))
+        comprobar("y dice que la partida empieza cuando termine",
+                  "cuando termine" in (navegador.texto("aviso-companero") or "").lower())
+        comprobar("el aviso no tapa los botones del menú", navegador.ejecutar(
+            "var b=document.getElementById('menu-como-jugar').getBoundingClientRect();"
+            "var e=document.elementFromPoint(b.left+b.width/2,b.top+b.height/2);"
+            "return !!e && !!e.closest('#menu-como-jugar');"))
         await probar_como_jugar(navegador, esperar, abierto, menu)
         comprobar("las opciones (IP y puerto del juego) empiezan ocultas", not opciones())
         navegador.ejecutar("document.getElementById('menu-opciones').click();")
@@ -431,6 +519,12 @@ async def principal(captura):
                   and await esperar(lambda: "cerrar esta pestaña" in (navegador.texto("menu-nota") or ""), 2.0))
         navegador.ejecutar("document.getElementById('menu-entrar').click();")
         comprobar("«Entrar a la sala de control» cierra el menú", not menu())
+        comprobar("ya en la sala, sigue el aviso de que el jugador 1 está en el tutorial",
+                  aviso_visible() and "TUTORIAL" in (navegador.texto("aviso-companero") or "").upper())
+        ORDENES_AVISO.put_nowait({"type": "estado_tutoriales", "jugador1_en_tutorial": False,
+                                  "jugador2_en_como_jugar": False})
+        comprobar("cuando el jugador 1 sale del tutorial, el aviso se va",
+                  await esperar(lambda: not aviso_visible(), 3.0))
 
         comprobar("la página se conecta (#estado-conexion dice Conectado)",
                   await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or "")))
@@ -756,7 +850,7 @@ async def principal(captura):
         await unity.wait_closed()
         comprobar("al caerse la conexión aparece el aviso de reconexión con los intentos",
                   await esperar(lambda: js(banner) and "INTENTO" in (navegador.texto("reconectando") or ""), 5.0))
-        unity = await websockets.serve(unity_falso, "127.0.0.1", PUERTO_UNITY)
+        unity = await websockets.serve(servidor_falso, "127.0.0.1", PUERTO_UNITY)
         comprobar("si el juego vuelve antes de 15 s, la página se reconecta sola",
                   await esperar(lambda: "Conectado" in (navegador.texto("estado-conexion") or "")
                                 and not js(banner), 12.0))
@@ -770,7 +864,7 @@ async def principal(captura):
         comprobar("y el aviso de reconexión desaparece", not js(banner))
         comprobar("la página dejó de intentar (sigue Desconectado)",
                   "Desconectado" in (navegador.texto("estado-conexion") or ""))
-        unity = await websockets.serve(unity_falso, "127.0.0.1", PUERTO_UNITY)
+        unity = await websockets.serve(servidor_falso, "127.0.0.1", PUERTO_UNITY)
         await asyncio.sleep(6.0)
         comprobar("pasada la ventana no se reconecta sola aunque el juego vuelva",
                   "Desconectado" in (navegador.texto("estado-conexion") or ""))
