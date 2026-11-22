@@ -56,6 +56,33 @@ public static class PruebaRecursosDeOperador
         Comprobar("tras gastarla no hay habilidad ni progreso", !r.HabilidadPuppet && r.Progreso == 0);
         Comprobar("gastarla sin tenerla devuelve false", !r.GastarHabilidadPuppet());
 
+        // Cupo de cálculos por noche (2026-11-22): antes eran infinitos y con
+        // ellos las trampas y la batería del jugador 1 no se acababan.
+        Comprobar("cálculos por noche: 6, 5, 4, 3, 3, 3",
+            RecursosDeOperador.CalculosPorNoche(1) == 6 && RecursosDeOperador.CalculosPorNoche(2) == 5 &&
+            RecursosDeOperador.CalculosPorNoche(3) == 4 && RecursosDeOperador.CalculosPorNoche(4) == 3 &&
+            RecursosDeOperador.CalculosPorNoche(5) == 3 && RecursosDeOperador.CalculosPorNoche(6) == 3);
+        Comprobar("una noche fuera de 1-6 se ajusta (0 → 6, 9 → 3)",
+            RecursosDeOperador.CalculosPorNoche(0) == 6 && RecursosDeOperador.CalculosPorNoche(9) == 3);
+        var cupo = new RecursosDeOperador();
+        Comprobar("sin decir la noche se empieza con el cupo de la noche 1",
+            cupo.CalculosRestantes == 6 && cupo.CalculosDeLaNoche == 6);
+        cupo.Reiniciar(4);
+        Comprobar("en la noche 4 hay 3 cálculos", cupo.CalculosRestantes == 3 && cupo.CalculosDeLaNoche == 3);
+        Comprobar("un cálculo bien resuelto gasta 1 del cupo y da la carga",
+            cupo.GanarCargaPorCalculo() && cupo.CalculosRestantes == 2 && cupo.Cargas == RecursosDeOperador.CargasIniciales + 1);
+        cupo.GanarCargaPorCalculo();
+        cupo.GanarCargaPorCalculo();
+        Comprobar("aunque las cargas estén llenas, el cálculo gasta cupo (también recarga batería)",
+            cupo.CalculosRestantes == 0 && cupo.Cargas == RecursosDeOperador.MaxCargas);
+        cupo.ColocarTrampa("PuntoA", true);
+        Comprobar("sin cupo, un cálculo no se cuenta ni da carga",
+            !cupo.GanarCargaPorCalculo() && cupo.CalculosRestantes == 0 && cupo.Cargas == RecursosDeOperador.MaxCargas - 1);
+        Comprobar("sin cupo, QuedanCalculos es false", !cupo.QuedanCalculos);
+        cupo.Reiniciar(2);
+        Comprobar("la noche siguiente el cupo vuelve a llenarse con el de esa noche (5)",
+            cupo.CalculosRestantes == 5 && cupo.QuedanCalculos);
+
         var p = new PresenciaDeOperador();
         Comprobar("sin latidos el operador no está vivo", !p.EstaVivo(0f));
         p.Latir(10f);

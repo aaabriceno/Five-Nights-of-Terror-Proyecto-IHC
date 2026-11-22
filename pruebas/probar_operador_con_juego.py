@@ -222,6 +222,9 @@ async def principal():
                       jugador_estado is not None and all(
                           k in jugador_estado for k in ("mirando_pantalla", "tareas_pendientes", "caja_pct", "caja_en_peligro")))
             comprobar("llega estado_operador", "estado_operador" in tipos)
+            primer_estado = next((m for m in recibidos if m.get("type") == "estado_operador"), {})
+            comprobar("en la noche 1 el jugador 2 tiene 6 cálculos (cupo por noche, 2026-11-22)",
+                      primer_estado.get("calculos_restantes") == 6 and primer_estado.get("calculos_de_la_noche") == 6)
             pong = next((m for m in recibidos if m.get("type") == "pong_operador"), None)
             comprobar("el ping se contesta con pong_operador y el mismo t", pong is not None and pong.get("t") == 123)
             posicion = next((m for m in recibidos if m.get("type") == "posiciones"), None)
@@ -326,6 +329,8 @@ async def principal():
             comprobar("la respuesta correcta se acepta", resultado is not None and resultado["correcto"] is True)
             e = await esperar_estado_operador(operador, lambda m: m["cargas"] == 1 and not m["habilidad_puppet"])
             comprobar("y da 1 carga de trampa, sin desbloquear el rescate", e is not None)
+            comprobar("gasta 1 del cupo (6 → 5); la respuesta equivocada no gastó",
+                      e is not None and e.get("calculos_restantes") == 5)
 
             await pedir("ecuacion")
             ecuacion = await esperar_tipo(operador, "tarea")
