@@ -88,6 +88,12 @@ class ServicioDeAvisos {
   /// ...y uno largo cuando se cae, porque desde ese momento estás solo.
   static const List<int> patronDeCompaneroPerdido = <int>[0, 500];
 
+  /// Terminaste una tarea: un toque corto si salió bien...
+  static const List<int> patronDeTareaResuelta = <int>[0, 90];
+
+  /// ...y dos si salió mal (sigue pendiente).
+  static const List<int> patronDeTareaFallada = <int>[0, 140, 110, 140];
+
   /// Se acabó la batería (compuertas abiertas, linterna apagada): dos largos.
   static const List<int> patronDeBateriaAgotada = <int>[0, 400, 150, 400];
 
@@ -174,6 +180,13 @@ class ServicioDeAvisos {
       }
     }
     if (hayTareaNuevaEnRojo) vibrador.vibrar(patronDeTareaRoja);
+  }
+
+  /// El jugador terminó una tarea: un toque si la resolvió, dos si la falló.
+  /// No corta el "trrr" de la caja en peligro, que es más urgente.
+  void avisarResultadoDeTarea(bool exito) {
+    if (!_disponible || _ultimoAvisoDeLaCaja != null) return;
+    vibrador.vibrar(exito ? patronDeTareaResuelta : patronDeTareaFallada);
   }
 
   /// El jugador 2 hizo algo (o se cayó): un aviso por vibración distinto según

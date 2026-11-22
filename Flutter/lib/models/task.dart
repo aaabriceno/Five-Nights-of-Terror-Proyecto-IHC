@@ -17,6 +17,19 @@ class Task {
     required this.params,
   });
 
+  /// La misma tarea con otra hora de llegada. La urgencia se cuenta con el
+  /// reloj de la tablet (ver GameProvider): la hora que manda la PC no sirve
+  /// si los dos relojes no coinciden.
+  Task conLlegada(DateTime llegada) => Task(
+        taskId: taskId,
+        taskType: taskType,
+        duration: duration,
+        description: description,
+        difficulty: difficulty,
+        createdAt: llegada,
+        params: params,
+      );
+
   factory Task.fromJson(Map<String, dynamic> json) {
     return Task(
       taskId: json['task_id'] as int,

@@ -27,6 +27,10 @@ class MenuDeTareas extends StatefulWidget {
   /// siempre disponible de la tablet, así que se muestra como una
   /// tarjeta fija aparte, con su propio callback de navegación.
   final bool puppetEnPeligro;
+
+  /// Cuánta cuerda le queda a la caja (0-100): se ve en la tarjeta para
+  /// vigilarla de reojo sin abrir su pantalla.
+  final int valorCajaPorcentaje;
   final VoidCallback alAbrirCajaDePuppet;
 
   const MenuDeTareas({
@@ -34,6 +38,7 @@ class MenuDeTareas extends StatefulWidget {
     required this.tareas,
     required this.alElegirTarea,
     required this.puppetEnPeligro,
+    required this.valorCajaPorcentaje,
     required this.alAbrirCajaDePuppet,
   });
 
@@ -255,11 +260,46 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 16),
+                _buildNivelDeLaCaja(),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Cuánta cuerda le queda a la caja: barra y número, en rojo si está en
+  /// peligro (el número no depende de distinguir el color).
+  Widget _buildNivelDeLaCaja() {
+    final int porcentaje = widget.valorCajaPorcentaje.clamp(0, 100);
+    final Color color = widget.puppetEnPeligro ? AppColors.peligro : AppColors.acento;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 220,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: porcentaje / 100,
+              minHeight: 14,
+              color: color,
+              backgroundColor: AppColors.panelBorde,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 76,
+          child: Text(
+            '$porcentaje %',
+            textAlign: TextAlign.right,
+            style: _estiloNombre.copyWith(color: color, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
     );
   }
 
@@ -355,7 +395,7 @@ class _MenuDeTareasState extends State<MenuDeTareas> {
                         Text(
                           bloqueadaPorWifi
                               ? 'Primero reinicia el WiFi'
-                              : '${tarea.duration}s',
+                              : '${tarea.duration} s para resolverla',
                           style: _estiloDetalle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

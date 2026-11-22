@@ -27,6 +27,7 @@ void main() {
           tareas: <Task>[tarea(segundosPendiente)],
           alElegirTarea: (_) {},
           puppetEnPeligro: false,
+          valorCajaPorcentaje: 100,
           alAbrirCajaDePuppet: () {},
         ),
       ),
@@ -40,7 +41,7 @@ void main() {
     await montar(tester, 5);
     final Text nombre = tester.widget<Text>(find.text('Conectar Cables'));
     expect(nombre.style?.fontSize, greaterThanOrEqualTo(22));
-    final Text tiempo = tester.widget<Text>(find.text('30s'));
+    final Text tiempo = tester.widget<Text>(find.text('30 s para resolverla'));
     expect(tiempo.style?.fontSize, greaterThanOrEqualTo(18));
     final Text caja = tester.widget<Text>(find.text('Reiniciar Caja Musical'));
     expect(caja.style?.fontSize, greaterThanOrEqualTo(22));

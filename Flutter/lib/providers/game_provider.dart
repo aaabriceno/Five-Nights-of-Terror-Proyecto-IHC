@@ -8,6 +8,17 @@ import '../services/mock_server_service.dart';
 import '../utils/logger.dart';
 
 class GameProvider extends ChangeNotifier {
+  GameProvider({DateTime Function()? reloj}) : _reloj = reloj ?? DateTime.now;
+
+  final DateTime Function() _reloj;
+
+  /// Cuándo llegó cada tarea a la tablet (por `task_id`), con el reloj de la
+  /// tablet. La urgencia (ámbar a los 20 s, rojo a los 40 s) se cuenta desde
+  /// aquí y no con el `timestamp` de la PC: si los relojes de la PC y la tablet
+  /// no coinciden, las tareas salían en rojo apenas llegaban o nunca cambiaban
+  /// de color (2026-11-22).
+  final Map<int, DateTime> _llegadas = <int, DateTime>{};
+
   GameSession session = GameSession(playerId: PlayerIdentity.playerId);
   Attack? lastAttack;
   bool isGameOver = false;
@@ -35,6 +46,10 @@ class GameProvider extends ChangeNotifier {
   /// llama una vez por cada `efecto` que se entiende.
   void Function(AvisoDeCompanero)? alAvisoDeCompanero;
 
+  /// Asignado por GameScreen para mostrar (y hacer vibrar) si la tarea que se
+  /// acaba de terminar salió bien o mal.
+  void Function(bool exito)? alResultadoDeTarea;
+
   /// Un mensaje roto (un campo que falta o viene con otro tipo) se ignora y se
   /// anota: no puede tumbar la partida ni dejar la sesión a medias. Las
   /// pantallas solo se avisan cuando el mensaje se entendió entero.
@@ -56,7 +71,8 @@ class GameProvider extends ChangeNotifier {
   void _aplicarMensaje(String type, Map<String, dynamic> message) {
     switch (type) {
       case 'new_task':
-        session.currentTask = Task.fromJson(message);
+        final Task nueva = Task.fromJson(message);
+        session.currentTask = nueva.conLlegada(_llegadas.putIfAbsent(nueva.taskId, _reloj));
         break;
       case 'task_list':
         final List<dynamic> tareasJson = message['tasks'] as List<dynamic>;
@@ -66,7 +82,16 @@ class GameProvider extends ChangeNotifier {
             .map((dynamic tareaJson) =>
                 Task.fromJson(tareaJson as Map<String, dynamic>))
             .toList();
-        session.tareasPendientes = tareas;
+        final DateTime ahora = _reloj();
+        final Map<int, DateTime> llegadas = <int, DateTime>{
+          for (final Task tarea in tareas) tarea.taskId: _llegadas[tarea.taskId] ?? ahora,
+        };
+        _llegadas
+          ..clear()
+          ..addAll(llegadas);
+        session.tareasPendientes = tareas
+            .map((Task tarea) => tarea.conLlegada(llegadas[tarea.taskId]!))
+            .toList();
         break;
       case 'attack':
         final Attack attack = Attack.fromJson(message);
@@ -226,10 +251,12 @@ class GameProvider extends ChangeNotifier {
     });
 
     session.currentTask = null;
+    alResultadoDeTarea?.call(success);
     notifyListeners();
   }
 
   void reset() {
+    _llegadas.clear();
     session = GameSession(playerId: session.playerId);
     lastAttack = null;
     isGameOver = false;

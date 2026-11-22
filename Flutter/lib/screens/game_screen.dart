@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/task.dart';
 import '../providers/connection_provider.dart';
 import '../providers/game_provider.dart';
 import '../services/servicio_de_avisos.dart';
+import '../utils/colors.dart';
 import '../widgets/status_bar.dart';
 import '../widgets/barra_reloj_de_noche.dart';
 import '../widgets/botones_de_camara.dart';
@@ -44,6 +47,11 @@ class _GameScreenState extends State<GameScreen> {
   ServicioDeAvisos? _avisos;
   late final GameProvider _juego;
 
+  /// Resultado de la última tarea terminada, visible un momento (null = nada).
+  bool? _ultimoResultado;
+  Timer? _temporizadorDelResultado;
+  static const Duration _duracionDelResultado = Duration(milliseconds: 1800);
+
   @override
   void initState() {
     super.initState();
@@ -65,10 +73,25 @@ class _GameScreenState extends State<GameScreen> {
     // según qué (trampa, rescate, se cayó).
     _juego.alAvisoDeCompanero = (aviso) =>
         _avisos?.avisarDeCompanero(aviso.tipo);
+    _juego.alResultadoDeTarea = _mostrarResultado;
+  }
+
+  /// Al terminar una tarea la tablet vuelve al menú: sin esto el jugador no
+  /// sabía si le había salido bien o mal (2026-11-22).
+  void _mostrarResultado(bool exito) {
+    _avisos?.avisarResultadoDeTarea(exito);
+    _temporizadorDelResultado?.cancel();
+    if (!mounted) return;
+    setState(() => _ultimoResultado = exito);
+    _temporizadorDelResultado = Timer(_duracionDelResultado, () {
+      if (mounted) setState(() => _ultimoResultado = null);
+    });
   }
 
   @override
   void dispose() {
+    _temporizadorDelResultado?.cancel();
+    _juego.alResultadoDeTarea = null;
     _juego.alAvisoDeCompanero = null;
     _avisos?.detener();
     super.dispose();
@@ -163,7 +186,21 @@ class _GameScreenState extends State<GameScreen> {
                 segundosDeCaja: game.session.segundosDeCaja,
               ),
               const SizedBox(height: 16),
-              Expanded(child: _buildContenidoPrincipal(game)),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _buildContenidoPrincipal(game)),
+                    if (_ultimoResultado != null)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        // No tapa los toques: se puede abrir otra tarea enseguida.
+                        child: IgnorePointer(child: _buildAvisoDeResultado(_ultimoResultado!)),
+                      ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 12),
               // Siempre a la vista, en el mismo lugar, aunque haya una tarea abierta:
               // la cámara del juego se mueve desde aquí. Las compuertas van en la
@@ -213,6 +250,32 @@ class _GameScreenState extends State<GameScreen> {
           alTocarSinBateria: _avisarSinBateria,
         ),
       ],
+    );
+  }
+
+  /// Franja grande, verde o roja, con icono y texto (no depende del color).
+  Widget _buildAvisoDeResultado(bool exito) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+        decoration: BoxDecoration(
+          color: exito ? AppColors.exito : AppColors.peligro,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const <BoxShadow>[BoxShadow(blurRadius: 16, color: Colors.black54)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(exito ? Icons.check_circle : Icons.cancel, size: 40, color: Colors.white),
+            const SizedBox(width: 14),
+            Text(
+              exito ? '¡Tarea resuelta!' : 'Fallaste: la tarea sigue pendiente',
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -300,6 +363,7 @@ class _GameScreenState extends State<GameScreen> {
       tareas: game.session.tareasPendientes,
       alElegirTarea: game.elegirTarea,
       puppetEnPeligro: game.session.puppetEnPeligro,
+      valorCajaPorcentaje: game.session.puppetValorCajaPorcentaje,
       alAbrirCajaDePuppet: () => setState(() => _mostrandoCajaDePuppet = true),
     );
   }
