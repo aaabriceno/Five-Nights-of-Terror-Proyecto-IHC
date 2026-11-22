@@ -27,6 +27,7 @@ JUEGO = RAIZ / "Unity/Builds/Linux/FiveNightsOfTerror.x86_64"
 URL = "ws://127.0.0.1:8000"
 PANTALLA = ":95"
 PLAYER_LOG = Path.home() / ".config/unity3d/DefaultCompany/Poryecto_IHC/Player.log"
+CAMPANAS = RAIZ / "Unity/Assets/Resources/sounds/FNaF_2_-_Campanas_(6_a.m.).ogg"
 MUESTREO = 16000
 fallos = 0
 
@@ -53,8 +54,22 @@ def volumen_por_segundo(crudo):
     return salida
 
 
+def pico_en_db(archivo):
+    """Pico del archivo de audio en dBFS (0 = el máximo posible), según ffmpeg."""
+    salida = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(archivo), "-af", "volumedetect", "-f", "null", "-"],
+                            capture_output=True, text=True).stderr
+    linea = next((l for l in salida.splitlines() if "max_volume" in l), None)
+    return float(linea.split("max_volume:")[1].split("dB")[0]) if linea else None
+
+
 async def principal(carpeta):
     carpeta.mkdir(parents=True, exist_ok=True)
+    # El volumen del AudioSource ya está en 1 (el tope de Unity): lo fuerte que
+    # suenan las campanas depende del archivo. Grabadas a -17 dB de pico, quedaban
+    # por debajo de la estática.
+    pico = pico_en_db(CAMPANAS)
+    comprobar(f"el archivo de las campanas llega cerca del máximo (pico {pico} dB, mínimo -3 dB)",
+              pico is not None and pico >= -3)
     monitor = monitor_por_defecto()
     grabacion = carpeta / "audio.raw"
     pantalla = subprocess.Popen(["Xvfb", PANTALLA, "-screen", "0", "1280x720x24"],
@@ -132,6 +147,13 @@ async def principal(carpeta):
         print("  volumen por segundo (después):       ", " ".join(f"{v:.3f}" for v in despues))
         comprobar("por los parlantes sale sonido después de ganar (las campanas)",
                   bool(despues) and max(despues) > 0.01)
+        # Si las campanas suenan más bajo que la estática que había, al ganar el
+        # sonido baja en vez de subir y parece que no sonaron (2026-11-22).
+        promedio_antes = sum(antes) / len(antes) if antes else 0
+        promedio_despues = sum(despues) / len(despues) if despues else 0
+        comprobar(f"las campanas se oyen al menos el doble de fuerte que la estática de la noche "
+                  f"({promedio_despues:.3f} contra {promedio_antes:.3f})",
+                  promedio_antes > 0 and promedio_despues >= 2 * promedio_antes)
     else:
         print("  (no se pudo grabar el audio de la PC)")
     print("Todas las pruebas pasaron." if fallos == 0 else f"{fallos} prueba(s) fallaron.")
