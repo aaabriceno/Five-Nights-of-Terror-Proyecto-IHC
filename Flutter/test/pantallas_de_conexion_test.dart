@@ -89,6 +89,20 @@ void main() {
       await cerrar(tester);
     });
 
+    testWidgets('si el jugador 2 sigue en «Cómo jugar», lo dice y deja reintentar', (tester) async {
+      await montar(tester, const SplashScreen());
+      ws.llega(<String, dynamic>{'type': 'conexion_rechazada', 'motivo': 'jugador2_en_tutorial'});
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('El jugador 2 sigue en «Cómo jugar»'), findsOneWidget);
+      expect(find.textContaining('vuelva al menú'), findsOneWidget);
+      expect(find.textContaining('Reintentar'), findsWidgets);
+      expect(find.text('No se encontró el juego'), findsNothing);
+      expect(find.textContaining('motivo:'), findsNothing);
+      expect(find.widgetWithText(ElevatedButton, 'Reintentar'), findsOneWidget);
+      await cerrar(tester);
+    });
+
     testWidgets('los botones de error son grandes', (tester) async {
       await montar(tester, const SplashScreen());
       await tester.pump(const Duration(seconds: 9));

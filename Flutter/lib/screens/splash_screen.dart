@@ -114,6 +114,13 @@ class _SplashScreenState extends State<SplashScreen> {
           'No se encontró el juego',
           'Revisa que el juego esté abierto en la PC y que la IP de Opciones sea la de esa PC.',
         );
+      // El relay no deja empezar mientras el jugador 2 tiene «Cómo jugar»
+      // abierto en su página: los dos tienen que estar en el menú (2026-11-22).
+      case 'jugador2_en_tutorial':
+        return (
+          'El jugador 2 sigue en «Cómo jugar»',
+          'Espera a que termine y vuelva al menú, y toca Reintentar. En su página ya le apareció que quieres empezar.',
+        );
       case 'ya_hay_jugador1':
         return (
           'La PC ya tiene otra tablet',
@@ -135,7 +142,11 @@ class _SplashScreenState extends State<SplashScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            motivoDeRechazo == null ? Icons.portable_wifi_off : Icons.tablet_android,
+            switch (motivoDeRechazo) {
+              null => Icons.portable_wifi_off,
+              'jugador2_en_tutorial' => Icons.hourglass_top,
+              _ => Icons.tablet_android,
+            },
             size: 96,
             color: AppColors.peligro,
           ),
