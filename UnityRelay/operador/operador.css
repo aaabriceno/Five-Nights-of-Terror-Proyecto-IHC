@@ -288,6 +288,30 @@ input {
 #menu-panel-opciones label { display: flex; flex-direction: column; gap: 4px; color: var(--suave); font-size: 12px; }
 #menu-nota { margin: 4px 0 0; min-height: 1.2em; }
 
+/* Aviso del compañero (2026-11-22): franja fija arriba, encima del menú y de
+   «Cómo jugar». No recibe clics; lo que está debajo se corre (--alto-aviso). */
+#aviso-companero {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 11;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 14px;
+  padding: 10px 16px;
+  text-align: center;
+  color: var(--alerta);
+  background: rgba(30, 24, 4, .95);
+  border-bottom: 1px solid var(--alerta);
+  pointer-events: none;
+  animation: aparecer 200ms var(--entrada);
+}
+#aviso-companero[hidden] { display: none; }
+#aviso-companero strong { letter-spacing: .14em; }
+#aviso-companero span { color: var(--texto); }
+#aviso-companero[data-tipo="quiere-empezar"] {
+  color: var(--peligro); background: rgba(40, 6, 6, .95); border-bottom-color: var(--peligro);
+}
+#aviso-companero[data-tipo="quiere-empezar"] strong { animation: alerta 1s steps(2, jump-none) infinite; }
+body.con-aviso-companero .pantalla { padding-top: calc(12px + var(--alto-aviso, 0px)); }
+body.con-aviso-companero #menu,
+body.con-aviso-companero #como-jugar { padding-top: calc(16px + var(--alto-aviso, 0px)); }
+
 /* «Cómo jugar»: tapa toda la sala, con la misma estética de monitor. */
 #como-jugar {
   position: fixed; inset: 0; z-index: 10;

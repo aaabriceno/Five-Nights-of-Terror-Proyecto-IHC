@@ -887,6 +887,87 @@
     mostrarMenu(true);
   };
 
+  // ------------------------------------------- aviso del compañero (2026-11-22)
+  // Un canal aparte del de la sala, abierto desde que carga la página (también
+  // en el menú): le dice al relay si «Cómo jugar» está abierto (así el jugador 1
+  // no empieza sin ti) y se entera de si el jugador 1 está en el tutorial.
+  const MS_ENTRE_AVISOS = 3000;
+  let canalDeAviso = null;
+  let reintentoDeAviso = null;
+  let jugador1EnTutorial = false;
+  let jugador1QuiereEmpezar = false;
+
+  function conectarAviso() {
+    clearTimeout(reintentoDeAviso);
+    if (canalDeAviso) { const viejo = canalDeAviso; canalDeAviso = null; viejo.close(); }
+    let esteCanal;
+    try {
+      esteCanal = new WebSocket(`ws://${$("host").value}:${$("puerto").value}`);
+    } catch (e) {                         // IP o puerto mal escritos
+      reintentoDeAviso = setTimeout(conectarAviso, MS_ENTRE_AVISOS);
+      return;
+    }
+    canalDeAviso = esteCanal;
+    esteCanal.onopen = () => {
+      if (canalDeAviso !== esteCanal) return;
+      esteCanal.send(JSON.stringify({ type: "pagina_j2" }));
+      avisarComoJugar();
+    };
+    esteCanal.onmessage = (evento) => { if (canalDeAviso === esteCanal) recibirAviso(evento.data); };
+    esteCanal.onclose = () => {
+      if (canalDeAviso !== esteCanal) return;
+      canalDeAviso = null;
+      jugador1EnTutorial = false;          // sin canal no se sabe: mejor no mostrar algo viejo
+      jugador1QuiereEmpezar = false;
+      pintarAvisoCompanero();
+      reintentoDeAviso = setTimeout(conectarAviso, MS_ENTRE_AVISOS);
+    };
+  }
+
+  function avisarComoJugar() {
+    if (canalDeAviso && canalDeAviso.readyState === WebSocket.OPEN)
+      canalDeAviso.send(JSON.stringify({ type: "j2_como_jugar", abierto: ComoJugar.abierto() }));
+  }
+
+  function recibirAviso(crudo) {
+    let m;
+    try { m = JSON.parse(crudo); } catch (e) { return; }
+    if (m.type === "estado_tutoriales") jugador1EnTutorial = m.jugador1_en_tutorial === true;
+    else if (m.type === "jugador1_quiere_empezar") jugador1QuiereEmpezar = ComoJugar.abierto();
+    else return;
+    pintarAvisoCompanero();
+  }
+
+  function pintarAvisoCompanero() {
+    const aviso = $("aviso-companero");
+    let titulo = "", detalle = "";
+    if (jugador1QuiereEmpezar) {
+      titulo = "EL JUGADOR 1 QUIERE EMPEZAR";
+      detalle = "Cierra «Cómo jugar» cuando termines: la partida empieza desde su tablet.";
+    } else if (jugador1EnTutorial) {
+      titulo = "EL JUGADOR 1 ESTÁ EN EL TUTORIAL";
+      detalle = "La partida empieza cuando termine y la lance desde su tablet.";
+    }
+    aviso.dataset.tipo = jugador1QuiereEmpezar ? "quiere-empezar" : "tutorial";
+    $("aviso-companero-titulo").textContent = titulo;
+    $("aviso-companero-detalle").textContent = detalle;
+    aviso.hidden = !titulo;
+    document.body.classList.toggle("con-aviso-companero", !!titulo);
+    // El menú y «Cómo jugar» se corren hacia abajo lo que mida el aviso.
+    document.documentElement.style.setProperty("--alto-aviso", titulo ? `${aviso.offsetHeight}px` : "0px");
+  }
+
+  document.addEventListener("comojugar", (evento) => {
+    if (!evento.detail.abierto) jugador1QuiereEmpezar = false;
+    avisarComoJugar();
+    pintarAvisoCompanero();
+  });
+  // Otra IP o puerto en Opciones: el canal se abre contra el juego nuevo.
+  $("host").addEventListener("change", conectarAviso);
+  $("puerto").addEventListener("change", conectarAviso);
+  window.addEventListener("resize", () => { if (!$("aviso-companero").hidden) pintarAvisoCompanero(); });
+
+  conectarAviso();
   requestAnimationFrame(cuadro);
   if (parametros.get("auto")) $("conectar").click();
   else mostrarMenu(true);

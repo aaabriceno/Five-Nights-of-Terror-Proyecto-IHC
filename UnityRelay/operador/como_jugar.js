@@ -1,7 +1,8 @@
 // «Cómo jugar» del jugador 2 (2026-11-20): 7 diapositivas cortas y una
 // práctica de mentira (practica.js) para aprender haciendo: conocer a los
 // animatrónicos, leer el panel del jugador 1, Retrasar, poner una trampa y
-// usar la terminal. No se manda nada al juego. Expone window.ComoJugar.
+// usar la terminal. No se manda nada al juego (solo se avisa que está abierto,
+// ver «comojugar» en operador.js). Expone window.ComoJugar.
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
@@ -478,16 +479,26 @@
     requestAnimationFrame(cuadro);
   }
 
+  // La sala avisa al relay cuándo está abierto (2026-11-22): mientras lo esté,
+  // el jugador 1 no puede empezar una noche.
+  function anunciar(abierto) {
+    document.dispatchEvent(new CustomEvent("comojugar", { detail: { abierto } }));
+  }
+
   function abrir(desde) {
     abridor = desde || document.activeElement;
+    const estabaCerrado = $("como-jugar").hidden;
     $("como-jugar").hidden = false;
+    if (estabaCerrado) anunciar(true);
     irA(1);
     $("cj-siguiente").focus();
     if (!animando) { animando = true; requestAnimationFrame(cuadro); }
   }
 
   function cerrar() {
+    const estabaAbierto = !$("como-jugar").hidden;
     $("como-jugar").hidden = true;
+    if (estabaAbierto) anunciar(false);
     ponerModoTrampa(false);
     if (abridor && abridor.offsetParent !== null) abridor.focus();
   }
