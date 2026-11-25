@@ -52,6 +52,7 @@ Para que el jugador 2 vea lo que hace el jugador 1 y para las acciones nuevas. T
 | `estado_operador` | Unity → J2 | Cada tick y al cambiar | `cargas`, `max_cargas`, `trampas[]`, `progreso`, `necesario`, `habilidad_puppet`, `ventana_rescate_s`, `multa_factor`, `calculos_restantes`, `calculos_de_la_noche` |
 | `ping_operador` | J2 → Unity | Cada 2 s | `t` |
 | `pong_operador` | Unity → J2 | Al recibir un ping | `t` (el mismo) |
+| `attack` | Unity → J1 y J2 | Un animatrónico atrapó al jugador 1 (llega justo antes del `game_over` con `loss`) | `animatronic` (`Freddy`, `Vixy`, `Puppet` o el genérico `Animatrónico`), `message`. Desde el 2026-11-24 la página del jugador 2 también muestra el susto: el video `jumpscare_<animatrónico>.webm` y el grito de la PC, a pantalla completa, con la misma duración que en Unity; sin video, la imagen fija. Los medios los sirve `servir_pagina.py` bajo `/sustos/`, tomados de las carpetas de Unity |
 | `game_over` | Unity → J2 (y tablet) | Al terminar la partida (`loss`, `win` o `final_victory`) | `result`, `night`, `final_stats` (duración, tareas). La página muestra el fin con «Esperar otra partida» y «Salir», y vuelve sola a esperar cuando llega el siguiente `mapa_puntos` |
 | `jugador1_salio` | Relay → J2 | La tablet mandó `disconnect` (`motivo: "salio"`) o se cayó (`"conexion_perdida"`) | `motivo`. La página tapa el monitor: «el jugador 1 se fue de la partida» o, si perdió la conexión, «el jugador 1 se desconectó · la partida terminó» |
 | `juego_cerrado` | Relay → J2 | Se cerró el Unity | La página muestra «el juego se cerró» |
@@ -151,12 +152,13 @@ UnityRelay/.venv/bin/python pruebas/probar_relay.py      # relay, incluye el rol
 ./pruebas/probar_reglas_de_operador.sh                   # recursos, tareas de la terminal, rescate de Puppet, ruta, cámara, perfil de video
 node UnityRelay/operador/probar_logica.js                # suavizado, medidor, textos de la terminal y respuestas de la página
 UnityRelay/.venv/bin/python pruebas/probar_pagina_operador.py   # la página en Firefox, con un Unity falso
+UnityRelay/.venv/bin/python pruebas/probar_servir_pagina.py     # el servidor de la página y /sustos/
 UnityRelay/.venv/bin/python pruebas/probar_operador_con_juego.py   # con el juego exportado
 UnityRelay/.venv/bin/python pruebas/medir_latencia_operador.py --lanzar   # latencia contra el juego real
 
 # Con el juego: relay + juego + página del operador
 UnityRelay/.venv/bin/python UnityRelay/relay.py &
-python3 -m http.server 8081 --directory UnityRelay/operador &
+UnityRelay/.venv/bin/python UnityRelay/servir_pagina.py 8081 UnityRelay/operador &   # con /sustos/ (videos del susto)
 # abrir http://<IP-de-la-laptop>:8081/operador.html en la otra computadora
 # (con el juego abierto y una partida iniciada desde la tablet)
 ```
