@@ -1138,9 +1138,14 @@ public class UnityGameSessionController : MonoBehaviour
         desktopJumpscareShown = true;
         if (gestorSonido != null) gestorSonido.InterrumpirEfectosPorJumpscare();
 
-        Texture2D image = desktopJumpscareImage != null
-            ? desktopJumpscareImage
-            : Resources.Load<Texture2D>("desktop_jumpscare");
+        // La cara del animatrónico que atacó, sacada de su video (2026-11-24):
+        // se ve al instante bajo el video y queda si el video no está listo.
+        // Sin ella, la imagen general (también la cara de Freddy).
+        Texture2D image = Resources.Load<Texture2D>(RutaDeJumpscare.NombreDeImagen(animatronico));
+        if (image == null)
+            image = desktopJumpscareImage != null
+                ? desktopJumpscareImage
+                : Resources.Load<Texture2D>(RutaDeJumpscare.ImagenGeneral);
         AudioClip sound = desktopJumpscareSound != null
             ? desktopJumpscareSound
             : Resources.Load<AudioClip>("desktop_jumpscare");
@@ -1161,7 +1166,6 @@ public class UnityGameSessionController : MonoBehaviour
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
 
-        RawImage imagenFija = null;
         if (image != null)
         {
             GameObject imageObject = new GameObject("JumpscareImage", typeof(RectTransform), typeof(RawImage));
@@ -1173,8 +1177,10 @@ public class UnityGameSessionController : MonoBehaviour
             rect.offsetMax = Vector2.zero;
 
             RawImage rawImage = imageObject.GetComponent<RawImage>();
-            imagenFija = rawImage;
             rawImage.texture = image;
+            // La cara mide lo mismo que el video (1280x720): mismo recorte, así
+            // no salta al taparla el video en monitores que no son 16:9.
+            rawImage.uvRect = ReproductorDeJumpscare.RecorteParaLaPantalla();
             rawImage.color = Color.white;
             rawImage.raycastTarget = true;
         }
@@ -1183,8 +1189,8 @@ public class UnityGameSessionController : MonoBehaviour
             Debug.LogError("No se encontró Resources/desktop_jumpscare.jpg para el jumpscare de Unity.");
         }
 
-        // El video del animatrónico va encima de la imagen. Si no hay video
-        // (falta el archivo o no se pudo preparar) queda la imagen, como antes.
+        // El video del animatrónico va encima de su cara. Si no hay video
+        // (falta el archivo o no se pudo preparar) queda la cara.
         float duracionDelVideo = 0f;
         if (reproductorDeJumpscare != null &&
             reproductorDeJumpscare.TryReproducir(animatronico, out RenderTexture texturaDelVideo, out duracionDelVideo))
@@ -1202,14 +1208,8 @@ public class UnityGameSessionController : MonoBehaviour
             rawVideo.uvRect = ReproductorDeJumpscare.RecorteParaLaPantalla();
             rawVideo.color = Color.white;
             rawVideo.raycastTarget = false;
-
-            // Con video, el fondo es negro: si quedara la imagen fija, se vería
-            // en cuanto el clip termine y antes de la pantalla de derrota.
-            if (imagenFija != null)
-            {
-                imagenFija.texture = null;
-                imagenFija.color = Color.black;
-            }
+            // La cara queda debajo: es el mismo animatrónico que el video
+            // (antes era un meme y se tapaba de negro).
         }
 
         AudioSource audioSource = overlay.GetComponent<AudioSource>();

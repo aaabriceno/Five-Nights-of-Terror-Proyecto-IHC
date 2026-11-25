@@ -28,4 +28,16 @@ public static class RutaDeJumpscare
             if (limpio == conocido) return "jumpscare_" + conocido + ".webm";
         return null;
     }
+
+    /// Imagen de respaldo general (en `Resources/`): la cara de Freddy.
+    public const string ImagenGeneral = "desktop_jumpscare";
+
+    /// Recurso (en `Resources/`, sin extensión) con la cara del animatrónico,
+    /// sacada de su propio video (2026-11-24). Se ve en cuanto ataca y queda si
+    /// el video no está listo. Sin un animatrónico conocido, la imagen general.
+    public static string NombreDeImagen(string animatronico)
+    {
+        string video = NombreDeArchivo(animatronico);
+        return video == null ? ImagenGeneral : video.Substring(0, video.Length - ".webm".Length);
+    }
 }
