@@ -10,7 +10,8 @@
   "use strict";
 
   const VIDEOS = ["jumpscare_freddy.webm", "jumpscare_vixy.webm", "jumpscare_puppet.webm"];
-  const IMAGEN = "desktop_jumpscare.jpg";
+  // La cara de cada animatrónico (sacada de su video) y el respaldo general.
+  const IMAGENES = ["jumpscare_freddy.jpg", "jumpscare_vixy.jpg", "jumpscare_puppet.jpg", "desktop_jumpscare.jpg"];
   const GRITO = "desktop_jumpscare.ogg";
 
   const urls = {};          // archivo -> URL blob: (solo los que cargaron)
@@ -42,7 +43,7 @@
       })
       .then((blob) => {
         urls[archivo] = URL.createObjectURL(blob);
-        if (archivo === IMAGEN) return;
+        if (IMAGENES.includes(archivo)) return;
         const elemento = archivo === GRITO ? new Audio() : document.createElement("video");
         if (archivo === GRITO) { grito = elemento; grito.preload = "auto"; }
         return medir(elemento, urls[archivo]).then((segundos) => { duraciones[archivo] = segundos; });
@@ -52,7 +53,7 @@
 
   function precargar(carpeta) {
     if (carpeta !== undefined) base = carpeta;
-    return Promise.all(VIDEOS.concat([IMAGEN, GRITO]).map(cargar)).then(() => { precargado = true; });
+    return Promise.all(VIDEOS.concat(IMAGENES, [GRITO]).map(cargar)).then(() => { precargado = true; });
   }
 
   // Algunos navegadores (Safari) solo dejan sonar un audio si se tocó dentro
@@ -106,11 +107,14 @@
     const conVideo = !!(archivo && urls[archivo]);
 
     capa.dataset.animatronico = typeof animatronico === "string" ? animatronico.trim().toLowerCase() : "";
-    imagen.src = urls[IMAGEN] || base + IMAGEN;
+    // La cara se ve desde el primer instante («¡pum!»); el video va encima y
+    // la tapa en cuanto pinta su primer cuadro. Si el video falla, queda ella.
+    const archivoDeImagen = Logica.imagenDeSusto(animatronico);
+    capa.dataset.imagen = archivoDeImagen;
+    imagen.src = urls[archivoDeImagen] || base + archivoDeImagen;
+    imagen.hidden = false;
     if (conVideo) {
-      // Con video el fondo es negro, igual que en Unity: la imagen fija no se asoma al terminar el clip.
       capa.dataset.modo = "video";
-      imagen.hidden = true;
       video.hidden = false;
       video.onerror = verImagen;
       video.src = urls[archivo];

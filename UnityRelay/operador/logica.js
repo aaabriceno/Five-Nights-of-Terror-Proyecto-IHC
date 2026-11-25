@@ -197,6 +197,14 @@
     return ANIMATRONICOS_CON_SUSTO.includes(limpio) ? "jumpscare_" + limpio + ".webm" : null;
   }
 
+  // Imagen del susto: la cara del animatrónico sacada de su video (se ve al
+  // instante, antes de que arranque el video, y queda si el video falla). Sin
+  // un animatrónico conocido, el respaldo general (también la cara de Freddy).
+  function imagenDeSusto(nombre) {
+    const video = archivoDeSusto(nombre);
+    return video ? video.replace(/\.webm$/, ".jpg") : "desktop_jumpscare.jpg";
+  }
+
   // Cuánto se ve el susto, en segundos, igual que ShowDesktopJumpscare en
   // Unity: con video, lo que dure el más largo entre video y grito; sin video,
   // la imagen fija se ve al menos 1,6 s.
@@ -207,5 +215,5 @@
     return video > 0 ? Math.max(video, sonido) : Math.max(SUSTO_MINIMO_SIN_VIDEO_S, sonido);
   }
 
-  return { archivoDeSusto, duracionDelSusto, textoDeDucto, puedeRecargar, quedanCalculos, textoDeCalculos, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
+  return { archivoDeSusto, imagenDeSusto, duracionDelSusto, textoDeDucto, puedeRecargar, quedanCalculos, textoDeCalculos, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
 });

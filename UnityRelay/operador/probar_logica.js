@@ -159,6 +159,16 @@ comprobar("vacío, undefined o un número no tienen video",
   Logica.archivoDeSusto("") === null && Logica.archivoDeSusto(undefined) === null && Logica.archivoDeSusto(5) === null);
 comprobar("un nombre con ruta no arma un archivo", Logica.archivoDeSusto("../freddy") === null);
 
+console.log("imagenDeSusto");
+comprobar("Freddy → su cara, jumpscare_freddy.jpg", Logica.imagenDeSusto("Freddy") === "jumpscare_freddy.jpg");
+comprobar("« vixy » → jumpscare_vixy.jpg", Logica.imagenDeSusto(" vixy ") === "jumpscare_vixy.jpg");
+comprobar("PUPPET → jumpscare_puppet.jpg", Logica.imagenDeSusto("PUPPET") === "jumpscare_puppet.jpg");
+comprobar("el genérico «Animatrónico» usa la imagen de respaldo general",
+  Logica.imagenDeSusto("Animatrónico") === "desktop_jumpscare.jpg");
+comprobar("vacío, undefined o con ruta → respaldo general",
+  Logica.imagenDeSusto("") === "desktop_jumpscare.jpg" && Logica.imagenDeSusto(undefined) === "desktop_jumpscare.jpg"
+  && Logica.imagenDeSusto("../freddy") === "desktop_jumpscare.jpg");
+
 console.log("duracionDelSusto");
 const cerca = (a, b) => Math.abs(a - b) < 1e-6;
 comprobar("video 1,5 s y grito 1,6155 s → dura lo que el grito", cerca(Logica.duracionDelSusto(1.5, 1.6155), 1.6155));

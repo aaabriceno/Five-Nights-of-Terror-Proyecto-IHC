@@ -23,6 +23,9 @@ UNITY_ASSETS = Path(__file__).resolve().parent.parent / "Unity" / "Assets"
 ARCHIVOS_DE_SUSTO = {
     **{f"jumpscare_{nombre}.webm": UNITY_ASSETS / "StreamingAssets" / "jumpscares" / f"jumpscare_{nombre}.webm"
        for nombre in ("freddy", "vixy", "puppet")},
+    # La cara de cada animatrónico: se ve al instante y queda si el video falla.
+    **{f"jumpscare_{nombre}.jpg": UNITY_ASSETS / "Resources" / f"jumpscare_{nombre}.jpg"
+       for nombre in ("freddy", "vixy", "puppet")},
     "desktop_jumpscare.ogg": UNITY_ASSETS / "Resources" / "desktop_jumpscare.ogg",
     "desktop_jumpscare.jpg": UNITY_ASSETS / "Resources" / "desktop_jumpscare.jpg",
 }
