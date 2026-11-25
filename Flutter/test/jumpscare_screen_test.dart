@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fn_attention_defense_tablet/models/attack.dart';
@@ -8,15 +10,24 @@ import 'package:fn_attention_defense_tablet/screens/jumpscare_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
-/// El jumpscare de la tablet usa el mismo video que la PC, y si el video no
-/// está o falla vuelve a la imagen fija de siempre: nunca queda la pantalla
-/// vacía.
+/// Un video que nunca termina de cargar (como uno muy lento en la tablet).
+class VideoQueNoCarga extends VideoPlayerController {
+  VideoQueNoCarga() : super.asset('assets/videos/jumpscare_puppet.webm');
+
+  @override
+  Future<void> initialize() => Completer<void>().future;
+}
+
+/// El jumpscare de la tablet usa el mismo video que la PC. Desde el
+/// 2026-11-24 la cara del animatrónico (sacada de su video) y el grito salen
+/// al instante, sin esperar al video; el video la tapa al cargar y, si falla,
+/// queda la cara: nunca queda la pantalla vacía.
 void main() {
-  Finder imagenFija() => find.byWidgetPredicate(
+  Finder imagen(String ruta) => find.byWidgetPredicate(
     (Widget w) =>
         w is Image &&
         w.image is AssetImage &&
-        (w.image as AssetImage).assetName == 'assets/images/jumpscare.jpg',
+        (w.image as AssetImage).assetName == ruta,
   );
 
   Future<void> montar(
@@ -66,7 +77,46 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
-  testWidgets('si el video falla, queda la imagen fija y el nombre', (
+  testWidgets('la cara del que atacó y el grito salen al instante, sin esperar al video', (
+    tester,
+  ) async {
+    int gritos = 0;
+    await montar(
+      tester,
+      JumpscareScreen(
+        crearControlador: (String ruta) => VideoQueNoCarga(),
+        reproducirGrito: () async => gritos++,
+      ),
+      animatronico: 'Puppet',
+    );
+    expect(imagen('assets/images/jumpscare_puppet.jpg'), findsOneWidget);
+    expect(gritos, 1);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('si el video no termina de cargar, igual pasa a "juego terminado" a los 1,6 s', (
+    tester,
+  ) async {
+    await montar(
+      tester,
+      JumpscareScreen(
+        crearControlador: (String ruta) => VideoQueNoCarga(),
+        reproducirGrito: () async {},
+      ),
+      animatronico: 'Puppet',
+    );
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(find.byType(GameOverScreen), findsNothing);
+    expect(imagen('assets/images/jumpscare_puppet.jpg'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+    expect(find.byType(GameOverScreen), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('si el video falla, queda la cara de Freddy y el nombre', (
     tester,
   ) async {
     VideoPlayerController falla(String ruta) =>
@@ -78,13 +128,13 @@ void main() {
       animatronico: 'Freddy',
     );
     await tester.pump();
-    expect(imagenFija(), findsOneWidget);
+    expect(imagen('assets/images/jumpscare_freddy.jpg'), findsOneWidget);
     expect(find.text('FREDDY'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 3));
   });
 
-  testWidgets('un animatrónico sin video ni intenta cargarlo: imagen fija', (
+  testWidgets('un animatrónico sin video ni intenta cargarlo: imagen general', (
     tester,
   ) async {
     int pedidos = 0;
@@ -96,7 +146,7 @@ void main() {
     await montar(tester, JumpscareScreen(crearControlador: nunca));
     await tester.pump();
     expect(pedidos, 0);
-    expect(imagenFija(), findsOneWidget);
+    expect(imagen('assets/images/jumpscare.jpg'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 3));
   });

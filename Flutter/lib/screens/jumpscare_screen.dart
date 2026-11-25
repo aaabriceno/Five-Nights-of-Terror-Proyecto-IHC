@@ -20,17 +20,22 @@ VideoPlayerController crearControladorDeJumpscare(String ruta) =>
     );
 
 /// Jumpscare de la tablet: el mismo video que se ve en la PC (uno por
-/// animatrónico) con el sonido del jumpscare. Si el animatrónico no tiene
-/// video o este no se puede reproducir, queda la imagen fija de siempre.
+/// animatrónico) con el sonido del jumpscare. Desde el 2026-11-24 la cara del
+/// animatrónico (sacada de su video) y el grito salen al instante; el video la
+/// tapa en cuanto carga. Si no hay video o no se puede reproducir, queda la cara.
 class JumpscareScreen extends StatefulWidget {
   /// [crearControlador] existe para poder probar la pantalla sin un
   /// reproductor de video real.
   const JumpscareScreen({
     super.key,
     this.crearControlador = crearControladorDeJumpscare,
+    this.reproducirGrito,
   });
 
   final VideoPlayerController Function(String ruta) crearControlador;
+
+  /// Reproduce el grito; null = `sounds/jumpscare.ogg`. Existe para las pruebas.
+  final Future<void> Function()? reproducirGrito;
 
   @override
   State<JumpscareScreen> createState() => _JumpscareScreenState();
@@ -46,10 +51,6 @@ class _JumpscareScreenState extends State<JumpscareScreen> {
   VideoPlayerController? _video;
   bool _videoListo = false;
 
-  /// La imagen fija solo se ve cuando no hay video: así no aparece un
-  /// instante mientras el video carga ni cuando termina.
-  bool _mostrarImagen = false;
-
   @override
   void initState() {
     super.initState();
@@ -60,6 +61,11 @@ class _JumpscareScreenState extends State<JumpscareScreen> {
   Future<void> _arrancar() async {
     final String? quien = context.read<GameProvider>().lastAttack?.animatronic;
     final String? ruta = rutaDeVideoDeJumpscare(quien);
+
+    // ¡Pum!: el grito y la cuenta de 1,6 s arrancan ya, igual que en la PC.
+    // La cara se ve desde el primer cuadro (build) y el video la tapa al cargar.
+    _playJumpscare();
+    _finishTimer = Timer(_duracion, _showGameOver);
 
     if (ruta != null) {
       try {
@@ -78,15 +84,12 @@ class _JumpscareScreenState extends State<JumpscareScreen> {
         _video = null;
       }
     }
-    if (!mounted) return;
-    if (_video == null) setState(() => _mostrarImagen = true);
-
-    _playJumpscare();
-    _finishTimer = Timer(_duracion, _showGameOver);
   }
 
   Future<void> _playJumpscare() async {
     try {
+      final Future<void> Function()? reproducir = widget.reproducirGrito;
+      if (reproducir != null) return await reproducir();
       await _audioPlayer.play(AssetSource('sounds/jumpscare.ogg'));
     } catch (error) {
       debugPrint('No se pudo reproducir el sonido del jumpscare: $error');
@@ -118,11 +121,11 @@ class _JumpscareScreenState extends State<JumpscareScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (_mostrarImagen)
-            const Image(
-              image: AssetImage('assets/images/jumpscare.jpg'),
-              fit: BoxFit.cover,
-            ),
+          Image(
+            image: AssetImage(rutaDeImagenDeJumpscare(quien)),
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+          ),
           if (_videoListo && video != null)
             FittedBox(
               fit: BoxFit.cover,

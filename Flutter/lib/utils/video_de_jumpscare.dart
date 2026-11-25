@@ -13,3 +13,13 @@ String? rutaDeVideoDeJumpscare(String? animatronico) {
   if (!animatronicosConVideo.contains(limpio)) return null;
   return 'assets/videos/jumpscare_$limpio.webm';
 }
+
+/// Ruta de la cara de [animatronico] dentro de los assets (2026-11-24): el
+/// cuadro de su video con la cara llena. Se ve al instante, antes de que
+/// cargue el video, y queda si el video falla. Para un nombre ausente o
+/// desconocido, la imagen general (también la cara de Freddy).
+String rutaDeImagenDeJumpscare(String? animatronico) {
+  final String limpio = (animatronico ?? '').trim().toLowerCase();
+  if (!animatronicosConVideo.contains(limpio)) return 'assets/images/jumpscare.jpg';
+  return 'assets/images/jumpscare_$limpio.jpg';
+}

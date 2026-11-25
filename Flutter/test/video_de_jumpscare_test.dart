@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fn_attention_defense_tablet/utils/video_de_jumpscare.dart';
 
@@ -41,6 +43,45 @@ void main() {
 
     test('hay un video por cada animatrónico de la lista', () {
       expect(animatronicosConVideo, <String>['freddy', 'vixy', 'puppet']);
+    });
+  });
+
+  // La cara de respaldo (2026-11-24): sacada del video de cada animatrónico,
+  // se ve al instante y queda si el video no se puede reproducir.
+  group('rutaDeImagenDeJumpscare', () {
+    test('cada animatrónico conocido tiene su cara', () {
+      expect(
+        rutaDeImagenDeJumpscare('Freddy'),
+        'assets/images/jumpscare_freddy.jpg',
+      );
+      expect(
+        rutaDeImagenDeJumpscare(' vixy '),
+        'assets/images/jumpscare_vixy.jpg',
+      );
+      expect(
+        rutaDeImagenDeJumpscare('PUPPET'),
+        'assets/images/jumpscare_puppet.jpg',
+      );
+    });
+
+    test('un nombre ausente o desconocido usa la imagen general', () {
+      expect(rutaDeImagenDeJumpscare(null), 'assets/images/jumpscare.jpg');
+      expect(rutaDeImagenDeJumpscare(''), 'assets/images/jumpscare.jpg');
+      expect(
+        rutaDeImagenDeJumpscare('Animatrónico'),
+        'assets/images/jumpscare.jpg',
+      );
+      expect(
+        rutaDeImagenDeJumpscare('../freddy'),
+        'assets/images/jumpscare.jpg',
+      );
+    });
+
+    test('las cuatro imágenes existen en los assets', () {
+      for (final String? quien in <String?>[null, ...animatronicosConVideo]) {
+        final String ruta = rutaDeImagenDeJumpscare(quien);
+        expect(File(ruta).existsSync(), isTrue, reason: ruta);
+      }
     });
   });
 }
