@@ -11,11 +11,11 @@ Necesita firefox y geckodriver (snap). No usa el puerto 8000.
 import argparse
 import asyncio
 import base64
-import http.server
 import json
 import os
 import socketserver
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -26,6 +26,8 @@ from pathlib import Path
 import websockets
 
 RAIZ = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(RAIZ / "UnityRelay"))
+import servir_pagina  # noqa: E402  el mismo servidor que usa iniciar.sh (con /sustos/)
 CARPETA_PAGINA = RAIZ / "UnityRelay" / "operador"
 PUERTO_WEB = 8095
 PUERTO_UNITY = 8015
@@ -50,14 +52,10 @@ def comprobar(descripcion, condicion):
 
 
 # ---------------------------------------------------------------- servidor web
-class SinRegistro(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
-
-
 def levantar_web():
     socketserver.TCPServer.allow_reuse_address = True
-    servidor = socketserver.TCPServer(("127.0.0.1", PUERTO_WEB), partial(SinRegistro, directory=str(CARPETA_PAGINA)))
+    servidor = socketserver.ThreadingTCPServer(("127.0.0.1", PUERTO_WEB),
+                                               partial(servir_pagina.SinCache, directory=str(CARPETA_PAGINA)))
     threading.Thread(target=servidor.serve_forever, daemon=True).start()
     return servidor
 
@@ -115,6 +113,11 @@ async def servidor_falso(socket):
         await unity_falso(socket, primero)
 
 
+def ataque(animatronico):
+    return {"type": "attack", "attack_id": "atk_1", "animatronic": animatronico,
+            "message": f"{animatronico} te encontró", "timestamp": int(time.time() * 1000)}
+
+
 async def unity_falso(socket, primero):
     """Se comporta como Unity con un operador conectado."""
     envios = []
@@ -147,7 +150,11 @@ async def unity_falso(socket, primero):
             elif orden[0] == "rechazar":
                 await enviar({"type": "operador_rechazado", "motivo": "tiempo_agotado"})
                 await socket.close()
+            elif orden[0] == "ataque":
+                await enviar(ataque(orden[1]))
             elif orden[0] == "fin":
+                if orden[1] == "loss":
+                    await enviar(ataque("Freddy"))     # como Unity: primero el ataque, después el game_over
                 await enviar({"type": "game_over", "result": orden[1], "night": 2,
                               "final_stats": {"duration": 125, "tasks_completed": 7, "tasks_failed": 1,
                                               "total_damage": 100, "score": 700},
@@ -227,7 +234,10 @@ class Navegador:
         time.sleep(1.5)
         respuesta = self._pedir("POST", "/session", {"capabilities": {"alwaysMatch": {
             "browserName": "firefox",
-            "moz:firefoxOptions": {"args": ["-headless", "-profile", self.perfil]}}}})
+            # Sin gesto real (los clics de la prueba son por JavaScript), Firefox no
+            # dejaría sonar el grito del susto: se permite el autoplay con sonido.
+            "moz:firefoxOptions": {"args": ["-headless", "-profile", self.perfil],
+                                   "prefs": {"media.autoplay.default": 0}}}}})
         self.sesion = respuesta["value"]["sessionId"]
 
     def _pedir(self, metodo, ruta, cuerpo=None):
@@ -722,7 +732,41 @@ async def principal(captura):
         # --- fin de la partida: el jugador 2 no se queda con la pantalla congelada ---
         js = lambda codigo: navegador.ejecutar(codigo)
         visible = "var f=document.getElementById('fin-partida');return !!f && !f.hidden;"
+        susto = "var s=document.getElementById('susto');return !!s && !s.hidden;"
+        dato = lambda clave: navegador.ejecutar(
+            "var s=document.getElementById('susto');return s ? (s.dataset[arguments[0]] || '') : '';", [clave])
+        comprobar("la página precargó el susto (videos, imagen y grito) desde /sustos/",
+                  await esperar(lambda: js("return !!window.Susto && Susto.listo();"), 8.0))
+        comprobar("mientras juegan no hay susto en pantalla", not js(susto))
         ORDENES.put_nowait(("fin", "loss"))
+        # --- el susto también le llega al jugador 2 (2026-11-24) ---
+        comprobar("al atrapar al jugador 1, el jugador 2 ve el susto al instante (≤ 1 s)",
+                  await esperar(lambda: js(susto), 1.0))
+        comprobar("el susto es el de Freddy, en video", dato("animatronico") == "freddy" and dato("modo") == "video")
+        comprobar("el video del susto se está reproduciendo",
+                  await esperar(lambda: js("var v=document.getElementById('susto-video');"
+                                           "return !v.hidden && (!v.paused || v.currentTime > 0);"), 1.0))
+        comprobar("suena el grito", await esperar(lambda: dato("sonido") == "sonando", 1.0))
+        # Toda la ventana (innerWidth/innerHeight), también donde iría la barra de
+        # desplazamiento: durante el susto la página la oculta.
+        medidas = js("var r=document.getElementById('susto').getBoundingClientRect();"
+                     "return [r.left,r.top,r.right,r.bottom,innerWidth,innerHeight];")
+        comprobar(f"el susto tapa toda la ventana, sin barras de desplazamiento al lado (capa y ventana: {medidas})",
+                  medidas[0] <= 0 and medidas[1] <= 0 and medidas[2] >= medidas[4] and medidas[3] >= medidas[5])
+        comprobar("el susto va encima de la tarjeta de fin, la mini-tarea y el aviso del compañero",
+                  js("var z=function(id){return parseInt(getComputedStyle(document.getElementById(id)).zIndex)||0;};"
+                     "var s=z('susto');return s>z('fin-partida') && s>z('minitarea') && s>z('aviso-companero');"))
+        comprobar("en el centro y en las esquinas lo que se ve es el susto",
+                  js("var s=document.getElementById('susto');"
+                     "var w=innerWidth,h=innerHeight;"
+                     "return [[w/2,h/2],[2,2],[w-3,h-3],[w/2,4]]"
+                     ".every(function(p){var e=document.elementFromPoint(p[0],p[1]);return !!e && s.contains(e);});"))
+        comprobar("un segundo ataque con el susto en pantalla no lo repite",
+                  js("return Susto.mostrar('vixy');") is False and dato("animatronico") == "freddy")
+        comprobar("al terminar el susto (≤ 3 s) se ve la tarjeta de fin",
+                  await esperar(lambda: not js(susto), 3.0) and js(visible))
+        comprobar("y la página vuelve a poder desplazarse",
+                  js("return getComputedStyle(document.documentElement).overflow !== 'hidden';"))
         comprobar("al morir el jugador 1 aparece #fin-partida",
                   await esperar(lambda: js(visible), 5.0))
         comprobar("el fin dice que el jugador 1 fue atrapado",
@@ -743,9 +787,31 @@ async def principal(captura):
         comprobar("al empezar otra noche el mapa vuelve a estar listo y #noche muestra 3",
                   await esperar(lambda: js("return document.getElementById('mapa').dataset.estado==='listo';")
                                 and (navegador.texto("noche") or "") == "3", 5.0))
+        # Un atacante sin video (el genérico «Animatrónico») muestra la imagen fija.
+        ORDENES.put_nowait(("ataque", "Animatrónico"))
+        comprobar("sin video para el atacante, el susto es la imagen fija",
+                  await esperar(lambda: js(susto), 1.0) and dato("modo") == "imagen"
+                  and js("var i=document.getElementById('susto-imagen');"
+                         "return !i.hidden && i.complete && i.naturalWidth > 0;")
+                  and js("return document.getElementById('susto-video').hidden;"))
+        comprobar("la imagen fija también se va sola (≤ 3 s)", await esperar(lambda: not js(susto), 3.0))
+        # El navegador no deja sonar el grito (no hubo clic): el susto se ve igual.
+        js("window.__playOriginal = HTMLMediaElement.prototype.play;"
+           "HTMLMediaElement.prototype.play = function () {"
+           "  if (this instanceof HTMLAudioElement) return Promise.reject(new DOMException('sin gesto', 'NotAllowedError'));"
+           "  return window.__playOriginal.apply(this, arguments); };")
+        ORDENES.put_nowait(("ataque", "Vixy"))
+        comprobar("si el navegador bloquea el grito, el susto de Vixy se ve igual",
+                  await esperar(lambda: js(susto), 1.0) and dato("animatronico") == "vixy" and dato("modo") == "video"
+                  and await esperar(lambda: dato("sonido") == "bloqueado", 1.0))
+        comprobar("y se va solo (≤ 3 s)", await esperar(lambda: not js(susto), 3.0))
+        js("HTMLMediaElement.prototype.play = window.__playOriginal;")
+        errores = navegador.ejecutar("return (window.__errores || []).length;")
+        comprobar(f"sin errores de JavaScript con el susto (errores: {errores})", errores == 0)
         ORDENES.put_nowait(("fin", "win"))
         comprobar("si el jugador 1 gana, el fin dice que sobrevivió",
                   await esperar(lambda: js(visible) and "SOBREVIVI" in (navegador.texto("fin-detalle") or "").upper(), 5.0))
+        comprobar("si el jugador 1 gana no hay susto", not js(susto))
         navegador.ejecutar("document.getElementById('fin-salir').click();")
         comprobar("«Salir» desconecta, oculta el fin y vuelve al menú",
                   await esperar(lambda: "Desconectado" in (navegador.texto("estado-conexion") or "")

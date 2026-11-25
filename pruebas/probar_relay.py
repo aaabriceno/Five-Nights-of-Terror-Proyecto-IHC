@@ -625,6 +625,28 @@ async def caso_nadie_empieza_con_el_otro_en_el_tutorial():
             comprobar("ni le llega a Unity", await recibir_o_nada(unity, 0.4) is None)
 
 
+async def caso_el_susto_llega_a_los_dos_jugadores():
+    print("Caso 19: el ataque y el game_over llegan a la tablet y al jugador 2, en ese orden (susto del J2)")
+    ataque = json.dumps({"type": "attack", "attack_id": "atk_1", "animatronic": "Freddy",
+                         "message": "Freddy te encontró", "timestamp": 1})
+    fin = json.dumps({"type": "game_over", "result": "loss", "night": 2, "final_stats": {}, "timestamp": 2})
+    async with websockets.connect(URL) as unity, websockets.connect(URL) as tablet, \
+            websockets.connect(URL) as operador:
+        await unity.send(json.dumps({"type": "unity_connect"}))
+        await tablet.send(CONNECT_TUTORIAL)
+        await operador.send(OPERADOR_CONNECT)
+        await asyncio.sleep(0.3)
+        for socket in (unity, tablet, operador):
+            while await recibir_o_nada(socket, 0.2) is not None:
+                pass
+        await unity.send(ataque)
+        await unity.send(fin)
+        comprobar("el jugador 2 recibe el ataque (con el animatrónico) y después el game_over",
+                  [await recibir_o_nada(operador), await recibir_o_nada(operador)] == [ataque, fin])
+        comprobar("la tablet también los recibe, en el mismo orden",
+                  [await recibir_o_nada(tablet), await recibir_o_nada(tablet)] == [ataque, fin])
+
+
 async def con_relay(entorno, caso):
     """Corre `caso` con un relay propio (otras esperas de keepalive que el de las demás pruebas)."""
     relay = subprocess.Popen([sys.executable, "-u", str(RAIZ / "UnityRelay" / "relay.py")],
@@ -666,6 +688,7 @@ async def principal():
         await caso_cada_rol_manda_solo_lo_suyo()
         await caso_una_sola_tablet_por_partida()
         await caso_nadie_empieza_con_el_otro_en_el_tutorial()
+        await caso_el_susto_llega_a_los_dos_jugadores()
     finally:
         relay.terminate()
         relay.wait()
