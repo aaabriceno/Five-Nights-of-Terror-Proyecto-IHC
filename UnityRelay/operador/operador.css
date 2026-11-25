@@ -549,3 +549,10 @@ body.con-aviso-companero #como-jugar { padding-top: calc(16px + var(--alto-aviso
 .cj-resumen td:first-child { color: var(--alerta); font-weight: 700; }
 .cj-resumen td:nth-child(2) { color: #ffb4a8; }
 .cj-resumen td:nth-child(3) { color: #b9f5c6; }
+
+/* Susto del jugador 2 (2026-11-24): encima de todo (tarjeta de fin, mini-tarea,
+   aviso del compañero, menú) y a pantalla completa, como el jumpscare de la PC. */
+#susto { position: fixed; inset: 0; z-index: 20; background: #000; }
+#susto img, #susto video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#susto[hidden], #susto [hidden] { display: none; }
+html.con-susto { overflow: hidden; }

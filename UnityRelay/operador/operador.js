@@ -188,6 +188,11 @@
     // el eco de la latencia y un segundo game_over; el resto llega tarde.
     if (finDePartida && m.type !== "mapa_puntos" && m.type !== "pong_operador" && m.type !== "game_over") return;
     switch (m.type) {
+      case "attack":
+        // Atraparon al jugador 1: el jugador 2 también ve el susto. El
+        // game_over llega justo después y arma la tarjeta de fin debajo.
+        Susto.mostrar(m.animatronic);
+        break;
       case "game_over":
         mostrarFin(m);
         break;
@@ -968,6 +973,7 @@
   window.addEventListener("resize", () => { if (!$("aviso-companero").hidden) pintarAvisoCompanero(); });
 
   conectarAviso();
+  Susto.precargar();
   requestAnimationFrame(cuadro);
   if (parametros.get("auto")) $("conectar").click();
   else mostrarMenu(true);

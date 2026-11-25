@@ -359,9 +359,17 @@
   </div>
 </div>
 
+<!-- Susto (2026-11-24): cuando atrapan al jugador 1, el jugador 2 también ve el
+     jumpscare. Tapa todo, incluida la tarjeta de fin, y se va solo (susto.js). -->
+<div id="susto" hidden aria-hidden="true">
+  <img id="susto-imagen" alt="">
+  <video id="susto-video" muted playsinline preload="auto"></video>
+</div>
+
 <script src="logica.js"></script>
 <script src="practica.js"></script>
 <script src="como_jugar.js"></script>
+<script src="susto.js"></script>
 <script src="operador.js"></script>
 </body>
 </html>

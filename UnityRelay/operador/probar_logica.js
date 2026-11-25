@@ -150,6 +150,23 @@ const validas = Logica.piezasValidas([
 comprobar("piezasValidas descarta números rotos, nulos y tipos desconocidos", validas.length === 4);
 comprobar("con algo que no es lista devuelve una lista vacía", Logica.piezasValidas("x").length === 0);
 
+console.log("archivoDeSusto");
+comprobar("Freddy → jumpscare_freddy.webm", Logica.archivoDeSusto("Freddy") === "jumpscare_freddy.webm");
+comprobar("« vixy » (espacios) → jumpscare_vixy.webm", Logica.archivoDeSusto(" vixy ") === "jumpscare_vixy.webm");
+comprobar("PUPPET → jumpscare_puppet.webm", Logica.archivoDeSusto("PUPPET") === "jumpscare_puppet.webm");
+comprobar("el genérico «Animatrónico» no tiene video", Logica.archivoDeSusto("Animatrónico") === null);
+comprobar("vacío, undefined o un número no tienen video",
+  Logica.archivoDeSusto("") === null && Logica.archivoDeSusto(undefined) === null && Logica.archivoDeSusto(5) === null);
+comprobar("un nombre con ruta no arma un archivo", Logica.archivoDeSusto("../freddy") === null);
+
+console.log("duracionDelSusto");
+const cerca = (a, b) => Math.abs(a - b) < 1e-6;
+comprobar("video 1,5 s y grito 1,6155 s → dura lo que el grito", cerca(Logica.duracionDelSusto(1.5, 1.6155), 1.6155));
+comprobar("video 3 s y grito 1,6 s → dura lo que el video", Logica.duracionDelSusto(3, 1.6) === 3);
+comprobar("sin video: lo que dura el grito si pasa de 1,6 s", cerca(Logica.duracionDelSusto(0, 1.6155), 1.6155));
+comprobar("sin video y grito corto: 1,6 s como mínimo", Logica.duracionDelSusto(0, 0.5) === 1.6);
+comprobar("duraciones rotas (NaN) cuentan como sin video ni grito", Logica.duracionDelSusto(NaN, 0) === 1.6);
+
 
 console.log(fallos === 0 ? "\nTodas las pruebas pasaron." : `\n${fallos} prueba(s) fallaron.`);
 process.exit(fallos ? 1 : 0);

@@ -186,5 +186,26 @@
     return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
   }
 
-  return { textoDeDucto, puedeRecargar, quedanCalculos, textoDeCalculos, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
+  // Susto del jugador 2 (2026-11-24): la misma regla que RutaDeJumpscare.cs en
+  // Unity. Solo los tres animatrónicos con video dan un archivo; cualquier otro
+  // texto (el genérico «Animatrónico», vacío, algo con una ruta) da null y se
+  // muestra la imagen fija.
+  const ANIMATRONICOS_CON_SUSTO = ["freddy", "vixy", "puppet"];
+  function archivoDeSusto(nombre) {
+    if (typeof nombre !== "string") return null;
+    const limpio = nombre.trim().toLowerCase();
+    return ANIMATRONICOS_CON_SUSTO.includes(limpio) ? "jumpscare_" + limpio + ".webm" : null;
+  }
+
+  // Cuánto se ve el susto, en segundos, igual que ShowDesktopJumpscare en
+  // Unity: con video, lo que dure el más largo entre video y grito; sin video,
+  // la imagen fija se ve al menos 1,6 s.
+  const SUSTO_MINIMO_SIN_VIDEO_S = 1.6;
+  function duracionDelSusto(duracionVideo, duracionSonido) {
+    const video = Number.isFinite(duracionVideo) && duracionVideo > 0 ? duracionVideo : 0;
+    const sonido = Number.isFinite(duracionSonido) && duracionSonido > 0 ? duracionSonido : 0;
+    return video > 0 ? Math.max(video, sonido) : Math.max(SUSTO_MINIMO_SIN_VIDEO_S, sonido);
+  }
+
+  return { archivoDeSusto, duracionDelSusto, textoDeDucto, puedeRecargar, quedanCalculos, textoDeCalculos, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
 });
