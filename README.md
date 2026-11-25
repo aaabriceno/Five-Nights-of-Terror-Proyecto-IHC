@@ -80,6 +80,7 @@ Desde otra computadora o un celular, en una página web:
 - Las acciones están ordenadas por lo que hacen, cada una con su costo a la vista: **Frenar** (Retrasar y trampas), **Terminal** (cálculo y ecuación) y **Salvar a Puppet** (rescate).
 - Su menú tiene un **«Cómo jugar»** de 8 diapositivas con práctica simulada y animada: qué te cuesta y qué te da cada acción (Retrasar, trampa, cálculo, ecuación y rescate), con un ejercicio en cada una.
 - **Nadie empieza con el otro en el tutorial:** mientras el jugador 2 tenga «Cómo jugar» abierto, la tablet no puede lanzar la noche (dice «El jugador 2 sigue en "Cómo jugar"» y deja reintentar); y si el jugador 1 está en el tutorial, la página del jugador 2 lo avisa con una franja arriba.
+- **El susto también le llega al jugador 2:** cuando atrapan al jugador 1, su página muestra el mismo jumpscare (video del animatrónico y grito) a pantalla completa, y después la tarjeta de fin. El grito suena si en esa página ya se hizo algún clic (por ejemplo «Entrar a la sala»).
 - Con el jugador 2 conectado, Freddy y Vixy van más rápido.
 
 ### Si se corta la red
@@ -129,11 +130,12 @@ Escena principal: `Assets/MediaPipeUnity/Samples/Scenes/Face Landmark Detection/
 ### 3. UnityRelay (`UnityRelay/`)
 
 - `relay.py`: relay WebSocket en el puerto 8000 (Python 3.12, `websockets`).
-- `servir_pagina.py`: sirve la página del jugador 2 en el puerto 8081 sin caché, para que siempre se vea la última versión.
+- `servir_pagina.py`: sirve la página del jugador 2 en el puerto 8081 sin caché, para que siempre se vea la última versión. Bajo `/sustos/` sirve los videos, la imagen y el grito del jumpscare, tomados de las carpetas de Unity.
 - `operador/`: la página del jugador 2:
   - `operador.html`, `operador.css` y `operador.js`: la sala de control.
   - `logica.js`: la lógica pura de la sala.
   - `practica.js` y `como_jugar.js`: el «Cómo jugar» con práctica.
+  - `susto.js`: el jumpscare del jugador 2.
 
 ### 4. Scripts de la raíz
 
@@ -211,6 +213,7 @@ Si algo falla, el relay deja su salida en `Unity/Builds/Linux/relay.log`.
 | Tablet | `cd Flutter && flutter test` |
 | Relay | `UnityRelay/.venv/bin/python pruebas/probar_relay.py` |
 | Página del jugador 2 (Firefox sin ventana) | `UnityRelay/.venv/bin/python pruebas/probar_pagina_operador.py` |
+| Servidor de la página (y `/sustos/`) | `UnityRelay/.venv/bin/python pruebas/probar_servir_pagina.py` |
 | Lógica de la página y de la práctica | `node UnityRelay/operador/probar_logica.js` y `node UnityRelay/operador/probar_practica.js` |
 | Juego real exportado (abre el juego y la cámara) | `pruebas/probar_*_con_juego.py` |
 | Scripts de arranque (con el puerto 8000 libre) | `./pruebas/probar_iniciar.sh` y `./pruebas/probar_direccion_de_red.sh` |
