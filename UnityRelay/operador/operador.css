@@ -556,3 +556,54 @@ body.con-aviso-companero #como-jugar { padding-top: calc(16px + var(--alto-aviso
 #susto img, #susto video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 #susto[hidden], #susto [hidden] { display: none; }
 html.con-susto { overflow: hidden; }
+
+/* ---------------------------------------------- sala inmersiva (2026-11-24)
+   Teclas en los botones, botón que se hunde, destellos, saltos, temblor y el
+   borde rojo del peligro. Con prefers-reduced-motion (regla de arriba) no se
+   anima nada: el borde queda fijo. */
+button[data-tecla]::before {
+  content: attr(data-tecla);
+  display: inline-block;
+  min-width: 1.5em;
+  margin-right: .55em;
+  padding: 0 .3em;
+  border: 1px solid currentColor;
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  font-size: .72em;
+  line-height: 1.5;
+  text-align: center;
+  opacity: .7;
+}
+/* En un celular o tablet sin teclado las teclas no sirven: no se muestran. */
+@media (hover: none) and (pointer: coarse) { button[data-tecla]::before { display: none; } }
+button.pulsado:not(:disabled) { transform: translateY(1px) scale(.95); background: #1d4a2e; }
+
+.amenaza.destello { animation: destello 900ms ease-out; }
+@keyframes destello {
+  0% { background: rgba(255, 210, 74, .28); box-shadow: inset 3px 0 0 var(--alerta); }
+  100% { background: transparent; box-shadow: inset 3px 0 0 transparent; }
+}
+#cargas.salto, #habilidad.salto { display: inline-block; animation: salto 700ms var(--entrada); }
+@keyframes salto { 30% { transform: scale(1.5); color: var(--alerta); } }
+.panel.temblor { animation: temblor 600ms ease-out; }
+@keyframes temblor {
+  10%, 50%, 90% { transform: translateX(-6px); border-color: var(--peligro); }
+  30%, 70% { transform: translateX(6px); border-color: var(--peligro); }
+}
+
+#borde-peligro {
+  position: fixed; inset: 0; z-index: 12;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease-out;
+}
+#borde-peligro[data-nivel="alerta"] { opacity: 1; box-shadow: inset 0 0 70px 6px rgba(255, 60, 60, .35); }
+#borde-peligro[data-nivel="peligro"] {
+  opacity: 1;
+  box-shadow: inset 0 0 130px 26px rgba(255, 30, 30, .62);
+  animation: latido-rojo 900ms ease-in-out infinite;
+}
+@keyframes latido-rojo { 50% { opacity: .5; } }
+
+#menu-panel-opciones label.casilla { flex-direction: row; align-items: center; gap: 8px; margin-top: 10px; color: var(--texto); font-size: 13px; }

@@ -169,6 +169,32 @@ comprobar("vacío, undefined o con ruta → respaldo general",
   Logica.imagenDeSusto("") === "desktop_jumpscare.jpg" && Logica.imagenDeSusto(undefined) === "desktop_jumpscare.jpg"
   && Logica.imagenDeSusto("../freddy") === "desktop_jumpscare.jpg");
 
+console.log("accionDeTecla");
+const tecla = (key, extra) => Logica.accionDeTecla(Object.assign({ key }, extra || {}));
+comprobar("1, 2 y 3 retrasan a Freddy, Vixy y Puppet",
+  tecla("1") === "boton-freddy" && tecla("2") === "boton-vixy" && tecla("3") === "boton-puppet");
+comprobar("T (o t) coloca trampa", tecla("t") === "boton-trampa" && tecla("T") === "boton-trampa");
+comprobar("C cálculo, E ecuación, R rescate",
+  tecla("c") === "boton-minitarea" && tecla("E") === "boton-ecuacion" && tecla("r") === "boton-rescate");
+comprobar("una tecla sin atajo no hace nada", tecla("x") === null && tecla("4") === null && tecla(" ") === null);
+comprobar("con Ctrl, Alt o Meta no hace nada",
+  tecla("1", { ctrlKey: true }) === null && tecla("t", { altKey: true }) === null && tecla("r", { metaKey: true }) === null);
+comprobar("la tecla mantenida (repetida) no repite la acción", tecla("1", { repeat: true }) === null);
+comprobar("escribiendo en un campo no hay atajos", tecla("1", { escribiendo: true }) === null);
+comprobar("con un diálogo encima o sin conexión no hay atajos", tecla("c", { bloqueada: true }) === null);
+
+console.log("nivelDePeligro");
+const nivel = (extra) => Logica.nivelDePeligro(Object.assign({ enPartida: true, distancias: [] }, extra));
+comprobar("sin partida no hay peligro aunque esté encima",
+  Logica.nivelDePeligro({ enPartida: false, distancias: [0.5], puppetFuera: true }) === "");
+comprobar("todos lejos (5 m): nada", nivel({ distancias: [5, 8] }) === "");
+comprobar("uno a 3,9 m: alerta", nivel({ distancias: [5, 3.9] }) === "alerta");
+comprobar("uno a 1,9 m (señal perdida): peligro", nivel({ distancias: [3, 1.9] }) === "peligro");
+comprobar("caja de Puppet en peligro: alerta", nivel({ cajaEnPeligro: true }) === "alerta");
+comprobar("batería en 20 %: alerta; en 21 %: nada", nivel({ bateria: 20 }) === "alerta" && nivel({ bateria: 21 }) === "");
+comprobar("Puppet fuera de la caja: peligro", nivel({ puppetFuera: true }) === "peligro");
+comprobar("distancias desconocidas (null) no cuentan", nivel({ distancias: [null, undefined, NaN] }) === "");
+
 console.log("duracionDelSusto");
 const cerca = (a, b) => Math.abs(a - b) < 1e-6;
 comprobar("video 1,5 s y grito 1,6155 s → dura lo que el grito", cerca(Logica.duracionDelSusto(1.5, 1.6155), 1.6155));

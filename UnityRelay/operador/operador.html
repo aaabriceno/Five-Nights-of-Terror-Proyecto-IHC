@@ -177,6 +177,7 @@
           <label>IP del juego <input id="host" size="14" autocomplete="off"></label>
           <label>Puerto <input id="puerto" value="8000" size="5" inputmode="numeric"></label>
         </div>
+        <label class="casilla"><input type="checkbox" id="sonidos" checked> Sonidos de la sala</label>
       </div>
       <p id="menu-nota" class="nota" aria-live="polite"></p>
     </div>
@@ -346,6 +347,7 @@
           <li><b>OJO</b> Contigo conectado, Freddy y Vixy van más rápido.</li>
           <li><b>15 s</b> Si pierdes la conexión, tienes 15 s para volver.</li>
           <li><b>FIN</b> Si se desconecta el jugador 1, la partida termina.</li>
+          <li><b>TECLAS</b> 1 2 3 Retrasar · T trampa · C cálculo · E ecuación · R rescatar · Esc cancelar. El mouse también sirve.</li>
         </ul>
       </section>
 
@@ -359,6 +361,9 @@
   </div>
 </div>
 
+<!-- Borde rojo (2026-11-24): las orillas se tiñen según el peligro; no tapa clics. -->
+<div id="borde-peligro" aria-hidden="true"></div>
+
 <!-- Susto (2026-11-24): cuando atrapan al jugador 1, el jugador 2 también ve el
      jumpscare. Tapa todo, incluida la tarjeta de fin, y se va solo (susto.js). -->
 <div id="susto" hidden aria-hidden="true">
@@ -370,6 +375,7 @@
 <script src="practica.js"></script>
 <script src="como_jugar.js"></script>
 <script src="susto.js"></script>
+<script src="sonidos.js"></script>
 <script src="operador.js"></script>
 </body>
 </html>

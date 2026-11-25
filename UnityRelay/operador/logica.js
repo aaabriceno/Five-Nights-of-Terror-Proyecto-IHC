@@ -186,6 +186,35 @@
     return { x0: Math.min(...xs) - margen, x1: Math.max(...xs) + margen, z0: Math.min(...zs) - margen, z1: Math.max(...zs) + margen };
   }
 
+  // Atajos de teclado de la sala (2026-11-24): la tecla dice qué botón pulsar.
+  // El mouse sigue igual; esto es para ir más rápido bajo presión. No hay
+  // atajo con Ctrl/Alt/Meta (son del navegador), con la tecla mantenida,
+  // mientras se escribe en un campo, ni con un diálogo encima o sin conexión.
+  const BOTON_DE_TECLA = {
+    "1": "boton-freddy", "2": "boton-vixy", "3": "boton-puppet",
+    t: "boton-trampa", c: "boton-minitarea", e: "boton-ecuacion", r: "boton-rescate",
+  };
+  function accionDeTecla(t) {
+    if (!t || typeof t.key !== "string") return null;
+    if (t.ctrlKey || t.altKey || t.metaKey || t.repeat || t.escribiendo || t.bloqueada) return null;
+    return BOTON_DE_TECLA[t.key.toLowerCase()] || null;
+  }
+
+  // Cuánto rojo va alrededor de la pantalla: "" nada, "alerta" suave,
+  // "peligro" fuerte. Las distancias son las de la señal del mapa (4 m
+  // inestable, 2 m perdida: a punto de atacar).
+  const PELIGRO_CERCA_M = 4;
+  const PELIGRO_ENCIMA_M = 2;
+  const BATERIA_BAJA = 20;
+  function nivelDePeligro(e) {
+    if (!e || !e.enPartida) return "";
+    const distancias = (e.distancias || []).filter((d) => Number.isFinite(d));
+    if (e.puppetFuera || distancias.some((d) => d < PELIGRO_ENCIMA_M)) return "peligro";
+    if (e.cajaEnPeligro || distancias.some((d) => d < PELIGRO_CERCA_M) ||
+        (Number.isFinite(e.bateria) && e.bateria <= BATERIA_BAJA)) return "alerta";
+    return "";
+  }
+
   // Susto del jugador 2 (2026-11-24): la misma regla que RutaDeJumpscare.cs en
   // Unity. Solo los tres animatrónicos con video dan un archivo; cualquier otro
   // texto (el genérico «Animatrónico», vacío, algo con una ruta) da null y se
@@ -215,5 +244,5 @@
     return video > 0 ? Math.max(video, sonido) : Math.max(SUSTO_MINIMO_SIN_VIDEO_S, sonido);
   }
 
-  return { archivoDeSusto, imagenDeSusto, duracionDelSusto, textoDeDucto, puedeRecargar, quedanCalculos, textoDeCalculos, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
+  return { accionDeTecla, nivelDePeligro, archivoDeSusto, imagenDeSusto, duracionDelSusto, textoDeDucto, puedeRecargar, quedanCalculos, textoDeCalculos, textoDeRecarga, piezasValidas, limitesDelMapa, suavizar, crearMedidor, textoDeTarea, leerRespuesta, textoDeEfecto, formatearMulta, textoDeCamara, formatearSegundos };
 });

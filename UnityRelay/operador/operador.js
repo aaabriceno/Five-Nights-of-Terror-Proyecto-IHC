@@ -68,6 +68,13 @@
   const g = lienzo.getContext("2d");
   let avisoHasta = 0;
   let finDePartida = false;           // Unity mandó game_over: no hay nada más que hacer en esta partida
+  // Sala inmersiva (2026-11-24): ondas en el mapa, borde rojo y «señal perdida».
+  const ONDA_MS = 900;
+  const MOVIMIENTO_REDUCIDO = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  let ondas = [];                     // [{x, z, color, desde}] en metros de la escena
+  const trampasPedidas = new Map();   // id de la acción → punto donde se pidió la trampa (Unity no lo repite)
+  let nivelDelBorde = "";
+  const enSenalPerdida = new Set();   // animatrónicos a menos de 2 m: la estática suena al entrar
   let accionPrimaria = "esperar";     // qué hace el botón grande de la pantalla de cierre
   let estuvoConectado = false;        // ya hubo una conexión buena: una caída abre la ventana para volver
   let caidaEn = 0;                    // performance.now() de la caída; 0 si no hay una abierta
@@ -270,9 +277,11 @@
         // `message` de Unity está escrito para el jugador 1.
         const texto = Logica.textoDeEfecto(m, NOMBRES);
         if (texto) avisar(texto);
+        reaccionarAEfecto(m);
         break;
       }
       case "accion_rechazada":
+        Sonidos.sonar("error");
         avisar(`${MOTIVOS[m.motivo] || "Acción rechazada."}${m.espera_s > 0 ? ` Faltan ${Math.ceil(m.espera_s)} s.` : ""}`);
         // Demasiado rápido: la tarea sigue abierta. Cualquier otro rechazo de la terminal la cierra.
         if (m.objetivo === "tarea" && m.motivo !== "tarea_muy_rapida") cerrarMiniTarea();
@@ -336,6 +345,7 @@
     estadoJugador = null; estadoOperador = null; estadoOficina = null;
     pintarOficina();
     ventanaDeRescateHasta = 0;
+    ondas = []; trampasPedidas.clear(); enSenalPerdida.clear();
     $("mapa").dataset.estado = "esperando";
     $("noche").textContent = "–"; $("hora").textContent = "–";
     for (const id of ["j1-mirada", "j1-camara", "j1-tareas", "j1-caja", "cargas", "habilidad"]) $(id).textContent = "–";
@@ -355,6 +365,106 @@
     desconectarAPropósito();
     mostrarMenu(true);
   };
+
+  // ------------------------------------------- sala inmersiva (2026-11-24)
+  // Atajos de teclado, animaciones y sonidos: la respuesta que el jugador 1
+  // tiene en la tablet (vibra y suena), aquí en la consola del jugador 2.
+  const TECLA_DE_BOTON = {};
+  for (const tecla of ["1", "2", "3", "t", "c", "e", "r"]) TECLA_DE_BOTON[Logica.accionDeTecla({ key: tecla })] = tecla.toUpperCase();
+
+  // La tecla se dibuja con CSS (::before) para no tocar el texto del botón.
+  function marcarTecla(boton) {
+    const tecla = boton && TECLA_DE_BOTON[boton.id];
+    if (!tecla) return;
+    boton.dataset.tecla = tecla;
+    boton.setAttribute("aria-keyshortcuts", tecla);
+  }
+
+  // Pone una clase de animación unos ms (si ya estaba, la reinicia).
+  function animar(elemento, clase, ms) {
+    if (!elemento) return;
+    clearTimeout(elemento["fin_" + clase]);
+    elemento.classList.remove(clase);
+    void elemento.offsetWidth;
+    elemento.classList.add(clase);
+    elemento["fin_" + clase] = setTimeout(() => elemento.classList.remove(clase), ms);
+  }
+
+  // La tecla hace lo mismo que el clic; un botón deshabilitado no hace nada.
+  function pulsar(boton) {
+    if (!boton || boton.disabled) return;
+    animar(boton, "pulsado", 180);
+    boton.click();
+  }
+
+  function lanzarOnda(p, color) {
+    if (!p || MOVIMIENTO_REDUCIDO) return;
+    ondas.push({ x: p.x, z: p.z, color, desde: performance.now() });
+  }
+
+  // Lo que Unity confirma se ve y se oye: destello, onda en el mapa y bip.
+  function reaccionarAEfecto(m) {
+    const ahora = performance.now();
+    switch (m.tipo || "ralentizado") {
+      case "ralentizado":
+        animar($("amenaza-" + m.animatronic), "destello", 900);
+        lanzarOnda(posicionActual(m.animatronic, ahora), COLORES[m.animatronic] || "#ffd24a");
+        Sonidos.sonar("accion");
+        break;
+      case "trampa_colocada": {
+        const nombre = trampasPedidas.get(m.id);
+        trampasPedidas.delete(m.id);
+        lanzarOnda(puntos.find((p) => p.nombre === nombre), "#ffd24a");
+        Sonidos.sonar("accion");
+        break;
+      }
+      case "trampa_disparada":
+        lanzarOnda(posicionActual(m.animatronic, ahora), "#ff5a5a");
+        Sonidos.sonar("accion");
+        break;
+      case "puppet_rescatado":
+        Sonidos.sonar("acierto");
+        break;
+    }
+  }
+
+  // Rojo alrededor de la pantalla según el peligro (Logica.nivelDePeligro).
+  function pintarPeligro(ahora) {
+    const enPartida = !!socket && !finDePartida && lienzo.dataset.estado === "listo";
+    const distancias = [];
+    for (const a of estadoMapa.animatronicos || []) {
+      const d = distanciaAlJugador(posicionActual(a.nombre, ahora));
+      distancias.push(d);
+      const perdida = enPartida && d !== null && d < SENAL_PERDIDA_M;
+      if (perdida && !enSenalPerdida.has(a.nombre)) { enSenalPerdida.add(a.nombre); Sonidos.sonar("estatica"); }
+      else if (!perdida) enSenalPerdida.delete(a.nombre);
+    }
+    const nivel = Logica.nivelDePeligro({
+      enPartida,
+      distancias,
+      cajaEnPeligro: !!(estadoJugador && estadoJugador.caja_en_peligro),
+      bateria: estadoOficina ? estadoOficina.bateria : undefined,
+      puppetFuera: ventanaDeRescateHasta > ahora,
+    });
+    if (nivel !== nivelDelBorde) {
+      nivelDelBorde = nivel;
+      $("borde-peligro").dataset.nivel = nivel;
+    }
+  }
+
+  document.addEventListener("keydown", (evento) => {
+    const objetivo = evento.target;
+    const escribiendo = !!objetivo && (objetivo.tagName === "INPUT" || objetivo.tagName === "TEXTAREA" ||
+      objetivo.tagName === "SELECT" || !!objetivo.isContentEditable);
+    const bloqueada = !socket || finDePartida || !$("menu").hidden || !$("como-jugar").hidden || Susto.visible();
+    const id = Logica.accionDeTecla({
+      key: evento.key, ctrlKey: evento.ctrlKey, altKey: evento.altKey, metaKey: evento.metaKey,
+      repeat: evento.repeat, escribiendo, bloqueada,
+    });
+    if (!id) return;
+    evento.preventDefault();
+    pulsar($(id));
+  });
 
   function avisar(texto) {
     const aviso = $("aviso");
@@ -439,7 +549,10 @@
     const restante = Math.max(0, (ventanaDeRescateHasta - ahora) / 1000);
     const alerta = $("alerta-puppet");
     const abierta = restante > 0;
-    if (alerta.hidden === abierta) alerta.hidden = !abierta;
+    if (alerta.hidden === abierta) {
+      alerta.hidden = !abierta;
+      if (abierta) Sonidos.sonar("alarma");          // Puppet salió de la caja
+    }
     const e = estadoOperador;
     if (abierta) {
       const texto = e && e.habilidad_puppet
@@ -489,7 +602,9 @@
       if (d < mejorDistancia) { mejor = p; mejorDistancia = d; }
     }
     if (!mejor) { avisar("Elige uno de los puntos del mapa."); return; }
-    enviar({ type: "accion_operador", accion: "trampa", punto: mejor.nombre, id: siguienteId++ });
+    const id = siguienteId++;
+    trampasPedidas.set(id, mejor.nombre);             // para la onda cuando Unity la confirme
+    enviar({ type: "accion_operador", accion: "trampa", punto: mejor.nombre, id });
     salirDelModoTrampa();
   });
 
@@ -537,12 +652,16 @@
   function resultadoDeTarea(m) {
     cerrarMiniTarea();
     if (m.correcto) {
+      animar($(m.tipo === "calculo" ? "cargas" : "habilidad"), "salto", 700);
+      Sonidos.sonar("acierto");
       avisar(m.tipo === "calculo"
         ? Logica.textoDeRecarga(estadoOperador, estadoOficina ? estadoOficina.bateria : undefined)
         : "Ecuación resuelta: rescate de Puppet desbloqueado");
       return;
     }
     bloqueadoHasta = performance.now() + (m.bloqueo_s || 0) * 1000;
+    animar($("panel-terminal"), "temblor", 600);
+    Sonidos.sonar("error");
     avisar(`Incorrecto: la terminal se bloquea ${Math.ceil(m.bloqueo_s || 0)} s.`);
     pintarBloqueo(performance.now());
   }
@@ -587,6 +706,7 @@
       boton.id = "boton-" + a.nombre;
       boton.textContent = "Retrasar";
       boton.onclick = () => enviar({ type: "accion_operador", accion: "retrasar", objetivo: a.nombre });
+      marcarTecla(boton);
       const detalle = document.createElement("span");
       detalle.className = "detalle";
       detalle.id = "detalle-" + a.nombre;
@@ -771,6 +891,23 @@
       if (!p) continue;
       dibujarAnimatronico(a, p, ahora, razon);
     }
+    dibujarOndas(ahora, razon);
+  }
+
+  // Onda que se abre y se apaga donde pasó algo (retraso, trampa).
+  function dibujarOndas(ahora, razon) {
+    ondas = ondas.filter((o) => ahora - o.desde < ONDA_MS);
+    for (const o of ondas) {
+      const avance = Math.max(0, (ahora - o.desde) / ONDA_MS);
+      const [x, y] = proyectar(o);
+      g.save();
+      g.globalAlpha = 1 - avance;
+      g.strokeStyle = o.color; g.lineWidth = 3 * razon;
+      g.beginPath(); g.arc(x, y, (10 + 46 * avance) * razon, 0, 7); g.stroke();
+      g.restore();
+    }
+    const cuantas = String(ondas.length);
+    if (lienzo.dataset.ondas !== cuantas) lienzo.dataset.ondas = cuantas;
   }
 
   // Lo que ve el jugador 1: un cono desde su posición hacia donde apunta la
@@ -832,6 +969,7 @@
     pintarAmenazas(ahora);
     pintarRescate(ahora);
     pintarBloqueo(ahora);
+    pintarPeligro(ahora);
     if (caidaEn) {
       const quedan = Math.max(0, Math.ceil((VENTANA_PARA_VOLVER_MS - (performance.now() - caidaEn)) / 1000));
       const texto = `SIN SEÑAL · RECONECTANDO · INTENTO ${Math.min(Math.max(intentos, 1), MAX_INTENTOS)} DE ${MAX_INTENTOS} · QUEDAN ${quedan} s`;
@@ -974,6 +1112,9 @@
 
   conectarAviso();
   Susto.precargar();
+  for (const id of ["boton-trampa", "boton-minitarea", "boton-ecuacion", "boton-rescate"]) marcarTecla($(id));
+  $("sonidos").checked = Sonidos.activo();
+  $("sonidos").addEventListener("change", () => Sonidos.activar($("sonidos").checked));
   requestAnimationFrame(cuadro);
   if (parametros.get("auto")) $("conectar").click();
   else mostrarMenu(true);
