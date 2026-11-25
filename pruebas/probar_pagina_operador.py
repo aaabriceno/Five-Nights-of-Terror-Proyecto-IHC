@@ -63,6 +63,7 @@ def levantar_web():
 # ------------------------------------------------------------------ Unity falso
 RECIBIDOS_POR_UNITY = []     # tipos de mensaje que la página le mandó al Unity falso
 RESPUESTAS_DE_TAREA = []     # los `tarea_respuesta` completos
+ACCIONES_RECIBIDAS = []      # los `accion_operador` completos (para saber qué tecla mandó qué)
 ORDENES = None               # cola de órdenes del test al Unity falso: ("fin", resultado) o ("nueva",)
 PUNTOS = [{"nombre": f"Punto{i}", "x": float(i * 3), "z": float((i % 2) * 4)} for i in range(5)]
 RUTAS = [{"animatronico": "freddy", "puntos": ["Punto0", "Punto1", "Punto2"]},
@@ -182,6 +183,8 @@ async def unity_falso(socket, primero):
         async for crudo in mensajes_desde(socket, primero):
             mensaje = json.loads(crudo)
             RECIBIDOS_POR_UNITY.append(mensaje.get("type"))
+            if mensaje.get("type") == "accion_operador":
+                ACCIONES_RECIBIDAS.append(mensaje)
             if mensaje.get("type") == "operador_connect":
                 envios.append(asyncio.ensure_future(posiciones()))
                 await asyncio.sleep(0.3)           # el mapa llega DESPUÉS de las primeras posiciones
@@ -729,8 +732,134 @@ async def principal(captura):
                   await esperar(lambda: (navegador.texto("calculos") or "") == "3 / 3"
                                 and navegador.ejecutar(habilitado("boton-minitarea")), 4.0))
 
-        # --- fin de la partida: el jugador 2 no se queda con la pantalla congelada ---
+        # --- sala inmersiva (2026-11-24): teclas, sonidos, borde rojo y animaciones ---
         js = lambda codigo: navegador.ejecutar(codigo)
+
+        def tecla(key, **extra):
+            """Pulsa una tecla sobre lo que tenga el foco, como haría el teclado."""
+            return navegador.ejecutar(
+                "var o=arguments[1]||{};o.key=arguments[0];o.bubbles=true;o.cancelable=true;"
+                "var t=document.activeElement||document.body;t.dispatchEvent(new KeyboardEvent('keydown',o));"
+                "return t.id||t.tagName;", [key, extra])
+
+        sonidos = lambda: navegador.ejecutar("return window.Sonidos ? Sonidos.historial() : [];")
+        nivel = lambda: navegador.ejecutar("return document.getElementById('borde-peligro') ? "
+                                           "document.getElementById('borde-peligro').dataset.nivel || '' : null;")
+        etiquetas = {"boton-freddy": "1", "boton-vixy": "2", "boton-puppet": "3", "boton-trampa": "T",
+                     "boton-minitarea": "C", "boton-ecuacion": "E", "boton-rescate": "R"}
+        comprobar("cada botón muestra su tecla y la anuncia (aria-keyshortcuts)", all(navegador.ejecutar(
+            "var b=document.getElementById(arguments[0]);if(!b)return false;"
+            "return getComputedStyle(b,'::before').content.indexOf(arguments[1])>=0"
+            " && b.getAttribute('aria-keyshortcuts')===arguments[1];", [boton, key])
+            for boton, key in etiquetas.items()))
+        comprobar("el texto de los botones no cambia por la etiqueta de la tecla",
+                  (navegador.texto("boton-freddy") or "") == "Retrasar"
+                  and (navegador.texto("boton-minitarea") or "") == "Resolver cálculo")
+
+        ORDENES.put_nowait(("raw", {"type": "estado_mapa", "partida_activa": True, "noche": 3, "hora": "1:00 AM",
+                                    "animatronicos": [{"nombre": n, "x": 1.0, "z": 1.0, "retraso_s": 0, "espera_s": 0}
+                                                      for n in ("freddy", "vixy", "puppet")],
+                                    "timestamp": int(time.time() * 1000)}))
+        ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 2, "max_cargas": 3, "trampas": [],
+                                    "progreso": 0, "necesario": 1, "habilidad_puppet": True, "bloqueo_s": 0,
+                                    "ventana_rescate_s": 0, "multa_factor": 1, "calculos_restantes": 3,
+                                    "calculos_de_la_noche": 3}))
+        await esperar(lambda: js("return !document.getElementById('boton-freddy').disabled;"), 3.0)
+        js("if (document.activeElement) document.activeElement.blur();")
+        antes = len(ACCIONES_RECIBIDAS)
+        pulsado = navegador.ejecutar(
+            "document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'1',bubbles:true,cancelable:true}));"
+            "return document.getElementById('boton-freddy').classList.contains('pulsado');")
+        comprobar("la tecla 1 retrasa a Freddy", await esperar(
+            lambda: len(ACCIONES_RECIBIDAS) > antes and ACCIONES_RECIBIDAS[-1].get("accion") == "retrasar"
+            and ACCIONES_RECIBIDAS[-1].get("objetivo") == "freddy", 2.0))
+        comprobar("y el botón se ve hundido, como si lo hubieras pulsado", pulsado)
+        antes = len(ACCIONES_RECIBIDAS)
+        tecla("2", ctrlKey=True)
+        tecla("3", repeat=True)
+        await asyncio.sleep(0.6)
+        comprobar("Ctrl+2 y una tecla mantenida no mandan nada", len(ACCIONES_RECIBIDAS) == antes)
+
+        pedidos = RECIBIDOS_POR_UNITY.count("tarea_pedir")
+        tecla("c")
+        comprobar("la tecla C abre la terminal y pide un cálculo",
+                  await esperar(lambda: js(visible_terminal) and RECIBIDOS_POR_UNITY.count("tarea_pedir") > pedidos, 3.0))
+        await esperar(lambda: js("return document.activeElement && document.activeElement.id==='mt-respuesta';"), 3.0)
+        antes = len(ACCIONES_RECIBIDAS)
+        donde = tecla("1")
+        await asyncio.sleep(0.6)
+        comprobar(f"escribir 1 en la respuesta no retrasa a nadie (tecla en {donde})",
+                  donde == "mt-respuesta" and len(ACCIONES_RECIBIDAS) == antes)
+        tecla("Escape")
+        comprobar("Esc cierra la terminal", await esperar(lambda: js(oculta_terminal), 2.0))
+
+        js("if (document.activeElement) document.activeElement.blur();")
+        tecla("t")
+        comprobar("la tecla T entra al modo trampa", js("return document.getElementById('mapa').dataset.modo==='trampa';"))
+        tecla("T")
+        comprobar("y otra T sale", js("return document.getElementById('mapa').dataset.modo!=='trampa';"))
+
+        js("document.getElementById('ayuda').click();")
+        antes = len(ACCIONES_RECIBIDAS)
+        tecla("2")
+        await asyncio.sleep(0.6)
+        comprobar("con «Cómo jugar» abierto las teclas no hacen nada", abierto() and len(ACCIONES_RECIBIDAS) == antes)
+        tecla("Escape")
+        comprobar("«Cómo jugar» dice cuáles son las teclas",
+                  "1 2 3" in (js("return document.getElementById('cj-diapositiva-8').textContent;") or ""))
+
+        # Borde rojo: Puppet (en el Unity falso) está a 3,4 m del jugador 1 → alerta.
+        comprobar("con un animatrónico a menos de 4 m, el borde se pone rojo suave (alerta)",
+                  await esperar(lambda: nivel() == "alerta", 3.0))
+        comprobar("el borde rojo no tapa clics y queda debajo del susto",
+                  js("var b=document.getElementById('borde-peligro'),s=document.getElementById('susto');"
+                     "return getComputedStyle(b).pointerEvents==='none'"
+                     " && parseInt(getComputedStyle(b).zIndex) < parseInt(getComputedStyle(s).zIndex);"))
+        ORDENES.put_nowait(("raw", {"type": "estado_operador", "cargas": 2, "max_cargas": 3, "trampas": [],
+                                    "progreso": 1, "necesario": 1, "habilidad_puppet": True, "bloqueo_s": 0,
+                                    "ventana_rescate_s": 2.5, "multa_factor": 1, "calculos_restantes": 3,
+                                    "calculos_de_la_noche": 3}))
+        comprobar("si Puppet sale de la caja, el borde late en rojo fuerte (peligro)",
+                  await esperar(lambda: nivel() == "peligro", 2.0))
+        comprobar("y suena la alarma", await esperar(lambda: "alarma" in sonidos(), 2.0))
+        js("if (document.activeElement) document.activeElement.blur();")
+        await esperar(lambda: js("return !document.getElementById('boton-rescate').disabled;"), 2.0)
+        antes = len(ACCIONES_RECIBIDAS)
+        tecla("r")
+        comprobar("la tecla R rescata a Puppet", await esperar(
+            lambda: len(ACCIONES_RECIBIDAS) > antes and ACCIONES_RECIBIDAS[-1].get("accion") == "rescatar_puppet", 2.0))
+        comprobar("al cerrarse la ventana de rescate vuelve a alerta",
+                  await esperar(lambda: nivel() == "alerta", 5.0))
+
+        # Animaciones y sonidos que responden a lo que confirma Unity.
+        cuantos = len(sonidos())
+        ORDENES.put_nowait(("raw", {"type": "efecto", "animatronic": "freddy", "tipo": "ralentizado",
+                                    "segundos": 8, "message": "Tu compañero retrasó a Freddy", "id": 0}))
+        comprobar("al confirmar el retraso, la fila de Freddy destella",
+                  await esperar(lambda: js("return document.getElementById('amenaza-freddy').classList.contains('destello');"), 2.0))
+        comprobar("y su punto del mapa lanza una onda",
+                  await esperar(lambda: int(js("return document.getElementById('mapa').dataset.ondas||'0';")) > 0, 2.0))
+        comprobar("y suena el bip de acción", "accion" in sonidos()[cuantos:])
+        ORDENES.put_nowait(("raw", {"type": "tarea_resultado", "id": 1, "tipo": "calculo", "correcto": True, "bloqueo_s": 0}))
+        comprobar("al acertar un cálculo el contador de trampas da un salto y suena el acierto",
+                  await esperar(lambda: js("return document.getElementById('cargas').classList.contains('salto');")
+                                and "acierto" in sonidos(), 2.0))
+        ORDENES.put_nowait(("raw", {"type": "tarea_resultado", "id": 1, "tipo": "calculo", "correcto": False, "bloqueo_s": 0}))
+        comprobar("al fallar, la terminal tiembla y suena el error",
+                  await esperar(lambda: js("return document.getElementById('panel-terminal').classList.contains('temblor');")
+                                and "error" in sonidos(), 2.0))
+        js("var c=document.getElementById('sonidos');c.checked=false;c.dispatchEvent(new Event('change'));")
+        cuantos = len(sonidos())
+        ORDENES.put_nowait(("raw", {"type": "efecto", "animatronic": "vixy", "tipo": "ralentizado",
+                                    "segundos": 8, "message": "x", "id": 0}))
+        await esperar(lambda: js("return document.getElementById('amenaza-vixy').classList.contains('destello');"), 2.0)
+        comprobar("con «Sonidos de la sala» apagado en Opciones no suena nada",
+                  len(sonidos()) == cuantos and js("return Sonidos.activo();") is False)
+        js("var c=document.getElementById('sonidos');c.checked=true;c.dispatchEvent(new Event('change'));")
+        errores = navegador.ejecutar("return (window.__errores || []).length;")
+        comprobar(f"sin errores de JavaScript con teclas, sonidos y animaciones (errores: {errores})", errores == 0)
+
+        # --- fin de la partida: el jugador 2 no se queda con la pantalla congelada ---
         visible = "var f=document.getElementById('fin-partida');return !!f && !f.hidden;"
         susto = "var s=document.getElementById('susto');return !!s && !s.hidden;"
         dato = lambda clave: navegador.ejecutar(
@@ -775,6 +904,7 @@ async def principal(captura):
                   js("return getComputedStyle(document.documentElement).overflow !== 'hidden';"))
         comprobar("al morir el jugador 1 aparece #fin-partida",
                   await esperar(lambda: js(visible), 5.0))
+        comprobar("terminada la partida, el borde rojo se apaga", await esperar(lambda: nivel() == "", 2.0))
         comprobar("el fin dice que el jugador 1 fue atrapado",
                   "ATRAPADO" in (navegador.texto("fin-detalle") or "").upper())
         comprobar("el fin muestra la duración 2:05 y las tareas",
