@@ -34,6 +34,19 @@ public static class PruebaRutaDeJumpscare
         Comprobar("la lista de animatrónicos son los tres",
             RutaDeJumpscare.Animatronicos.Length == 3);
 
+        // Cara de respaldo (2026-11-24): se ve al instante y queda si el video falla.
+        Comprobar("Freddy -> recurso jumpscare_freddy (su cara)",
+            RutaDeJumpscare.NombreDeImagen("Freddy") == "jumpscare_freddy");
+        Comprobar("Vixy -> jumpscare_vixy y Puppet -> jumpscare_puppet",
+            RutaDeJumpscare.NombreDeImagen(" vixy ") == "jumpscare_vixy"
+            && RutaDeJumpscare.NombreDeImagen("PUPPET") == "jumpscare_puppet");
+        Comprobar("el genérico, vacío, null o una ruta usan la imagen general",
+            RutaDeJumpscare.NombreDeImagen("Animatrónico") == RutaDeJumpscare.ImagenGeneral
+            && RutaDeJumpscare.NombreDeImagen("") == RutaDeJumpscare.ImagenGeneral
+            && RutaDeJumpscare.NombreDeImagen(null) == RutaDeJumpscare.ImagenGeneral
+            && RutaDeJumpscare.NombreDeImagen("../freddy") == RutaDeJumpscare.ImagenGeneral);
+        Comprobar("la imagen general es desktop_jumpscare", RutaDeJumpscare.ImagenGeneral == "desktop_jumpscare");
+
         Console.WriteLine();
         Console.WriteLine(fallos == 0 ? "Todas las pruebas pasaron." : fallos + " prueba(s) fallaron.");
         return fallos == 0 ? 0 : 1;

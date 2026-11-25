@@ -63,6 +63,12 @@ def principal():
         comprobar("la imagen fija se sirve como image/jpeg",
                   codigo == 200 and cabeceras.get("Content-Type") == "image/jpeg"
                   and cuerpo == (RECURSOS / "desktop_jumpscare.jpg").read_bytes())
+        for animatronico in ("freddy", "vixy", "puppet"):
+            archivo = f"jumpscare_{animatronico}.jpg"
+            codigo, cabeceras, cuerpo = pedir(puerto, f"/sustos/{archivo}")
+            comprobar(f"/sustos/{archivo} es la cara de respaldo de Unity, como image/jpeg",
+                      codigo == 200 and cabeceras.get("Content-Type") == "image/jpeg"
+                      and cuerpo == (RECURSOS / archivo).read_bytes())
         codigo, _, _ = pedir(puerto, "/sustos/jumpscare_freddy.webm?v=1")
         comprobar("una consulta (?v=1) no cambia el archivo", codigo == 200)
 

@@ -743,6 +743,10 @@ async def principal(captura):
         comprobar("al atrapar al jugador 1, el jugador 2 ve el susto al instante (≤ 1 s)",
                   await esperar(lambda: js(susto), 1.0))
         comprobar("el susto es el de Freddy, en video", dato("animatronico") == "freddy" and dato("modo") == "video")
+        cara_lista = ("var i=document.getElementById('susto-imagen');"
+                      "return !i.hidden && i.complete && i.naturalWidth > 0;")
+        comprobar("la cara de Freddy ya está cargada y visible desde el primer instante, debajo del video",
+                  dato("imagen") == "jumpscare_freddy.jpg" and js(cara_lista))
         comprobar("el video del susto se está reproduciendo",
                   await esperar(lambda: js("var v=document.getElementById('susto-video');"
                                            "return !v.hidden && (!v.paused || v.currentTime > 0);"), 1.0))
@@ -756,6 +760,8 @@ async def principal(captura):
         comprobar("el susto va encima de la tarjeta de fin, la mini-tarea y el aviso del compañero",
                   js("var z=function(id){return parseInt(getComputedStyle(document.getElementById(id)).zIndex)||0;};"
                      "var s=z('susto');return s>z('fin-partida') && s>z('minitarea') && s>z('aviso-companero');"))
+        comprobar("encima de la cara se ve el video",
+                  js("var e=document.elementFromPoint(innerWidth/2, innerHeight/2);return !!e && e.id==='susto-video';"))
         comprobar("en el centro y en las esquinas lo que se ve es el susto",
                   js("var s=document.getElementById('susto');"
                      "var w=innerWidth,h=innerHeight;"
@@ -789,10 +795,9 @@ async def principal(captura):
                                 and (navegador.texto("noche") or "") == "3", 5.0))
         # Un atacante sin video (el genérico «Animatrónico») muestra la imagen fija.
         ORDENES.put_nowait(("ataque", "Animatrónico"))
-        comprobar("sin video para el atacante, el susto es la imagen fija",
+        comprobar("sin video para el atacante, el susto es la imagen de respaldo general",
                   await esperar(lambda: js(susto), 1.0) and dato("modo") == "imagen"
-                  and js("var i=document.getElementById('susto-imagen');"
-                         "return !i.hidden && i.complete && i.naturalWidth > 0;")
+                  and dato("imagen") == "desktop_jumpscare.jpg" and js(cara_lista)
                   and js("return document.getElementById('susto-video').hidden;"))
         comprobar("la imagen fija también se va sola (≤ 3 s)", await esperar(lambda: not js(susto), 3.0))
         # El navegador no deja sonar el grito (no hubo clic): el susto se ve igual.
@@ -802,9 +807,19 @@ async def principal(captura):
            "  return window.__playOriginal.apply(this, arguments); };")
         ORDENES.put_nowait(("ataque", "Vixy"))
         comprobar("si el navegador bloquea el grito, el susto de Vixy se ve igual",
-                  await esperar(lambda: js(susto), 1.0) and dato("animatronico") == "vixy" and dato("modo") == "video"
+                  await esperar(lambda: js(susto), 1.0) and dato("animatronico") == "vixy" and dato("modo") == "video" and dato("imagen") == "jumpscare_vixy.jpg"
                   and await esperar(lambda: dato("sonido") == "bloqueado", 1.0))
         comprobar("y se va solo (≤ 3 s)", await esperar(lambda: not js(susto), 3.0))
+        # Ahora es el video el que no se puede reproducir: queda la cara de ese animatrónico.
+        js("HTMLMediaElement.prototype.play = function () {"
+           "  if (this instanceof HTMLVideoElement) return Promise.reject(new DOMException('roto', 'NotSupportedError'));"
+           "  return window.__playOriginal.apply(this, arguments); };")
+        ORDENES.put_nowait(("ataque", "Puppet"))
+        comprobar("si el video de Puppet no se reproduce, queda la cara de Puppet",
+                  await esperar(lambda: js(susto) and dato("modo") == "imagen", 1.0)
+                  and dato("imagen") == "jumpscare_puppet.jpg" and js(cara_lista)
+                  and js("return document.getElementById('susto-video').hidden;"))
+        comprobar("y también se va solo (≤ 3 s)", await esperar(lambda: not js(susto), 3.0))
         js("HTMLMediaElement.prototype.play = window.__playOriginal;")
         errores = navegador.ejecutar("return (window.__errores || []).length;")
         comprobar(f"sin errores de JavaScript con el susto (errores: {errores})", errores == 0)
